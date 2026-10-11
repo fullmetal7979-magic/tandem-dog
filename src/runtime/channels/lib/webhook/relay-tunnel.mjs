@@ -18,8 +18,9 @@ import { armLegHeartbeat } from './relay-tunnel/leg-heartbeat.mjs';
 
 export { MAX_TUNNEL_BODY_BYTES } from './relay-tunnel/limits.mjs';
 
-/** Packaged default mirrors the desktop pairing relay. */
-const DEFAULT_RELAY_URL = 'wss://192-255-139-161.sslip.io';
+/** Tandem Dog fork: no default relay. Upstream's relay belongs to upstream;
+ *  set MIXDOG_RELAY_URL to a relay you run to enable webhook tunnelling. */
+const DEFAULT_RELAY_URL = '';
 const HOP_HEADERS = new Set([
   'host',
   'connection',
@@ -34,6 +35,7 @@ export function resolveHookRelayUrl(env = process.env) {
   const raw = String(env.MIXDOG_RELAY_URL || '').trim();
   const flag = raw.toLowerCase();
   if (flag === '0' || flag === 'false' || flag === 'off') return null;
+  if (!raw && !DEFAULT_RELAY_URL) return null;
   let url;
   try {
     url = new URL(raw || DEFAULT_RELAY_URL);

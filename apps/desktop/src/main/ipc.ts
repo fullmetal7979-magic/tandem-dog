@@ -20,11 +20,18 @@ import { DesktopStateBridge, type DesktopUpdater } from './ipc-state-bridge';
 import { registerTerminalIpc, type DesktopTerminalHost } from './ipc-terminal';
 import { registerWindowSettingsIpc } from './ipc-window-settings';
 import { SelectedFileAccess } from './selected-file-access';
+import { registerTandemIpc } from './ipc-tandem';
 
 /** A sender-guarded `ipcMain.handle`, shared by every handler family. */
 export type IpcHandle = (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) => void;
 
 const SERVICE_OPERATION_NAMES = [
+  'tandemOverview',
+  'tandemLeave',
+  'tandemResume',
+  'tandemSetDesk',
+  'tandemContext',
+  'tandemSaveSession',
   'githubStarStatus',
   'starGithub',
   'gitCliStatus',
@@ -243,6 +250,7 @@ export function registerDesktopIpc(
     shell,
     grantedFile,
   });
+  registerTandemIpc({ handle, operations: serviceOperations });
   const eventChannels = new Set<string>([
     DESKTOP_IPC.state,
     DESKTOP_IPC.sessionState,

@@ -358,6 +358,12 @@ const api: DesktopApi = {
   subscribeTermData: (listener) => subscribeIpc(DESKTOP_IPC.termData, listener),
   gitStatus: (cwd, options) => ipcRenderer.invoke(DESKTOP_IPC.gitStatus, cwd, options),
   gitBranches: (cwd) => ipcRenderer.invoke(DESKTOP_IPC.gitBranches, cwd),
+  tandemOverview: (cwd, options) => ipcRenderer.invoke(DESKTOP_IPC.tandemOverview, cwd, options),
+  tandemLeave: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemLeave, cwd, request),
+  tandemResume: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemResume, cwd, request),
+  tandemSetDesk: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemSetDesk, cwd, request),
+  tandemContext: (cwd) => ipcRenderer.invoke(DESKTOP_IPC.tandemContext, cwd),
+  tandemSaveSession: (cwd, session) => ipcRenderer.invoke(DESKTOP_IPC.tandemSaveSession, cwd, session),
   gitCheckoutBranch: (cwd, branch, remote) =>
     ipcRenderer.invoke(DESKTOP_IPC.gitCheckoutBranch, cwd, branch, remote === true),
   gitCreateBranch: (cwd, branch) => ipcRenderer.invoke(DESKTOP_IPC.gitCreateBranch, cwd, branch),

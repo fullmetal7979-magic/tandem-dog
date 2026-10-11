@@ -1,6 +1,9 @@
 import type { DesktopApi } from '../../shared/contract';
+import { REPO_NAME, REPO_OWNER } from '../../shared/fork-identity';
 
-const STARRED_KEY = 'mixdog.desktop.github-starred.tribgames.mixdog';
+// Keyed by the fork repository so a star recorded for upstream Mixdog (or for
+// a different fork owner) never paints "Starred" here.
+const STARRED_KEY = `tandemdog.desktop.github-starred.${REPO_OWNER}.${REPO_NAME}`;
 
 export function readGithubStarred(): boolean {
   try {

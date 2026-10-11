@@ -19,7 +19,27 @@ window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventL
 window.mixdogDesktop = { setTitleBarDimmed() {}, rendererDiagnostic() {} };
 
 const { createRoot } = await import('react-dom/client');
-const { AboutPanel } = await import('./about-panel.tsx');
+const { FeedbackDialog } = await import('./feedback-dialog.tsx');
+
+// The fork's About panel no longer offers the relay-backed feedback form (it
+// posted to upstream infrastructure), so this stand-in plays the opener the
+// dialog used to get from it. The dialog itself stays covered for a future
+// fork-operated feedback backend.
+function FeedbackOpener() {
+  const [opened, setOpened] = React.useState(false);
+  const host = window.mixdogDesktop;
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement('button', { type: 'button', onClick: () => setOpened(true) }, 'Give feedback'),
+    opened
+      ? React.createElement(FeedbackDialog, {
+          submit: host?.submitFeedback ? (input) => host.submitFeedback(input) : undefined,
+          onClose: () => setOpened(false),
+        })
+      : null
+  );
+}
 
 function deferred() {
   let resolve;
@@ -37,7 +57,7 @@ async function setup(t, submitFeedback) {
   const host = document.createElement('main');
   document.body.append(host);
   const root = createRoot(host);
-  await act(async () => root.render(React.createElement(AboutPanel)));
+  await act(async () => root.render(React.createElement(FeedbackOpener)));
   t.after(async () => {
     await act(async () => root.unmount());
     host.remove();

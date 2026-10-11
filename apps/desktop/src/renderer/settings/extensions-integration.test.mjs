@@ -37,6 +37,7 @@ const { adoptSidebarReferenceHost, resetSidebarReferenceCache, updateSidebarRefe
   '../sidebar-reference-cache.ts'
 );
 const { CategoryPanel } = await import('./capability-panels.tsx');
+const { ISSUES_URL, REPO_URL } = await import('../../shared/fork-identity.ts');
 
 function panelContext(overrides = {}) {
   return {
@@ -128,7 +129,7 @@ async function renderPanel(category, overrides = {}) {
   };
 }
 
-test('About keeps GitHub and issue links without a sponsorship option', async (t) => {
+test('About points GitHub and issue links at the fork, with no upstream feedback relay or sponsorship option', async (t) => {
   const previousApi = window.mixdogDesktop;
   const opened = [];
   window.mixdogDesktop = {
@@ -147,20 +148,17 @@ test('About keeps GitHub and issue links without a sponsorship option', async (t
   const buttons = [...panel.host.querySelectorAll('button')];
   assert.deepEqual(
     buttons.map((button) => button.textContent.trim()),
-    ['Star on GitHub ↗', 'Open ↗', 'Issues ↗', 'Give feedback', 'View changelog']
+    ['Star on GitHub ↗', 'Open ↗', 'Issues ↗', 'View changelog']
   );
-  assert.doesNotMatch(panel.host.textContent, /Contact support|Email ↗|Copy/);
+  // The relay-backed feedback form posted to upstream infrastructure; the fork
+  // routes bug reports and suggestions to its own GitHub issues instead.
+  assert.doesNotMatch(panel.host.textContent, /Contact support|Email ↗|Copy|Give feedback/);
   for (const button of buttons.slice(0, 3)) {
     await act(async () => button.click());
   }
-  assert.deepEqual(opened, [
-    'https://github.com/tribgames/mixdog',
-    'https://github.com/tribgames/mixdog',
-    'https://github.com/tribgames/mixdog/issues',
-  ]);
-  await act(async () => buttons[3].click());
-  assert.ok(document.querySelector('[role="dialog"][data-settings-nested-dialog]'));
-  assert.equal(opened.length, 3);
+  assert.deepEqual(opened, [REPO_URL, REPO_URL, ISSUES_URL]);
+  assert.ok(opened.every((url) => !/tribgames/i.test(url)));
+  assert.equal(document.querySelector('[role="dialog"][data-settings-nested-dialog]'), null);
 });
 
 test('extension settings routes collapse into Plugin and Skill', () => {

@@ -31,6 +31,7 @@ import { loginShellOverrides, readLoginShellEnvironment } from './login-shell-en
 import { createTurnAttention, type TurnAttention } from './turn-attention';
 import { createDesktopTurnNotifier } from './desktop-turn-notifier';
 import { desktopIdentity } from './desktop-identity';
+import { APP_NAME, USER_DATA_DIR_NAME } from '../shared/fork-identity';
 import { notificationSoundPath, playWindowsNotificationSound } from './notification-sound';
 import { activateDesktopWindow, openDesktopNotificationSession } from './notification-window';
 import { createIdleReclaim, purgeRendererMemory, type IdleReclaim } from './idle-reclaim';
@@ -114,12 +115,12 @@ const DESKTOP_WINDOW_SHOW_DEADLINE_MS = 3_000;
 // Profile identity. Unpackaged shells (electron-vite dev/preview, source-mode
 // E2E) derive userData from this package's name (@mixdog/desktop), so every
 // dev run landed in a SEPARATE Chromium profile from the installed app
-// (extraMetadata.name = mixdog-desktop). Recent models, the last
+// (extraMetadata.name = tandem-dog-desktop, see shared/fork-identity.ts). Recent models, the last
 // session/project, and window state therefore started empty each time — the
 // New task composer read "Select model" even though the installed app had a
 // route. Pin the dev profile to the packaged one; MIXDOG_DESKTOP_USER_DATA
 // still isolates a run explicitly (throwaway profiles, migration tests).
-const PACKAGED_USER_DATA_DIRECTORY = 'mixdog-desktop';
+const PACKAGED_USER_DATA_DIRECTORY = USER_DATA_DIR_NAME;
 if (process.env.MIXDOG_DESKTOP_USER_DATA) {
   app.setPath('userData', resolve(process.env.MIXDOG_DESKTOP_USER_DATA));
   // An isolated profile holds its own single-instance lock, so it can run
@@ -150,7 +151,7 @@ if (process.platform === 'win32') {
     // but Mixdog never uploads a user's dump without an explicit future policy.
     crashReporter.start({
       uploadToServer: false,
-      productName: 'Mixdog',
+      productName: APP_NAME,
       globalExtra: { bootId: desktopBootId },
     });
     crashReporterStatus = 'local';

@@ -6,6 +6,8 @@ import * as editorBackups from './editor-backups';
 import * as gh from './gh-cli';
 import * as git from './git-cli';
 import * as github from './github-cli';
+import * as tandem from './tandem-service';
+import { REPO_SLUG } from '../shared/fork-identity';
 import { createGithubService } from './github-service';
 import { LanguageServerManager } from './language-server-manager';
 import * as localFiles from './local-files';
@@ -44,7 +46,7 @@ interface DesktopOperationsOptions {
   emit(event: DesktopOperationEvent): void;
 }
 
-const GITHUB_REPO_SLUG = 'tribgames/mixdog';
+const GITHUB_REPO_SLUG = REPO_SLUG;
 
 function runGh(args: string[]): Promise<{ ok: boolean; stderr: string }> {
   return new Promise((done) => {
@@ -196,6 +198,12 @@ export function createFolderWatchRegistry(
 }
 
 const STATIC_OPERATIONS = {
+  tandemOverview: tandem.tandemOverview,
+  tandemLeave: tandem.tandemLeave,
+  tandemResume: tandem.tandemResume,
+  tandemSetDesk: tandem.tandemSetDesk,
+  tandemContext: tandem.tandemContext,
+  tandemSaveSession: tandem.tandemSaveSession,
   deleteEditorBackup: editorBackups.deleteEditorBackup,
   ghPrCheckout: gh.ghPrCheckout,
   ghPrCreate: gh.ghPrCreate,

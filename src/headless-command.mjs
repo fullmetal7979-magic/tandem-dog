@@ -99,6 +99,11 @@ function execFromPositional(positional) {
 }
 
 export function classifyCliInvocation(argv = []) {
+  // `mixdog tandem <sub> ...` owns the rest of argv (memos may look like
+  // options) and never starts the TUI or touches the host data tree.
+  if (roleKey(argv[0]) === 'tandem') {
+    return { kind: 'tandem', tandem: { args: argv.slice(1).map(String) }, options: {}, skipHostPrelude: true };
+  }
   const hasHelp = argv.includes('--help') || argv.includes('-h');
   const hasPlain = argv.includes('--plain');
   const parsed = parseTokens(argv, { strictValues: !hasHelp && !hasPlain });

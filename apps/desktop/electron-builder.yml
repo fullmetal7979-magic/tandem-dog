@@ -1,6 +1,10 @@
-appId: io.mixdog.desktop
-productName: Mixdog
-artifactName: mixdog-desktop-${os}-${arch}.${ext}
+# Fork identity (Tandem Dog). This file cannot import TypeScript, so these
+# literals mirror src/shared/fork-identity.ts; packaging.test.mjs fails when
+# the two drift apart. Side-by-side with upstream Mixdog needs a distinct appId
+# (Windows AUMID, macOS bundle id), protocol scheme and userData name.
+appId: io.tandemdog.desktop
+productName: Tandem Dog
+artifactName: tandem-dog-desktop-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   # The singleton service may be owned by the plain Node CLI. Keep its one-file
@@ -18,11 +22,11 @@ asarUnpack:
 npmRebuild: false
 nodeGypRebuild: false
 extraMetadata:
-  name: mixdog-desktop
+  name: tandem-dog-desktop
 protocols:
-  name: Mixdog
+  name: Tandem Dog
   schemes:
-    - mixdog
+    - tandemdog
 directories:
   buildResources: build
 files:
@@ -96,14 +100,16 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    NSMicrophoneUsageDescription: Mixdog uses the microphone for voice dictation.
-    NSAppleEventsUsageDescription: Mixdog uses AppleScript to show native folder pickers and read clipboard attachments.
+    NSMicrophoneUsageDescription: Tandem Dog uses the microphone for voice dictation.
+    NSAppleEventsUsageDescription: Tandem Dog uses AppleScript to show native folder pickers and read clipboard attachments.
 linux:
   category: Development
   target:
     - AppImage
+# No owner/repo on purpose: this fork must never publish to, or auto-update
+# from, upstream Mixdog. CI passes -c.publish.owner / -c.publish.repo (see
+# .github/workflows/desktop-package.yml); a local build falls back to the
+# checkout's git origin remote. verify-update-metadata.mjs checks the result.
 publish:
   provider: github
-  owner: tribgames
-  repo: mixdog
   channel: latest

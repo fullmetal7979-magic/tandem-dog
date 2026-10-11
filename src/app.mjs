@@ -112,6 +112,11 @@ export async function run(argv = [], classifiedInvocation = null) {
     process.stderr.write(`mixdog: ${invocation.error}\n`);
     return 1;
   }
+  // `mixdog tandem <sub>`: one coding session across PCs and AI accounts.
+  if (invocation.kind === 'tandem') {
+    const { runTandemCli } = await import('./runtime/tandem/tandem-cli.mjs');
+    return await runTandemCli(invocation.tandem.args, { cwd: process.cwd() });
+  }
   const opts = invocation.options;
 
   // `--help` / `-h`: keep this path tiny; do not import the REPL/runtime stack.

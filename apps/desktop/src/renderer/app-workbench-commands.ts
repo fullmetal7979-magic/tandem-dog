@@ -172,6 +172,12 @@ export function buildAppWorkbenchCommands({
       },
     },
     {
+      id: 'workbench.action.showTandem',
+      category: 'View',
+      label: 'Open Tandem',
+      run: () => openDockTab('tandem'),
+    },
+    {
       id: 'workbench.action.showSourceControl',
       category: 'View',
       label: 'Show Source Control',

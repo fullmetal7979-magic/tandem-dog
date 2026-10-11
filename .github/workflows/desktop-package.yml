@@ -27,6 +27,28 @@ on:
       target:
         required: true
         type: string
+      # Branding and update-feed overrides for forks. They must match
+      # electron-builder.yml (productName / artifactName prefix). The defaults
+      # keep the upstream Mixdog behaviour for callers that pass nothing.
+      product_name:
+        required: false
+        type: string
+        default: Mixdog
+      artifact_prefix:
+        required: false
+        type: string
+        default: mixdog-desktop
+      # electron-builder publish target (-c.publish.owner / -c.publish.repo),
+      # which becomes the packaged app-update.yml feed. Empty leaves
+      # electron-builder.yml and the checkout's git remote in charge.
+      publish_owner:
+        required: false
+        type: string
+        default: ""
+      publish_repo:
+        required: false
+        type: string
+        default: ""
     # Developer ID signing and notarization for the macOS package. Only the
     # darwin caller passes them; without the full set the app stays unsigned.
     secrets:
@@ -188,6 +210,8 @@ jobs:
           # Repository variable: the certificate subject CN, which
           # electron-builder requires as azureSignOptions.publisherName.
           AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
+          PUBLISH_OWNER: ${{ inputs.publish_owner }}
+          PUBLISH_REPO: ${{ inputs.publish_repo }}
         run: |
           # Sign through Azure Artifact Signing only with the complete service
           # principal set plus the publisher name; electron-builder's
@@ -213,14 +237,18 @@ jobs:
             exit 1
           }
           "signed=$signed" >> $env:GITHUB_OUTPUT
+          $publishArgs = @()
+          if ($env:PUBLISH_OWNER -and $env:PUBLISH_REPO) {
+            $publishArgs = @("-c.publish.owner=$env:PUBLISH_OWNER", "-c.publish.repo=$env:PUBLISH_REPO")
+          }
           npm run brand:win
-          npx --no-install electron-builder --win --x64 --publish never @signArgs
+          npx --no-install electron-builder --win --x64 --publish never @signArgs @publishArgs
       - name: Verify Windows signatures
         if: inputs.platform == 'win32' && steps.windows-package.outputs.signed == 'true'
         shell: pwsh
         working-directory: apps/desktop
         run: |
-          foreach ($file in 'dist/win-unpacked/Mixdog.exe', 'dist/mixdog-desktop-win-x64.exe') {
+          foreach ($file in "dist/win-unpacked/${{ inputs.product_name }}.exe", "dist/${{ inputs.artifact_prefix }}-win-x64.exe") {
             $signature = Get-AuthenticodeSignature -FilePath $file
             if ($signature.Status -ne 'Valid') {
               throw "$file signature is $($signature.Status): $($signature.StatusMessage)"
@@ -238,6 +266,8 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          PUBLISH_OWNER: ${{ inputs.publish_owner }}
+          PUBLISH_REPO: ${{ inputs.publish_repo }}
         run: |
           set -euo pipefail
           signed=false
@@ -270,14 +300,21 @@ jobs:
           fi
           unset MAC_CERTIFICATE_P12_BASE64 MAC_CERTIFICATE_PASSWORD APPLE_API_KEY_P8
           echo "signed=$signed" >> "$GITHUB_OUTPUT"
-          npx --no-install electron-builder --${{ inputs.target }} --${{ inputs.arch }} --publish never
+          # Empty-array expansion is an error under `set -u` on macOS's bash 3.2,
+          # hence the ${arr[@]+...} form below.
+          publish_args=()
+          if [ -n "${PUBLISH_OWNER:-}" ] && [ -n "${PUBLISH_REPO:-}" ]; then
+            publish_args=("-c.publish.owner=${PUBLISH_OWNER}" "-c.publish.repo=${PUBLISH_REPO}")
+          fi
+          npx --no-install electron-builder --${{ inputs.target }} --${{ inputs.arch }} --publish never \
+            ${publish_args[@]+"${publish_args[@]}"}
       - name: Verify macOS signature and notarization
         if: inputs.platform == 'darwin' && steps.unix-package.outputs.signed == 'true'
         shell: bash
         working-directory: apps/desktop
         run: |
           set -euo pipefail
-          app="$(find dist -maxdepth 2 -type d -name 'Mixdog.app' | head -n 1)"
+          app="$(find dist -maxdepth 2 -type d -name '${{ inputs.product_name }}.app' | head -n 1)"
           test -n "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
@@ -308,8 +345,8 @@ jobs:
         run: |
           set -uo pipefail
           assets=(
-            apps/desktop/dist/mixdog-desktop-win-x64.exe
-            apps/desktop/dist/mixdog-desktop-win-x64.exe.blockmap
+            apps/desktop/dist/${{ inputs.artifact_prefix }}-win-x64.exe
+            apps/desktop/dist/${{ inputs.artifact_prefix }}-win-x64.exe.blockmap
             apps/desktop/dist/latest.yml
           )
           for asset in "${assets[@]}"; do test -f "$asset"; done
@@ -332,8 +369,8 @@ jobs:
         run: |
           set -euo pipefail
           assets=(
-            "apps/desktop/dist/mixdog-desktop-mac-${{ inputs.artifact_arch }}.dmg"
-            "apps/desktop/dist/mixdog-desktop-mac-${{ inputs.artifact_arch }}.zip"
+            "apps/desktop/dist/${{ inputs.artifact_prefix }}-mac-${{ inputs.artifact_arch }}.dmg"
+            "apps/desktop/dist/${{ inputs.artifact_prefix }}-mac-${{ inputs.artifact_arch }}.zip"
           )
           for asset in "${assets[@]}"; do test -f "$asset"; done
           # A recovery run finds the earlier attempt's assets on the draft;
@@ -351,7 +388,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          asset="apps/desktop/dist/mixdog-desktop-linux-${{ inputs.artifact_arch }}.AppImage"
+          asset="apps/desktop/dist/${{ inputs.artifact_prefix }}-linux-${{ inputs.artifact_arch }}.AppImage"
           test -f "$asset"
           # Same bounded uploader as macOS and Windows: `gh release upload
           # --clobber` stalled past the step timeout twice on arm64 (v0.9.170)

@@ -43,6 +43,7 @@ const ALL_VIEW_IDS: readonly WorkbenchSideViewId[] = [
   'terminal',
   'agents',
   'search',
+  'tandem',
   'source-control',
   'pull-requests',
 ];
@@ -61,6 +62,7 @@ const DEFAULT_WORKBENCH_SIDE_VIEW_LAYOUT: WorkbenchSideViewLayout = {
     ['extensions'],
     ['source-control'],
     ['search'],
+    ['tandem'],
     ['webhooks'],
   ],
   right: [['session-diff'], ['browser'], ['terminal'], ['pull-requests']],

@@ -3,6 +3,10 @@
 Mixdog
 Copyright (c) 2026 tribgames
 
+This is "Tandem Dog", a modified fork of Mixdog with multi-PC session continuity.
+The files were changed from the upstream Mixdog release; the original copyright,
+`LICENSE`, and the notices below are retained.
+
 Mixdog itself is licensed under Apache-2.0 (see `LICENSE`). The sections below cover the
 third-party code and data that Mixdog actually carries, kept here in one place
 so the individual source files stay free of scattered attribution comments.

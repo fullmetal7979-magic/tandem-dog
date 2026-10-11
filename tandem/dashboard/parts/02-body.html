@@ -1,0 +1,403 @@
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/></symbol>
+<symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6M12 9l-6 6v6M12 9l6 6v6"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></symbol>
+<symbol id="i-baton" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17L17 4l3 3L7 20z"/><path d="M14 7l3 3"/></symbol>
+<symbol id="i-relay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 17a8 8 0 1116 0"/><path d="M12 17l4-5"/></symbol>
+<symbol id="i-kit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7l-2 5 2 5M19 7l2 5-2 5M14 4l-4 16"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-1 .6-1.5 1.2-1.5 2.2M12 17h.01"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></symbol>
+<symbol id="i-session" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="i-console" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3M12 15h5"/></symbol>
+<symbol id="i-versions" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="16" rx="1.5"/><rect x="17" y="4" width="4" height="16" rx="1.5"/><path d="M3 10h18M3 15h18"/></symbol>
+<symbol id="i-swap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+</defs></svg>
+
+<div class="app">
+  <aside class="rail" aria-label="메뉴">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--ink)"/><circle cx="11.5" cy="17" r="5.5" fill="var(--a)"/><circle cx="22.5" cy="17" r="5.5" fill="var(--b)" style="mix-blend-mode:screen"/></svg>
+      <div><div class="brand-name">Tandem</div><div class="brand-sub">여러 PC · 한 계정</div></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-cap" aria-hidden="true">홈</div>
+      <button class="nav-btn" data-view="overview" aria-current="page"><svg><use href="#i-radar"/></svg><span>관제실</span><b class="nav-badge" data-badge="overview" hidden></b></button>
+      <div class="nav-cap" aria-hidden="true">작업</div>
+      <button class="nav-btn" data-view="versions"><svg><use href="#i-versions"/></svg><span>작업 흐름</span><b class="nav-badge" data-badge="versions" hidden></b></button>
+      <button class="nav-btn" data-view="session"><svg><use href="#i-session"/></svg><span>프로젝트 세션</span><b class="nav-badge" data-badge="session" hidden></b></button>
+      <button class="nav-btn" data-view="baton"><svg><use href="#i-baton"/></svg><span>바통 터치</span><b class="nav-badge" data-badge="baton" hidden></b></button>
+      <div class="nav-cap" aria-hidden="true">조율</div>
+      <button class="nav-btn" data-view="parallel"><svg><use href="#i-split"/></svg><span>병렬 작업</span><b class="nav-badge" data-badge="parallel" hidden></b></button>
+      <button class="nav-btn" data-view="claims"><svg><use href="#i-lock"/></svg><span>영역 잠금</span><b class="nav-badge" data-badge="claims" hidden></b></button>
+      <div class="nav-cap" aria-hidden="true">도구</div>
+      <button class="nav-btn" data-view="relay"><svg><use href="#i-relay"/></svg><span>릴레이</span><b class="nav-badge" data-badge="relay" hidden></b></button>
+      <button class="nav-btn" data-view="console"><svg><use href="#i-console"/></svg><span>개발 콘솔</span></button>
+      <button class="nav-btn" data-view="usage"><svg><use href="#i-gauge"/></svg><span>사용량</span><b class="nav-badge" data-badge="usage" hidden></b></button>
+      <div class="nav-cap" aria-hidden="true">설정</div>
+      <button class="nav-btn" data-view="setup"><svg><use href="#i-kit"/></svg><span>셋업 키트</span></button>
+      <button class="nav-btn" data-view="help"><svg><use href="#i-help"/></svg><span>도움말</span></button>
+      <button class="nav-btn" id="navMore" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>더보기</span><b class="nav-badge" id="moreBadge" hidden></b></button>
+    </nav>
+    <div class="rail-foot">
+      <div class="conn" id="connState"><span class="dot"></span><span>연결 확인 중…</span></div>
+      <button class="btn sm" id="tourBtn2"><svg><use href="#i-play"/></svg>튜토리얼 다시 보기</button>
+      <div class="kbd-hint"><kbd>⌘</kbd> <kbd>K</kbd> 로 모든 기능 검색</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="tbar" id="tbar">
+      <div class="wrap tbar-in">
+        <div class="row" style="flex-wrap:nowrap;min-width:0;gap:10px"><div class="desks" id="desks"></div><span class="online-n" id="onlineN"></span></div>
+        <div class="tbar-actions">
+          <button class="icon-btn" id="palBtn" title="기능 검색 (⌘K)" aria-label="기능 검색"><svg><use href="#i-search"/></svg></button>
+          <button class="icon-btn" id="tourBtn" title="튜토리얼" aria-label="튜토리얼 시작"><svg><use href="#i-play"/></svg></button>
+          <button class="icon-btn" id="deskBtn" title="이 PC의 데스크 바꾸기" aria-label="데스크 바꾸기"><svg><use href="#i-swap"/></svg></button>
+          <button class="icon-btn" id="themeBtn" title="테마 전환" aria-label="테마 전환"><svg><use href="#i-moon"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- 관제실 -->
+      <section class="view" id="v-overview" data-title="관제실">
+        <div class="vhead">
+          <div><div class="eyebrow">관제실 · Overview</div><h1 class="vtitle">여러 데스크, 하나의 계정</h1>
+          <p class="vlead">각 PC가 지금 무엇을 하고 있는지, 어디서 부딪힐 수 있는지 한눈에 봅니다. 코치가 상황에 맞춰 다음 행동을 알려줍니다.</p></div>
+        </div>
+        <div id="inbox" class="stack"></div>
+        <div class="card" id="meCard" data-tour="me">
+          <div class="card-h"><div class="card-t">지금 이 PC <span class="pill" id="meSlotPill">-</span></div><span class="small muted" id="meSaved"></span></div>
+          <div class="grid g3">
+            <div class="field"><label for="meTask">지금 하는 일</label><input class="in" id="meTask" placeholder="예) 로그인 화면 리팩터링" data-help="다른 PC에서 이 문구가 보입니다. 입력을 멈추면 자동 저장돼요."></div>
+            <div class="field"><label for="meBranch">작업 브랜치</label><input class="in mono" id="meBranch" placeholder="예) a/login-refactor" data-help="여러 PC가 같은 브랜치를 쓰면 코치가 바로 경고합니다. 데스크별 접두사(a/, b/, c/…)를 추천해요."></div>
+            <div class="field"><label>Claude 부하</label><div class="seg" id="meLoad" role="group" aria-label="부하">
+              <button data-l="0">쉬는 중</button><button data-l="1">가벼움</button><button data-l="2">보통</button><button data-l="3">고부하</button></div></div>
+          </div>
+        </div>
+        <div class="duo" id="duo" data-tour="duo"></div>
+        <div class="grid g-main">
+          <div class="card" data-tour="coach"><div class="card-h"><div class="card-t">코치 · 지금 할 일 <button class="q" data-explain="coach" aria-label="설명">?</button></div><span class="small muted" id="coachCount"></span></div><div class="coach" id="coach"></div></div>
+          <div class="card"><div class="card-h"><div class="card-t">최근 활동</div></div><div class="list" id="feed"></div></div>
+        </div>
+      </section>
+
+      <!-- 프로젝트 세션 -->
+      <section class="view" id="v-session" data-title="프로젝트 세션" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">프로젝트 세션 · Session</div><h1 class="vtitle">계정과 도구가 바뀌어도 세션은 하나</h1>
+          <p class="vlead">Claude 계정 여러 개, Codex 계정, 여러 PC가 한 프로젝트를 하나의 세션처럼 이어 갑니다. 쓰는 계정을 전환하면 그 도구에 맞는 세션 팩이 만들어지고, 끝난 결과를 붙여넣으면 장부에 이어서 기록돼요.</p></div>
+        </div>
+        <div class="card" data-tour="kit">
+          <div class="card-h"><div class="card-t">가상 세션 키트 · 어느 PC·어느 AI에서든 같은 세션 <button class="q" data-explain="kit" aria-label="설명">?</button></div></div>
+          <p class="small muted">세션의 원본을 저장소 안 <code>.tandem/SESSION.md</code>에 둬요. git으로 모든 PC에 따라가고, Claude Code는 시작할 때마다 자동으로 pull해서 읽어요(시작 훅). Codex는 AGENTS.md 지시로 읽어요. 붙여넣기 없이 같은 세션에서 시작해요.</p>
+          <div class="row"><label class="row small" style="gap:6px">이 PC <select class="in" id="kitDesk" style="width:auto;height:32px"></select></label><label class="row small" style="gap:6px;flex:1 1 200px">이 PC에서 쓰는 계정 <input class="in" id="kitTool" placeholder="예) Claude 개인" style="height:32px"></label></div>
+          <div id="kitOut"></div>
+        </div>
+        <div class="card" data-tour="agents">
+          <div class="card-h"><div class="card-t">지금 쓰는 계정·도구 <button class="q" data-explain="agents" aria-label="설명">?</button></div><span class="small muted" id="agentNow"></span></div>
+          <div class="agents" id="agentList"></div>
+          <form class="row" id="agentForm">
+            <input class="in" id="agName" placeholder="이름 예) Claude 개인, Codex 회사" style="flex:2 1 200px" data-help="계정을 알아볼 이름만 적으세요. 이메일·비밀번호·API 키는 적지 마세요. 이 내용은 모든 PC에 공유됩니다.">
+            <select class="in" id="agTool" style="width:auto"><option value="claude">Claude</option><option value="codex">Codex</option><option value="other">기타 도구</option></select>
+            <input class="in" id="agNote" placeholder="메모 (선택) 예) Max 요금제, 회사용" style="flex:1 1 160px">
+            <button class="btn" type="submit">계정 추가</button>
+          </form>
+        </div>
+        <div class="grid g-main">
+          <div class="card">
+            <div class="card-h"><div class="card-t">세션 상태</div><span class="small muted" id="sessSaved"></span></div>
+            <div class="field"><label for="sGoal">프로젝트 목표</label><textarea class="in" id="sGoal" rows="2" placeholder="예) 결제 기능이 있는 쇼핑몰 MVP를 이번 주에 배포" data-help="모든 계정·도구가 세션 팩에서 가장 먼저 읽는 문장이에요. 입력을 멈추면 자동 저장돼요."></textarea></div>
+            <div class="field"><label for="sState">현재 상태</label><textarea class="in" id="sState" rows="3" placeholder="예) 결제 API 연동 끝, 폼 UI 70%, 테스트 없음" data-help="지금까지 어디까지 됐는지. 결과를 가져오면 Claude가 자동으로 갱신해요."></textarea></div>
+            <div class="field"><label for="sNext">다음 단계</label><textarea class="in" id="sNext" rows="2" placeholder="예) 결제 실패 처리, e2e 테스트 작성"></textarea></div>
+            <div class="field"><label>결정 사항</label><div class="list" id="decList"></div>
+              <form class="row" id="decForm"><input class="in" id="decIn" placeholder="예) 상태 관리는 Zustand로 통일" style="flex:1 1 200px" data-help="한 번 정한 규칙을 기록해 두면 어떤 계정·도구로 바꿔도 같은 기준으로 작업해요."><button class="btn sm" type="submit">추가</button></form></div>
+          </div>
+          <div class="card" data-tour="pack">
+            <div class="card-h"><div class="card-t">세션 팩 <button class="q" data-explain="pack" aria-label="설명">?</button></div>
+              <div class="seg" id="packTool"><button type="button" data-t="claude" aria-pressed="true">Claude</button><button type="button" data-t="codex">Codex</button><button type="button" data-t="other">기타</button></div></div>
+            <div id="packOut"></div>
+          </div>
+        </div>
+        <div class="card" data-tour="import">
+          <div class="card-h"><div class="card-t">결과 가져오기</div><span class="pill neutral" id="impMode">확인 중</span></div>
+          <p class="small muted">외부 Claude Code나 Codex가 작업을 마치고 남긴 요약을 붙여넣으세요. 요약·바꾼 파일·결정·다음 단계를 뽑아 세션에 이어 붙입니다.</p>
+          <textarea class="in mono" id="impIn" rows="5" placeholder="## 요약&#10;결제 실패 시 재시도 로직 추가&#10;## 바꾼 파일&#10;- src/api/payments/retry.ts&#10;## 결정&#10;- 재시도는 최대 3회&#10;## 다음 단계&#10;- 재시도 e2e 테스트" data-help="세션 팩 맨 아래의 요약 형식대로 답을 받으면 가장 정확하게 기록돼요. 형식이 달라도 Claude가 정리해 줍니다."></textarea>
+          <div class="row"><label class="row small" style="gap:6px">어느 계정 결과인가요 <select class="in" id="impAgent" style="width:auto;height:30px"></select></label><button class="btn primary" id="impBtn">세션에 기록</button><span class="small muted" id="impStatus"></span></div>
+        </div>
+        <div class="card"><div class="card-h"><div class="card-t">세션 타임라인</div><span class="small muted" id="turnCount"></span></div><div class="list" id="turnList"></div></div>
+      </section>
+
+      <!-- 개발 콘솔 -->
+      <section class="view" id="v-console" data-title="개발 콘솔" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">개발 콘솔 · Console</div><h1 class="vtitle">공유 세션에서 Claude와 바로 개발</h1>
+          <p class="vlead">Claude가 이 페이지의 프로젝트 파일을 읽고, 검색하고, 고칩니다. 대화와 파일은 모든 PC가 함께 보니 어느 PC에서 이어도 같은 세션이에요. 실제 저장소에는 '로컬 적용 스크립트'로 반영하세요.</p></div>
+        </div>
+        <div class="grid g-main">
+          <div class="card" data-tour="console">
+            <div class="card-h"><div class="card-t">Claude 에이전트</div><div class="row" style="gap:6px"><span class="pill neutral" id="conMode">확인 중</span><button class="btn sm ghost" id="conClear">대화 비우기</button></div></div>
+            <div class="chat" id="conChat" style="max-height:520px"></div>
+            <form class="stack" id="conForm">
+              <textarea class="in" id="conIn" rows="3" placeholder="예) src/api/payments/retry.ts 를 만들고 최대 3회 지수 백오프로 재시도하게 해줘" data-help="Claude가 파일 도구로 직접 읽고 고칩니다. 바꾼 파일은 대화에 표시되고 '되돌리기'로 원래대로 돌릴 수 있어요. ⌘+Enter로 보내기."></textarea>
+              <div class="row"><button class="btn primary" type="submit">보내기</button><button class="btn ghost" type="button" id="conStop" hidden>중지</button><span class="small muted" id="conStatus"></span></div>
+            </form>
+          </div>
+          <div class="card" data-tour="files">
+            <div class="card-h"><div class="card-t">프로젝트 파일</div><div class="row" style="gap:6px"><button class="btn sm" id="fNew">새 파일</button><button class="btn sm" id="fExport">로컬 적용 스크립트</button></div></div>
+            <div class="list" id="fList"></div>
+            <div class="stack" id="fEditor" hidden>
+              <input class="in mono" id="fPath" placeholder="src/app.ts">
+              <textarea class="in mono" id="fBody" rows="14" spellcheck="false"></textarea>
+              <div class="row"><button class="btn primary" id="fSave">저장</button><button class="btn ghost" id="fClose">닫기</button><button class="btn ghost danger" id="fDel">삭제</button><span class="small muted" id="fInfo"></span></div>
+            </div>
+            <div id="fScript"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 작업 흐름 -->
+      <section class="view" id="v-versions" data-title="작업 흐름" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">작업 흐름 · Workstream</div><h1 class="vtitle">PC와 계정이 바뀌어도 이어지는 한 줄</h1>
+          <p class="vlead">작업은 브랜치 단위로 따라갑니다. 어느 PC·어느 계정에서 했든 한 줄로 이어지고, 지금 앉은 PC를 그 작업과 같은 상태로 맞추는 명령과 이어하기 프롬프트를 한 번에 줍니다.</p></div>
+          <div class="seg" id="vMode"><button type="button" data-m="branch" aria-pressed="true">작업(브랜치) 단위</button><button type="button" data-m="file">파일 단위</button></div>
+        </div>
+        <div id="vBranchWrap" class="stack" style="gap:16px">
+          <div class="card" id="vHero" data-tour="hero"></div>
+          <div class="card" id="vPanel" hidden></div>
+          <div class="card" data-tour="lanes">
+            <div class="card-h"><div class="card-t">작업 브랜치 <button class="q" data-explain="lanes" aria-label="설명">?</button></div>
+              <div class="seg" id="bFilter"><button type="button" data-f="active" aria-pressed="true">작업 중</button><button type="button" data-f="all">전체</button></div></div>
+            <div class="stack" id="vLanes"></div>
+          </div>
+        </div>
+        <div class="grid g-main">
+          <div class="card" data-tour="snapcmd">
+            <div class="card-h"><div class="card-t">PC 상태 기록 · 스냅샷 명령 <button class="q" data-explain="snapshot" aria-label="설명">?</button></div></div>
+            <div class="grid g3">
+              <div class="field"><label for="vRepo">저장소 폴더</label><input class="in mono" id="vRepo" value="~/code/my-app"></div>
+              <div class="field"><label for="vBase">GitHub 기준 브랜치</label><input class="in mono" id="vBase" value="main"></div>
+              <div class="field"><label for="vScope">파일 추적 경로 (선택)</label><input class="in mono" id="vScope" placeholder="예) src tests" data-help="파일 단위 비교에만 쓰여요. 저장소가 크면 추적할 폴더만 적으세요. 브랜치 정보는 항상 전부 기록돼요."></div>
+            </div>
+            <div id="vCmd"></div>
+          </div>
+          <form class="card" id="snapForm">
+            <div class="card-h"><div class="card-t">결과 올리기</div><span class="small muted" id="snapWho"></span></div>
+            <textarea class="in mono" id="snapIn" rows="6" placeholder="명령을 실행하면 결과가 클립보드에 복사돼요. 여기에 붙여넣거나, tandem-snapshot.txt 파일을 이 칸에 끌어다 놓으세요." data-help="붙여넣으면 이 PC의 데스크와 지금 쓰는 계정 이름으로 기록돼요. 브랜치별 커밋 상태와 파일 버전이 함께 갱신됩니다."></textarea>
+            <div class="row"><button class="btn primary" type="submit">스냅샷 기록</button><label class="btn" for="snapFile">파일 선택</label><input type="file" id="snapFile" accept=".txt,text/plain" hidden><span class="small muted" id="snapStatus"></span></div>
+          </form>
+        </div>
+        <div id="vFileWrap" class="stack" style="gap:16px" hidden>
+          <div class="card" data-tour="matrix">
+            <div class="card-h"><div class="card-t">파일 버전 비교표</div>
+              <div class="row" style="gap:6px"><div class="seg" id="vFilter"><button type="button" data-f="diff" aria-pressed="true">다른 것만</button><button type="button" data-f="all">전체</button><button type="button" data-f="missing">없는 파일</button></div>
+              <input class="in mono" id="vSearch" placeholder="경로 검색" style="width:180px;height:32px"></div></div>
+            <div class="vcols" id="vCols"></div>
+            <div class="vlegend small muted" id="vLegend"></div>
+            <div class="vtable-wrap"><table class="vtable" id="vTable"></table></div>
+            <div class="row" id="vMore"></div>
+          </div>
+          <div class="grid g-main">
+            <div class="card" id="vDetail"><div class="card-t">파일 이력</div><div class="empty small">비교표에서 파일을 누르면 위치별 버전과 바뀐 이력이 여기에 나와요.</div></div>
+            <div class="card"><div class="card-h"><div class="card-t">스냅샷 이력</div><span class="small muted" id="vLogN"></span></div><div class="list" id="vLog"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 병렬 작업 -->
+      <section class="view" id="v-parallel" data-title="병렬 작업" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">병렬 작업 · Parallel</div><h1 class="vtitle">한 기능을 여러 PC로 나눠 동시에</h1>
+          <p class="vlead">겹치지 않는 파일 영역으로 작업을 쪼개 데스크마다 동시에 진행합니다. 카드를 가져가면 해당 경로가 자동으로 잠깁니다.</p></div>
+        </div>
+        <div class="card" data-tour="split">
+          <div class="card-h"><div class="card-t">분할 도우미 <button class="q" data-explain="split" aria-label="설명">?</button></div><span class="pill neutral" id="splitMode">Claude 연결 확인 중</span></div>
+          <div class="field"><label for="splitIn">만들 기능 설명</label><textarea class="in" id="splitIn" rows="3" placeholder="예) 결제 페이지 추가: 결제 API 연동, 결제 폼 UI, 영수증 이메일, 테스트" data-help="기능을 구체적으로 적을수록 겹치지 않게 잘 나눕니다. 폴더 구조(src/api, src/ui 등)를 적어주면 더 정확해요."></textarea></div>
+          <div class="row"><button class="btn primary" id="splitBtn"><svg><use href="#i-split"/></svg>데스크별로 나누기</button><button class="btn ghost" id="splitStop" hidden>중지</button><span class="small muted" id="splitStatus"></span></div>
+          <div id="splitOut"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div class="card-t">작업 보드</div><span class="small muted">카드를 끌어 옮기거나 버튼으로 가져가세요</span></div>
+          <form class="row" id="taskForm">
+            <input class="in" id="taskTitle" placeholder="작업 제목" style="flex:2 1 220px" data-help="짧고 구체적으로. 예) 결제 폼 유효성 검사">
+            <input class="in mono" id="taskPaths" placeholder="경로 (쉼표로 구분) 예) src/ui/pay/**" style="flex:2 1 220px" data-help="이 작업이 수정할 파일 영역. 가져갈 때 자동으로 잠깁니다.">
+            <button class="btn" type="submit">대기열에 추가</button>
+          </form>
+          <div class="board" id="board" data-tour="board"></div>
+        </div>
+      </section>
+
+      <!-- 영역 잠금 -->
+      <section class="view" id="v-claims" data-title="영역 잠금" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">영역 잠금 · Claims</div><h1 class="vtitle">같은 파일을 동시에 고치지 않게</h1>
+          <p class="vlead">Claude에게 일을 맡기기 전에 수정할 경로를 잠그세요. 다른 PC가 이미 잡은 영역과 겹치면 바로 알려줍니다. 잠금은 정해진 시간이 지나면 자동으로 풀립니다.</p></div>
+        </div>
+        <div class="grid g2">
+          <div class="card" data-tour="checker">
+            <div class="card-t">경로 검사기</div>
+            <input class="in mono" id="checkIn" placeholder="편집하려는 경로 예) src/auth/login.ts" data-help="입력하는 즉시 두 데스크의 잠금과 비교합니다.">
+            <div id="checkOut" class="small muted">경로를 입력하면 누가 잡고 있는지 보여줍니다.</div>
+          </div>
+          <form class="card" id="claimForm">
+            <div class="card-t">새 잠금</div>
+            <div class="field"><label for="claimPath">경로 또는 패턴</label><input class="in mono" id="claimPath" placeholder="src/auth/**" required data-help="폴더 전체는 끝에 /** 를 붙이세요. 파일 하나만 잠글 수도 있어요."></div>
+            <div class="row">
+              <input class="in" id="claimNote" placeholder="메모 (선택) 예) 토큰 갱신 로직" style="flex:1 1 180px">
+              <select class="in" id="claimTtl" style="width:auto"><option value="1">1시간</option><option value="3" selected>3시간</option><option value="8">8시간</option><option value="24">24시간</option></select>
+              <button class="btn primary" type="submit"><svg><use href="#i-lock"/></svg>잠그기</button>
+            </div>
+          </form>
+        </div>
+        <div class="grid g2" id="claimLists"></div>
+        <div class="card" data-tour="boundary">
+          <div class="card-h"><div class="card-t">Claude 작업 경계 프롬프트 <button class="q" data-explain="boundary" aria-label="설명">?</button></div></div>
+          <p class="small muted">이 PC의 Claude 세션을 시작할 때 붙여넣으세요. 다른 PC들이 잠근 경로는 건드리지 않도록 지시합니다.</p>
+          <div id="boundaryCode"></div>
+          <div id="hookCode"></div>
+        </div>
+      </section>
+
+      <!-- 바통 터치 -->
+      <section class="view" id="v-baton" data-title="바통 터치" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">바통 터치 · Handoff</div><h1 class="vtitle">PC를 옮겨도 맥락은 그대로</h1>
+          <p class="vlead">Claude 세션 기록은 PC마다 따로 저장됩니다. 자리를 옮기기 전에 바통을 남기면, 다른 PC에서 Claude에게 바로 붙여넣을 이어하기 프롬프트가 만들어집니다.</p></div>
+        </div>
+        <div class="grid g-main">
+          <form class="card" id="batonForm" data-tour="baton">
+            <div class="card-h"><div class="card-t">바통 넘기기</div><label class="row small" style="gap:6px">받는 PC <select class="in" id="bTo" style="width:auto;height:30px"></select></label></div>
+            <div class="grid g2">
+              <div class="field"><label for="bBranch">브랜치</label><input class="in mono" id="bBranch" placeholder="a/login-refactor"></div>
+              <div class="field"><label for="bLast">마지막 커밋 메시지</label><input class="in mono" id="bLast" placeholder="feat: 토큰 갱신 훅 추가"></div>
+            </div>
+            <div class="field"><label for="bDone">한 일</label><textarea class="in" id="bDone" rows="2" placeholder="- 로그인 폼 컴포넌트 분리&#10;- useAuth 훅 테스트 3개 추가" data-help="Claude가 맥락을 빨리 잡도록 결과 위주로 적어주세요."></textarea></div>
+            <div class="field"><label for="bNext">다음 할 일</label><textarea class="in" id="bNext" rows="2" placeholder="- 토큰 만료 시 재시도 처리&#10;- e2e 테스트 수정" required></textarea></div>
+            <div class="field"><label for="bWarn">주의할 점 (선택)</label><input class="in" id="bWarn" placeholder="예) .env.local 은 각 PC에 따로 있음"></div>
+            <label class="row small"><input type="checkbox" id="bPushed"> 커밋하고 원격에 푸시했어요</label>
+            <div class="row"><button class="btn primary" type="submit"><svg><use href="#i-baton"/></svg>바통 넘기기</button><span class="small" id="batonWarn"></span></div>
+          </form>
+          <div class="card">
+            <div class="card-t">받는 쪽 Claude에게 보낼 프롬프트 (미리보기)</div>
+            <div id="batonPreview"></div>
+          </div>
+        </div>
+        <div class="card"><div class="card-t">바통 기록</div><div class="stack" id="batonList"></div></div>
+      </section>
+
+      <!-- 릴레이 -->
+      <section class="view" id="v-relay" data-title="릴레이" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">릴레이 · Relay</div><h1 class="vtitle">PC들 사이 공유 클립보드</h1>
+          <p class="vlead">프롬프트, 에러 로그, 명령어를 다른 PC 전체로 즉시 보냅니다. 받은 쪽에서는 알림과 함께 복사 버튼이 뜹니다.</p></div>
+        </div>
+        <form class="card" id="relayForm" data-tour="relay">
+          <div class="row" style="justify-content:space-between"><div class="seg" id="relayKind"><button type="button" data-k="text" aria-pressed="true">텍스트</button><button type="button" data-k="prompt">프롬프트</button><button type="button" data-k="cmd">명령어</button><button type="button" data-k="log">로그</button></div><span class="small muted"><kbd>⌘</kbd>+<kbd>Enter</kbd> 로 보내기</span></div>
+          <textarea class="in mono" id="relayIn" rows="4" placeholder="보낼 내용을 붙여넣으세요" data-help="에러 로그를 붙여넣으면 자동으로 '로그'로 분류해요. 비밀번호·API 키는 보내지 마세요."></textarea>
+          <div class="row"><button class="btn primary" type="submit"><svg><use href="#i-relay"/></svg>모든 PC로 보내기</button><span class="small muted" id="relayHint"></span></div>
+        </form>
+        <div class="stack" id="relayList"></div>
+      </section>
+
+      <!-- 사용량 -->
+      <section class="view" id="v-usage" data-title="사용량" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">사용량 · Shared Quota</div><h1 class="vtitle">한도는 계정 하나를 같이 씁니다</h1>
+          <p class="vlead">여러 PC에서 동시에 Claude를 돌리면 같은 계정의 사용량이 그만큼 빠르게 줄어듭니다. 세션 창 타이머와 모든 PC의 부하를 같이 보면서 무거운 작업을 배분하세요.</p></div>
+        </div>
+        <div class="grid g2">
+          <div class="card" data-tour="usage">
+            <div class="card-h"><div class="card-t">세션 창 타이머 <button class="q" data-explain="window" aria-label="설명">?</button></div>
+              <div class="row"><select class="in" id="winHours" style="width:auto;height:30px"><option value="5" selected>5시간 창</option><option value="3">3시간</option><option value="8">8시간</option></select></div></div>
+            <div class="gauge"><svg viewBox="0 0 150 150" id="winRing"></svg><div class="stack" id="winText" style="flex:1;min-width:180px"></div></div>
+            <div class="row"><button class="btn primary" id="winStart">지금부터 창 시작</button><button class="btn ghost" id="winClear">창 초기화</button></div>
+          </div>
+          <div class="card">
+            <div class="card-t">전체 PC 합산 부하</div>
+            <div id="loadView"></div>
+          </div>
+        </div>
+        <div class="card"><div class="card-t">한도를 아끼는 배분 요령</div><div class="steps small" id="usageTips">
+          <div class="step"><div>무거운 작업(대규모 리팩터링, 여러 에이전트 동시 실행)은 <b>한 PC에서만</b> 돌리고, 나머지 PC는 리뷰·테스트·문서처럼 가벼운 일을 맡기세요.</div></div>
+          <div class="step"><div>여러 PC가 같은 파일을 읽게 하지 마세요. 같은 맥락을 여러 번 읽는 만큼 사용량도 여러 번 듭니다. 바통 프롬프트로 요약만 넘기세요.</div></div>
+          <div class="step"><div>한도에 가까워지면 고부하 PC의 작업을 마무리하고, 바통을 남긴 뒤 창이 리셋될 때 이어가세요.</div></div>
+          <div class="step"><div>정확한 남은 한도와 리셋 시각은 claude.ai의 설정 &gt; 사용량 화면이 기준입니다. 이 타이머는 모든 PC가 같은 시계를 보기 위한 보조 도구예요.</div></div>
+        </div></div>
+      </section>
+
+      <!-- 셋업 키트 -->
+      <section class="view" id="v-setup" data-title="셋업 키트" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">셋업 키트 · Setup</div><h1 class="vtitle">모든 PC를 같은 상태로 맞추기</h1>
+          <p class="vlead">값을 입력하면 각 PC에서 그대로 실행할 명령어가 데스크별로 만들어집니다. 실행 전에 한 번 읽어보세요.</p></div>
+        </div>
+        <div class="card" data-tour="setup">
+          <div class="grid g3">
+            <div class="field"><label for="sRepo">저장소 폴더</label><input class="in mono" id="sRepo" value="~/code/my-app"></div>
+            <div class="field"><label for="sMain">기본 브랜치</label><input class="in mono" id="sMain" value="main"></div>
+            <div class="field"><label for="sFeat">기능 이름</label><input class="in mono" id="sFeat" value="login-refactor"></div>
+          </div>
+        </div>
+        <div class="grid g2" id="setupBlocks"></div>
+        <div class="card"><div class="card-t">동시 접속 체크리스트</div><div class="steps small" id="checklist"></div></div>
+      </section>
+
+      <!-- 도움말 -->
+      <section class="view" id="v-help" data-title="도움말" hidden>
+        <div class="vhead">
+          <div><div class="eyebrow">도움말 · Help</div><h1 class="vtitle">막히면 여기서 물어보세요</h1>
+          <p class="vlead">시작 체크리스트로 기본 흐름을 익히고, 궁금한 건 Claude에게 바로 물어보세요. Claude는 지금 모든 데스크의 상태를 보고 답합니다.</p></div>
+          <button class="btn primary" id="tourBtn3"><svg><use href="#i-play"/></svg>튜토리얼 시작</button>
+        </div>
+        <div class="grid g-main">
+          <div class="card" data-tour="ask">
+            <div class="card-h"><div class="card-t">Claude에게 묻기</div><span class="pill neutral" id="askMode">확인 중</span></div>
+            <div class="chips" id="askChips"></div>
+            <div class="chat" id="chat"></div>
+            <form class="row" id="askForm"><input class="in" id="askIn" placeholder="예) 여러 PC에서 같은 브랜치를 써도 되나요?" style="flex:1 1 200px"><button class="btn primary" type="submit">묻기</button><button class="btn ghost" type="button" id="askStop" hidden>중지</button></form>
+          </div>
+          <div class="card"><div class="card-h"><div class="card-t">시작 체크리스트</div><span class="small muted" id="obCount"></span></div><div class="progress"><i id="obBar" style="width:0"></i></div><div class="steps small" id="onboard"></div></div>
+        </div>
+        <div class="grid g2">
+          <div class="card"><div class="card-t">자주 묻는 질문</div><div id="faq"></div></div>
+          <div class="card"><div class="card-t">단축키</div><div class="list small" id="keys"></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <aside class="dock" id="dock" aria-label="상황판"></aside>
+</div>
+<div class="dmenu" id="dmenu" hidden role="menu"></div>
+
+<!-- 데스크 지정 -->
+<div class="modal" id="deskModal" hidden role="dialog" aria-modal="true" aria-labelledby="deskModalT">
+  <div class="sheet">
+    <div class="eyebrow">데스크 선택</div>
+    <h2 id="deskModalT">이 PC는 어느 데스크인가요?</h2>
+    <p class="muted">모든 PC가 같은 계정이라 Claude는 PC들을 구분하지 못합니다. 각 PC마다 서로 다른 데스크를 고르거나, 새 PC라면 새 데스크를 추가하세요. 선택은 이 브라우저에만 저장됩니다.</p>
+    <div class="pick" id="deskPick"></div>
+    <div class="field"><label for="deskName">PC 이름</label><input class="in" id="deskName" placeholder="예) 작업실 iMac, 거실 맥북"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" id="deskSave" disabled>이 PC로 지정</button></div>
+  </div>
+</div>
+
+<!-- 확인 대화 -->
+<div class="modal" id="confirmModal" hidden role="dialog" aria-modal="true">
+  <div class="sheet" style="width:min(460px,100%)">
+    <h2 id="cfT">확인</h2><div id="cfB" class="muted"></div>
+    <div class="row" style="justify-content:flex-end" id="cfA"></div>
+  </div>
+</div>
+
+<div class="pal" id="pal" hidden><div class="pal-box" role="dialog" aria-label="기능 검색"><input class="pal-in" id="palIn" placeholder="무엇을 할까요? (예: 잠금, 바통, 테마)" autocomplete="off"><div class="pal-list" id="palList" role="listbox"></div></div></div>
+<div class="tour-hole" id="tourHole" hidden></div>
+<div class="tour-card" id="tourCard" hidden role="dialog" aria-live="polite"></div>
+<div class="hintbar" id="hintbar" hidden><b>힌트</b><span id="hintText"></span></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="modal" id="moreSheet" hidden role="dialog" aria-modal="true" aria-label="모든 메뉴"><div class="sheet more-sheet"><div class="card-h"><h2>모든 메뉴</h2><button class="btn sm ghost" id="moreClose">닫기</button></div><div class="more-list" id="moreList"></div></div></div>

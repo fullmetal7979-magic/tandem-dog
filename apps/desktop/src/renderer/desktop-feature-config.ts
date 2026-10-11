@@ -16,7 +16,8 @@ type DesktopFeatureId =
   | 'agents'
   | 'explorer'
   | 'sourceControl'
-  | 'pullRequests';
+  | 'pullRequests'
+  | 'tandem';
 
 const DESKTOP_FEATURES: Readonly<Record<DesktopFeatureId, boolean>> = {
   sessions: true,
@@ -30,20 +31,28 @@ const DESKTOP_FEATURES: Readonly<Record<DesktopFeatureId, boolean>> = {
   explorer: true,
   sourceControl: true,
   pullRequests: false,
+  tandem: true,
 };
 
 type DesktopSidebarDestination = 'sessions' | 'projects' | 'workflows' | 'extensions' | 'schedules' | 'webhooks';
 
-export type DesktopUtilityDockTab = 'agents' | 'search' | 'source-control' | 'pull-requests';
+export type DesktopUtilityDockTab = 'agents' | 'search' | 'tandem' | 'source-control' | 'pull-requests';
 
 const UTILITY_DOCK_FEATURES: Readonly<Record<DesktopUtilityDockTab, DesktopFeatureId>> = {
   agents: 'agents',
   search: 'explorer',
+  tandem: 'tandem',
   'source-control': 'sourceControl',
   'pull-requests': 'pullRequests',
 };
 
-const UTILITY_DOCK_TABS: readonly DesktopUtilityDockTab[] = ['agents', 'search', 'source-control', 'pull-requests'];
+const UTILITY_DOCK_TABS: readonly DesktopUtilityDockTab[] = [
+  'agents',
+  'search',
+  'tandem',
+  'source-control',
+  'pull-requests',
+];
 
 export function desktopFeatureEnabled(feature: DesktopFeatureId): boolean {
   return DESKTOP_FEATURES[feature];

@@ -1,12 +1,10 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import type { DesktopApi } from '../../shared/contract';
+import { ISSUES_URL, REPO_URL } from '../../shared/fork-identity';
 import { t } from '../i18n';
 import { ActionButton, Group, ResourceRow } from './capability-controls';
-import { FeedbackDialog } from './feedback-dialog';
 import { readGithubStarred, rememberGithubStarred } from './github-star-storage';
 
-const MIXDOG_REPO_URL = 'https://github.com/tribgames/mixdog';
-const MIXDOG_ISSUES_URL = 'https://github.com/tribgames/mixdog/issues';
 type ChangelogDialogComponent = ComponentType<{ onClose(): void }>;
 
 export function AboutPanel() {
@@ -14,7 +12,6 @@ export function AboutPanel() {
   const [ghReady, setGhReady] = useState(false);
   const [starred, setStarred] = useState(readGithubStarred);
   const [busy, setBusy] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The dialog bundles CHANGELOG.md and the Markdown renderer: load it on
   // demand and mount it only once its first release is rendered-ready.
   const [ChangelogDialog, setChangelogDialog] = useState<ChangelogDialogComponent | null>(null);
@@ -48,14 +45,14 @@ export function AboutPanel() {
   const open = (url: string) => void host?.openExternal?.(url).catch(() => undefined);
   const star = () => {
     if (starred || !ghReady || !host?.starGithub) {
-      open(MIXDOG_REPO_URL);
+      open(REPO_URL);
       return;
     }
     setBusy(true);
     void host
       .starGithub()
       .then((result) => setStarred(rememberGithubStarred(result?.starred === true)))
-      .catch(() => open(MIXDOG_REPO_URL))
+      .catch(() => open(REPO_URL))
       .finally(() => setBusy(false));
   };
   let starLabel = t('Star on GitHub ↗');
@@ -73,7 +70,7 @@ export function AboutPanel() {
             <ActionButton disabled={busy || starred} onClick={star}>
               {starLabel}
             </ActionButton>
-            <ActionButton disabled={busy} onClick={() => open(MIXDOG_REPO_URL)}>
+            <ActionButton disabled={busy} onClick={() => open(REPO_URL)}>
               {t('Open ↗')}
             </ActionButton>
           </>
@@ -84,18 +81,8 @@ export function AboutPanel() {
         className="settings-about-row"
         description={t('Bug reports and feature requests.')}
         actions={
-          <ActionButton disabled={busy} onClick={() => open(MIXDOG_ISSUES_URL)}>
+          <ActionButton disabled={busy} onClick={() => open(ISSUES_URL)}>
             {t('Issues ↗')}
-          </ActionButton>
-        }
-      />
-      <ResourceRow
-        title={t('Feedback')}
-        className="settings-about-row"
-        description={t('Send a bug report or suggestion to the Mixdog team.')}
-        actions={
-          <ActionButton disabled={busy} onClick={() => setFeedbackOpen(true)}>
-            {t('Give feedback')}
           </ActionButton>
         }
       />
@@ -110,12 +97,6 @@ export function AboutPanel() {
         }
       />
       {ChangelogDialog && <ChangelogDialog onClose={() => setChangelogDialog(null)} />}
-      {feedbackOpen && (
-        <FeedbackDialog
-          submit={host?.submitFeedback ? (input) => host.submitFeedback!(input) : undefined}
-          onClose={() => setFeedbackOpen(false)}
-        />
-      )}
     </Group>
   );
 }

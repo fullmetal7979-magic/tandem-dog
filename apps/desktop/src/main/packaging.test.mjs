@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { childEnvironment } from './child-environment.ts';
+import { APP_ID, APP_NAME, PROTOCOL_SCHEME, USER_DATA_DIR_NAME } from '../shared/fork-identity.ts';
 import { nativeBrowserImporterPath, resolvePackagedBrowserImporter } from './browser/profile-import-native.ts';
 
 test('daemon-owned desktop children never inherit service identity', () => {
@@ -261,7 +262,33 @@ test('browser password import uses only packaged native-tools without a certific
   assert.match(nativeBuild, /LICENSE_GPL\.txt/);
 });
 
-test('Windows installer is one-click, per-user, and registers Mixdog deep links', async () => {
+test('fork identity: electron-builder.yml mirrors shared/fork-identity.ts and never targets upstream Mixdog', async () => {
+  const builder = await readFile(new URL('../../electron-builder.yml', import.meta.url), 'utf8');
+  const field = (name) => builder.match(new RegExp(`^${name}:[ \\t]*(.+?)[ \\t]*$`, 'm'))?.[1];
+  assert.equal(field('appId'), APP_ID);
+  assert.equal(field('productName'), APP_NAME);
+  assert.equal(field('artifactName'), `${USER_DATA_DIR_NAME}-\${os}-\${arch}.\${ext}`);
+  // Electron derives the packaged userData folder from package.json "name".
+  assert.match(builder, new RegExp(`^extraMetadata:\\s+name:\\s*${USER_DATA_DIR_NAME}\\s*$`, 'm'));
+  assert.match(PROTOCOL_SCHEME, /^[a-z][a-z0-9+.-]*$/);
+  // The publish target is injected by CI (-c.publish.owner/-c.publish.repo) or
+  // detected from the git remote; a literal owner/repo here could point the
+  // auto-updater at the wrong repository.
+  const publish = builder.match(/^publish:\s*\n((?:[ \t]+\S.*\n?)+)/m)?.[1] ?? '';
+  assert.match(publish, /provider:\s*github/);
+  assert.doesNotMatch(publish, /^\s*(?:owner|repo):/m);
+  assert.doesNotMatch(builder, /^\s*(?:appId|productName|artifactName|name):.*mixdog/im);
+  assert.doesNotMatch(builder, /tribgames/i);
+  // The CI workflow feeds desktop-package.yml the same names the config uses.
+  const workflow = await readFile(
+    new URL('../../../../.github/workflows/tandem-desktop.yml', import.meta.url),
+    'utf8'
+  );
+  assert.match(workflow, new RegExp(`artifact_prefix:\\s*${USER_DATA_DIR_NAME}\\s*$`, 'm'));
+  assert.match(workflow, new RegExp(`product_name:\\s*${APP_NAME}\\s*$`, 'm'));
+});
+
+test('Windows installer is one-click, per-user, and registers Tandem Dog deep links', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const builder = await readFile(new URL('../../electron-builder.yml', import.meta.url), 'utf8');
   const installer = await readFile(new URL('../../build/installer.nsh', import.meta.url), 'utf8');
@@ -270,7 +297,10 @@ test('Windows installer is one-click, per-user, and registers Mixdog deep links'
   const devUpdate = await readFile(new URL('../../scripts/dev-update-windows.ps1', import.meta.url), 'utf8');
   const fastSnapshot = await readFile(new URL('../../scripts/dev-fast-snapshot.ps1', import.meta.url), 'utf8');
   const main = await readFile(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(builder, /protocols:\s+name:\s*Mixdog\s+schemes:\s+-\s*mixdog/);
+  assert.match(
+    builder,
+    new RegExp(`protocols:\\s+name:\\s*${APP_NAME}\\s+schemes:\\s+-\\s*${PROTOCOL_SCHEME}\\s`)
+  );
   assert.match(
     packageJson.scripts['build:win'],
     /electron-builder --win --x64 --publish never && npm run verify:update-metadata$/

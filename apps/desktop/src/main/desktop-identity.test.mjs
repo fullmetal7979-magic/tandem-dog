@@ -4,21 +4,28 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { desktopIdentity } from './desktop-identity.ts';
+import { APP_ID, APP_NAME } from '../shared/fork-identity.ts';
 
-test('installed Mixdog retains its registered product identity; dev/probes cannot collide', () => {
-  assert.deepEqual(desktopIdentity('installed'), { appId: 'io.mixdog.desktop', name: 'Mixdog' });
+test('installed Tandem Dog keeps the fork identity, not upstream Mixdog; dev/probes cannot collide', () => {
+  assert.deepEqual(desktopIdentity('installed'), { appId: APP_ID, name: APP_NAME });
+  assert.equal(APP_ID, 'io.tandemdog.desktop');
+  assert.equal(APP_NAME, 'Tandem Dog');
+  for (const identity of ['installed', 'development', 'probe'].map(desktopIdentity)) {
+    assert.doesNotMatch(identity.appId, /mixdog/i);
+    assert.doesNotMatch(identity.name, /mixdog/i);
+  }
   const identities = ['installed', 'development', 'probe'].map(desktopIdentity);
   assert.equal(new Set(identities.map((identity) => identity.appId)).size, 3);
   assert.equal(new Set(identities.map((identity) => identity.name)).size, 3);
-  assert.equal(desktopIdentity('development').name, 'Mixdog Dev');
-  assert.equal(desktopIdentity('probe').name, 'Mixdog Notification Test');
+  assert.equal(desktopIdentity('development').name, 'Tandem Dog Dev');
+  assert.equal(desktopIdentity('probe').name, 'Tandem Dog Notification Test');
 });
 
 test('the native probe rejects a production identity override before launching Electron', async () => {
   await assert.rejects(
     promisify(execFile)(
       process.execPath,
-      [fileURLToPath(new URL('../../scripts/notification-probe.mjs', import.meta.url)), '--app-id=io.mixdog.desktop'],
+      [fileURLToPath(new URL('../../scripts/notification-probe.mjs', import.meta.url)), `--app-id=${APP_ID}`],
       { timeout: 10_000 }
     ),
     (error) => {

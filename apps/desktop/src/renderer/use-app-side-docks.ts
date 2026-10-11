@@ -44,7 +44,7 @@ export function useAppSideDocks({ paneWorkspace, sessionSurfaces, applySidebarOp
       'session-diff' as const,
       ...(browserFeatureInstalled ? ['browser' as const] : []),
       'terminal' as const,
-      ...(['agents', 'search', 'source-control', 'pull-requests'] as const).filter((panel) =>
+      ...(['agents', 'search', 'tandem', 'source-control', 'pull-requests'] as const).filter((panel) =>
         desktopUtilityDockTabEnabled(panel)
       ),
     ],

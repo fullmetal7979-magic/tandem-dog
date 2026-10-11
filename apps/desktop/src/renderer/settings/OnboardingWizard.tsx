@@ -15,6 +15,7 @@ import type {
   DesktopGithubCliLoginFlow,
   DesktopGithubCliStatus,
 } from '../../shared/contract';
+import { REPO_NAME, REPO_URL } from '../../shared/fork-identity';
 import { t } from '../i18n';
 import { ErrorNotice } from '../ErrorNotice';
 import { OpenSelect } from '../OpenSelect';
@@ -38,7 +39,6 @@ type RunCapability = <T = unknown>(
   refresh?: boolean,
   silent?: boolean
 ) => Promise<T | undefined>;
-const MIXDOG_REPO_URL = 'https://github.com/tribgames/mixdog';
 const CLI_DOWNLOAD_URL = 'https://cli.github.com';
 // Resume marker: reopening the wizard continues from the last step reached.
 const ONBOARDING_STEP_KEY = 'mixdog.onboarding.step';
@@ -947,14 +947,14 @@ function StarStep({ api }: { api: DesktopApi }) {
   const open = (url: string) => void api.openExternal?.(url).catch(() => undefined);
   const star = () => {
     if (starred || !ghReady || !api.starGithub) {
-      open(MIXDOG_REPO_URL);
+      open(REPO_URL);
       return;
     }
     setBusy(true);
     void api
       .starGithub()
       .then((result) => setStarred(rememberGithubStarred(result?.starred === true)))
-      .catch(() => open(MIXDOG_REPO_URL))
+      .catch(() => open(REPO_URL))
       .finally(() => setBusy(false));
   };
   // A GitHub-repo-card composition (familiar, concrete) instead of a glowing
@@ -966,7 +966,7 @@ function StarStep({ api }: { api: DesktopApi }) {
           <Github size={20} />
         </span>
         <div className="onboarding-card-heading">
-          <b className="onboarding-card-title">mixdog</b>
+          <b className="onboarding-card-title">{REPO_NAME}</b>
           <span className="onboarding-pill neutral">{t('Public')}</span>
         </div>
       </div>
@@ -984,7 +984,7 @@ function StarStep({ api }: { api: DesktopApi }) {
         <span>{t('No sign-up')}</span>
       </div>
       <div className="onboarding-card-actions">
-        <button type="button" className="ghost" disabled={busy} onClick={() => open(MIXDOG_REPO_URL)}>
+        <button type="button" className="ghost" disabled={busy} onClick={() => open(REPO_URL)}>
           <ExternalLink size={14} /> {t('Open on GitHub')}
         </button>
         {/* Star sits at the card's bottom-right — the easiest spot to hit. */}

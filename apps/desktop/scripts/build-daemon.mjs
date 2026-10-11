@@ -7,6 +7,16 @@ import { build } from 'esbuild';
 const desktopDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outfile = join(desktopDir, 'out', 'main', 'daemon.cjs');
 
+// electron-vite bakes VITE_* variables into main/renderer as import.meta.env;
+// esbuild does not. Without this define, src/shared/fork-identity.ts would see
+// an empty env here and the daemon would fall back to the placeholder GitHub
+// owner even when CI supplied the real one.
+const forkEnv = Object.fromEntries(
+  ['VITE_TANDEM_REPO_OWNER', 'VITE_TANDEM_REPO_NAME']
+    .filter((name) => process.env[name])
+    .map((name) => [name, process.env[name]])
+);
+
 await build({
   entryPoints: [join(desktopDir, 'src', 'main', 'desktop-service.ts')],
   outfile,
@@ -17,6 +27,7 @@ await build({
   treeShaking: true,
   sourcemap: false,
   external: ['@homebridge/node-pty-prebuilt-multiarch'],
+  define: { 'import.meta.env': JSON.stringify(forkEnv) },
   plugins: [
     {
       name: 'plain-node-desktop-service',

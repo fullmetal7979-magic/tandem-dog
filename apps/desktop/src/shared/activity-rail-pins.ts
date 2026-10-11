@@ -8,6 +8,7 @@ export const ACTIVITY_RAIL_PIN_IDS = [
   'extensions',
   'source-control',
   'search',
+  'tandem',
   'webhooks',
 ] as const;
 export const DEFAULT_ACTIVITY_RAIL_PINS = ['sessions', 'agents', 'schedules', 'workflows', 'projects', 'extensions'];

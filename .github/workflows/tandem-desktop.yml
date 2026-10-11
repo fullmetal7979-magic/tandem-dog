@@ -1,0 +1,150 @@
+# Tandem Dog desktop installers (unsigned): macOS arm64 + x64 .dmg/.zip and
+# Windows x64 .exe, attached to ONE draft GitHub release on this repository.
+#
+# Run it from Actions > tandem-desktop > Run workflow (the tag input names the
+# draft release), or push a tag matching tandem-v*. Nothing is published
+# automatically: review the draft's assets, then publish it by hand.
+#
+# No signing or notarization secrets are needed (or passed). desktop-package.yml
+# sees none of the MAC_*/APPLE_*/AZURE_* secrets and packages unsigned builds;
+# macOS Gatekeeper and Windows SmartScreen will warn on first launch.
+#
+# The fork's GitHub owner/repo are never hard-coded: they come from the
+# repository this workflow runs in and are baked into the build twice, as the
+# VITE_TANDEM_REPO_* defines read by shared/fork-identity.ts and as the
+# electron-builder publish target (the packaged auto-update feed).
+
+name: tandem-desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name of the draft release to create or update"
+        required: true
+        default: v0.1.0-tandem.1
+        type: string
+  push:
+    tags:
+      - "tandem-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tandem-desktop-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # main/preload/renderer output is platform-neutral: build it once and feed the
+  # same artifact to every native packager.
+  build:
+    name: build-desktop-once
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      # Build-time defines for apps/desktop/src/shared/fork-identity.ts.
+      VITE_TANDEM_REPO_OWNER: ${{ github.repository_owner }}
+      VITE_TANDEM_REPO_NAME: ${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          # The root package requires ^22.19.0 || >=24.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
+      - name: Install build dependencies
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund
+          npm ci --prefix apps/desktop --prefer-offline --no-audit --no-fund
+      - name: Test Tandem runtime
+        run: node scripts/test.mjs src/runtime/tandem
+      - name: Build platform-neutral desktop output
+        run: npm run build --prefix apps/desktop
+      - name: Stage common desktop output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-out
+          path: apps/desktop/out
+          if-no-files-found: error
+          retention-days: 2
+
+  # Every platform uploads into this one draft. Created only after the common
+  # build passes so a failed build leaves no empty draft behind.
+  draft-release:
+    name: prepare-draft-release
+    needs: [build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.draft.outputs.id }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Validate release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]]; then
+            echo "::error title=Invalid release tag::Use letters, digits, '.', '_' and '-' only (got: $RELEASE_TAG)."
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Create or resume the draft release
+        id: draft
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Tandem Dog ${{ steps.tag.outputs.tag }}
+          draft: true
+          prerelease: false
+
+  package:
+    name: package-${{ matrix.platform }}-${{ matrix.arch }}
+    needs: [build, draft-release]
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Same runner/platform/arch/target values release.yml passes. The
+          # installer kind (nsis; dmg + zip) comes from electron-builder.yml.
+          - runner: windows-2022
+            platform: win32
+            arch: x64
+            artifact_arch: x64
+            target: win
+          - runner: macos-14
+            platform: darwin
+            arch: arm64
+            artifact_arch: arm64
+            target: mac
+          - runner: macos-15-intel
+            platform: darwin
+            arch: x64
+            artifact_arch: x64
+            target: mac
+    uses: ./.github/workflows/desktop-package.yml
+    with:
+      ref: ${{ github.sha }}
+      tag: ${{ needs.draft-release.outputs.tag }}
+      release_id: ${{ needs.draft-release.outputs.release_id }}
+      runner: ${{ matrix.runner }}
+      platform: ${{ matrix.platform }}
+      arch: ${{ matrix.arch }}
+      artifact_arch: ${{ matrix.artifact_arch }}
+      target: ${{ matrix.target }}
+      product_name: Tandem Dog
+      artifact_prefix: tandem-dog-desktop
+      publish_owner: ${{ github.repository_owner }}
+      publish_repo: ${{ github.event.repository.name }}
