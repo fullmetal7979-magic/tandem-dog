@@ -128,7 +128,8 @@ export interface TandemSetDeskRequest {
 
 /** Renderer-facing API, merged into DesktopApi (all optional, like the rest). */
 export interface DesktopTandemApi {
-  tandemOverview?(cwd: string, options?: { fetch?: boolean }): Promise<TandemOverview>;
+  /** `fetch` is throttled to once per 30 s per project unless `force` (manual refresh). */
+  tandemOverview?(cwd: string, options?: { fetch?: boolean; force?: boolean }): Promise<TandemOverview>;
   tandemLeave?(cwd: string, request: TandemLeaveRequest): Promise<TandemLeaveResult>;
   tandemResume?(cwd: string, request: TandemResumeRequest): Promise<TandemResumeResult>;
   tandemSetDesk?(cwd: string, request: TandemSetDeskRequest): Promise<TandemDeskConfig>;

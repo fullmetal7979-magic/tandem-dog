@@ -68,8 +68,35 @@ function boundedText(value: unknown, limit: number, field: string): string {
   return value;
 }
 
+/** Network fetches per repository are throttled; identical in-flight reads share one result. */
+const FETCH_INTERVAL_MS = 30_000;
+const lastFetch = new Map<string, number>();
+const inFlight = new Map<string, Promise<TandemOverview>>();
+function invalidate(root: string): void {
+  lastFetch.delete(root);
+}
+
 export async function tandemOverview(cwd: unknown, options?: unknown): Promise<TandemOverview> {
-  const fetch = !(options && typeof options === 'object' && (options as { fetch?: unknown }).fetch === false);
+  const wantFetch = !(options && typeof options === 'object' && (options as { fetch?: unknown }).fetch === false);
+  const force = Boolean(options && typeof options === 'object' && (options as { force?: unknown }).force === true);
+  const key = typeof cwd === 'string' ? cwd : '';
+  const fetch = wantFetch && (force || Date.now() - (lastFetch.get(key) ?? 0) >= FETCH_INTERVAL_MS);
+  const flightKey = `${key}\0${fetch}`;
+  const pending = inFlight.get(flightKey);
+  if (pending) return pending;
+  const run = computeOverview(cwd, fetch).then((result) => {
+    if (fetch && result.available) lastFetch.set(key, Date.now());
+    return result;
+  });
+  inFlight.set(flightKey, run);
+  try {
+    return await run;
+  } finally {
+    inFlight.delete(flightKey);
+  }
+}
+
+async function computeOverview(cwd: unknown, fetch: boolean): Promise<TandemOverview> {
   let root: string;
   try {
     root = await resolveRoot(cwd);
@@ -99,6 +126,7 @@ export async function tandemLeave(cwd: unknown, request: unknown): Promise<Tande
   return serialized(root, async () => {
     try {
       const result = await tandemCoreLeave(root, { memo, next });
+      invalidate(cwd as string);
       return { branch: result.branch, committed: result.committed, pushed: result.pushed, pushError: result.pushError ? scrubGitCredentials(result.pushError) : null };
     } catch (error) {
       throw cleanError(error);
@@ -116,6 +144,7 @@ export async function tandemResume(cwd: unknown, request: unknown): Promise<Tand
   return serialized(root, async () => {
     try {
       const result = await tandemCoreResume(root, { branch });
+      invalidate(cwd as string);
       return { branch: result.branch, pulled: result.pulled, pullError: result.pullError ? scrubGitCredentials(result.pullError) : null, prompt: result.prompt };
     } catch (error) {
       throw cleanError(error);

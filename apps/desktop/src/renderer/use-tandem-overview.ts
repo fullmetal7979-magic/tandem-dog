@@ -44,7 +44,7 @@ export function useTandemOverview(projectPath: string, active: boolean) {
   const fetchNext = useRef(true);
 
   const refresh = useCallback(
-    async (options: { fetch?: boolean } = {}) => {
+    async (options: { fetch?: boolean; force?: boolean } = {}) => {
       const fetchRemote = options.fetch === true;
       const epoch = ++requestEpoch.current;
       const api = window.mixdogDesktop;
@@ -57,7 +57,7 @@ export function useTandemOverview(projectPath: string, active: boolean) {
         loading: true,
       }));
       try {
-        const overview = await api.tandemOverview(projectPath, { fetch: fetchRemote });
+        const overview = await api.tandemOverview(projectPath, options.force === true ? { fetch: fetchRemote, force: true } : { fetch: fetchRemote });
         if (epoch !== requestEpoch.current) return;
         setState((current) => ({
           projectPath,

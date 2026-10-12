@@ -241,10 +241,17 @@ export function parseTrack(track) {
 
 /** Branch heads, ahead/behind and dirty files of this checkout. */
 export async function localStatus(root) {
-  const branch = (await runGit(root, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
-  const head = (await runGit(root, ['rev-parse', '--short=10', 'HEAD'])).stdout.trim();
   const fmt = '%(refname:short)%09%(objectname:short=10)%09%(upstream:short)%09%(upstream:track)%09%(committerdate:unix)%09%(subject)';
-  const refs = await runGit(root, ['for-each-ref', '--sort=-committerdate', '--count=60', `--format=${fmt}`, 'refs/heads']);
+  // Three independent reads, run together: status -b carries the branch name.
+  const [st, rev, refs] = await Promise.all([
+    runGit(root, ['-c', 'core.quotePath=false', 'status', '--porcelain', '-b']),
+    runGit(root, ['rev-parse', '--short=10', 'HEAD']),
+    runGit(root, ['for-each-ref', '--sort=-committerdate', '--count=60', `--format=${fmt}`, 'refs/heads']),
+  ]);
+  const lines = st.stdout.split('\n').filter(Boolean);
+  const header = lines[0]?.startsWith('## ') ? lines.shift().slice(3) : '';
+  const branch = /^HEAD \(no branch\)/.test(header) ? 'HEAD' : header.replace(/^No commits yet on /, '').split('...')[0].split(' ')[0];
+  const head = rev.stdout.trim();
   const branches = refs.stdout
     .split('\n')
     .filter(Boolean)
@@ -252,10 +259,7 @@ export async function localStatus(root) {
       const [name, sha, upstream, track, ts, ...subj] = l.split('\t');
       return { name, head: sha, upstream: upstream || null, ...parseTrack(track), ts: Number(ts) || 0, subject: subj.join(' ').slice(0, 120) };
     });
-  const dirty = (await runGit(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])).stdout
-    .split('\n')
-    .filter(Boolean)
-    .slice(0, 200);
+  const dirty = lines.slice(0, 200);
   return { branch, head, branches, dirty, at: Date.now() };
 }
 
@@ -301,16 +305,35 @@ export async function publishDesk(root, { desk, tool, status, holding = null, pu
   return { ref, commit, pushed: false, error: null };
 }
 
-/** Fetch every PC's published status. */
+const DESK_REFSPEC = `+${DESK_REF_PREFIX}*:${DESK_REF_PREFIX}*`;
+const BRANCH_REFSPEC = '+refs/heads/*:refs/remotes/origin/*';
+
+/** One network round-trip for branches and every PC's status record. */
+export async function fetchAll(root) {
+  return runGit(root, ['fetch', '--quiet', '--prune', 'origin', BRANCH_REFSPEC, DESK_REFSPEC]);
+}
+
+/** Every PC's published status, read with a single `git cat-file --batch`. */
 export async function fetchDesks(root, { fetch = true } = {}) {
-  if (fetch) await runGit(root, ['fetch', '--quiet', 'origin', `+${DESK_REF_PREFIX}*:${DESK_REF_PREFIX}*`]);
+  if (fetch) await runGit(root, ['fetch', '--quiet', '--prune', 'origin', DESK_REFSPEC]);
   const refs = (await runGit(root, ['for-each-ref', '--format=%(refname)', DESK_REF_PREFIX])).stdout.split('\n').filter(Boolean);
+  if (!refs.length) return [];
+  const batch = await runGit(root, ['cat-file', '--batch'], { input: refs.map((ref) => `${ref}:desk.json\n`).join('') });
   const desks = [];
-  for (const ref of refs) {
-    const r = await runGit(root, ['show', `${ref}:desk.json`]);
-    if (r.code !== 0) continue;
+  const buf = Buffer.from(batch.stdout, 'utf8');
+  let pos = 0;
+  while (pos < buf.length) {
+    const nl = buf.indexOf(10, pos);
+    if (nl < 0) break;
+    const header = buf.subarray(pos, nl).toString('utf8');
+    pos = nl + 1;
+    const m = /^\S+ blob (\d+)$/.exec(header);
+    if (!m) continue; // "<ref> missing"
+    const size = Number(m[1]);
+    const body = buf.subarray(pos, pos + size).toString('utf8');
+    pos += size + 1;
     try {
-      const d = JSON.parse(r.stdout);
+      const d = JSON.parse(body);
       if (isValidDesk(d.desk)) desks.push(d);
     } catch {
       /* ignore a malformed desk record */
@@ -449,11 +472,11 @@ export async function heartbeat(root, { push = true } = {}) {
 
 /** Everything the Tandem panel needs in one call. */
 export async function overview(root, { fetch = true } = {}) {
-  if (fetch) await runGit(root, ['fetch', '--quiet', 'origin']);
+  if (fetch) await fetchAll(root);
   const [cfg, session, desks, remote, local] = await Promise.all([
     readDeskConfig(root),
     readSession(root),
-    fetchDesks(root, { fetch }),
+    fetchDesks(root, { fetch: false }),
     remoteBranches(root),
     localStatus(root),
   ]);

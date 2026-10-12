@@ -42,6 +42,7 @@ export function remoteBranches(root: string): Promise<RemoteBranch[]>;
 
 export interface DeskRecord extends LocalStatus { v: 1; desk: Desk; tool: string | null; host: string; holding: string | null }
 export function publishDesk(root: string, opts: { desk: Desk; tool?: string | null; status: LocalStatus; holding?: string | null; push?: boolean }): Promise<{ ref: string; commit: string; pushed: boolean; error: string | null }>;
+export function fetchAll(root: string): Promise<GitResult>;
 export function fetchDesks(root: string, opts?: { fetch?: boolean }): Promise<DeskRecord[]>;
 
 export type RelKind = 'none' | 'ahead' | 'diverged' | 'behind' | 'stale' | 'ok';

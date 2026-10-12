@@ -548,7 +548,7 @@ function TandemContent({
   fetchedAt: number | null;
   loading: boolean;
   error: string;
-  refresh(options?: { fetch?: boolean }): Promise<void>;
+  refresh(options?: { fetch?: boolean; force?: boolean }): Promise<void>;
   now: number;
 }) {
   const [mode, setMode] = useState<TandemMode>(null);
@@ -637,7 +637,7 @@ function TandemContent({
             label={t('Refresh')}
             disabled={loading}
             aria-busy={loading || undefined}
-            onClick={() => void refresh({ fetch: true })}
+            onClick={() => void refresh({ fetch: true, force: true })}
           />
         </div>
         <div style={{ ...wrapStyle, ...mutedStyle }}>
@@ -675,7 +675,7 @@ function TandemContent({
           />
         )}
         {actionError && <ErrorNotice error={actionError} role="status" />}
-        {error && <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true })} />}
+        {error && <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true, force: true })} />}
         {notice?.kind === 'resume' && <ResumeNotice result={notice.result} onDismiss={() => setNotice(null)} />}
         {notice?.kind === 'leave' && <LeaveNotice result={notice.result} onDismiss={() => setNotice(null)} />}
       </section>
@@ -732,7 +732,7 @@ export const TandemPane = memo(function TandemPane({ projectPath, active }: { pr
     if (error) {
       return (
         <div style={paneStyle}>
-          <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true })} />
+          <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true, force: true })} />
         </div>
       );
     }
@@ -743,7 +743,7 @@ export const TandemPane = memo(function TandemPane({ projectPath, active }: { pr
       <div className="utility-dock-empty" data-tandem-unavailable="">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span>{overview.reason || t('Open a git project with an origin remote')}</span>
-          <Button size="sm" disabled={loading} onClick={() => void refresh({ fetch: true })}>
+          <Button size="sm" disabled={loading} onClick={() => void refresh({ fetch: true, force: true })}>
             {t('Refresh')}
           </Button>
         </div>
