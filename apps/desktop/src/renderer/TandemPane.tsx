@@ -1,5 +1,5 @@
 import { Github } from 'lucide-react';
-import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   TANDEM_DESKS,
   type TandemBranchOverview,
@@ -14,6 +14,7 @@ import { t } from './i18n';
 import { copyTextToClipboard } from './text-format';
 import { tandemApiAvailable, useTandemOverview } from './use-tandem-overview';
 import { Button, IconButton, TextInput } from './ui/primitives';
+import './tandem-pane.css';
 
 type TandemRow = TandemBranchOverview['rows'][number];
 type TandemMode = 'desk' | 'leave' | null;
@@ -26,76 +27,9 @@ type TandemNotice =
 const NOW_TICK_MS = 30_000;
 const TIMELINE_LENGTH = 8;
 
-const COLOR = {
-  ok: 'var(--mx-success)',
-  warn: 'var(--mx-warning)',
-  bad: 'var(--mx-danger)',
-  muted: 'var(--mx-text-muted)',
-  accent: 'var(--mx-text-accent)',
-} as const;
+type Tone = 'ok' | 'warn' | 'bad' | 'muted' | 'accent';
 
-const paneStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
-  minWidth: 0,
-  padding: '12px 12px 16px',
-  fontSize: 'var(--mx-font-minor)',
-  lineHeight: 'var(--mx-line-minor)',
-  color: 'var(--mx-text)',
-};
-const cardStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  minWidth: 0,
-  padding: 10,
-  border: '1px solid var(--mx-border-muted)',
-  borderRadius: 'var(--mx-radius-md)',
-  background: 'var(--mx-bg-layer-1)',
-};
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  color: 'var(--mx-text-muted)',
-  fontSize: 'var(--mx-font-minor)',
-  fontWeight: 600,
-  letterSpacing: '0.02em',
-};
-const listStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  margin: 0,
-  padding: 0,
-  listStyle: 'none',
-};
-const lineStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 };
-const ellipsisStyle: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-const mutedStyle: CSSProperties = { color: 'var(--mx-text-muted)' };
-const wrapStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, minWidth: 0 };
-const fieldStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '4px 8px', resize: 'vertical' };
-
-function chipStyle(color: string): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 3,
-    flex: '0 0 auto',
-    padding: '0 5px',
-    border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
-    borderRadius: 'var(--mx-radius-sm)',
-    color,
-    background: `color-mix(in srgb, ${color} 12%, transparent)`,
-    fontSize: 11,
-    fontWeight: 600,
-    lineHeight: '16px',
-  };
-}
+const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
 function errorText(reason: unknown): string {
   if (reason instanceof Error) return reason.message;
@@ -130,13 +64,13 @@ function handoffTime(at: string): number {
   return Date.parse(at.replace(' ', 'T'));
 }
 
-function relationGlyph(row: TandemRow): { glyph: string; color: string } {
+function relationGlyph(row: TandemRow): { glyph: string; tone: Tone } {
   const { k } = row.rel;
-  if (k === 'ok') return { glyph: '=', color: COLOR.ok };
-  if (k === 'ahead') return { glyph: row.branch?.ahead ? `↑${row.branch.ahead}` : '↑', color: COLOR.warn };
-  if (k === 'behind') return { glyph: row.branch?.behind ? `↓${row.branch.behind}` : '↓', color: COLOR.warn };
-  if (k === 'diverged') return { glyph: '↑↓', color: COLOR.bad };
-  return { glyph: '?', color: COLOR.muted };
+  if (k === 'ok') return { glyph: '=', tone: 'ok' };
+  if (k === 'ahead') return { glyph: row.branch?.ahead ? `↑${row.branch.ahead}` : '↑', tone: 'warn' };
+  if (k === 'behind') return { glyph: row.branch?.behind ? `↓${row.branch.behind}` : '↓', tone: 'warn' };
+  if (k === 'diverged') return { glyph: '↑↓', tone: 'bad' };
+  return { glyph: '?', tone: 'muted' };
 }
 
 function selectableDesks(overview: TandemOverview): TandemDesk[] {
@@ -164,24 +98,17 @@ function leaveSummary(result: TandemLeaveResult): { tone: 'ok' | 'warn'; text: s
   return { tone: 'ok', text: t('Handoff logged on {{branch}}.', { branch }) };
 }
 
+function Pill({ tone, children, ...rest }: { tone: Tone; children: ReactNode; [attr: `data-${string}`]: string | undefined; title?: string }) {
+  return (
+    <span className={`tdm-pill tdm-pill--${tone}`} {...rest}>
+      {children}
+    </span>
+  );
+}
+
 function DeskBadge({ desk, accent = false }: { desk: string; accent?: boolean }) {
   return (
-    <span
-      data-tandem-desk={desk}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flex: '0 0 20px',
-        width: 20,
-        height: 20,
-        borderRadius: 'var(--mx-radius-sm)',
-        color: accent ? 'var(--mx-grey-50)' : 'var(--mx-text)',
-        background: accent ? 'var(--mx-accent-bg)' : 'var(--mx-bg-layer-3)',
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
+    <span className={cx('tdm-badge', accent && 'tdm-badge--accent')} data-tandem-desk={desk}>
       {desk}
     </span>
   );
@@ -189,17 +116,17 @@ function DeskBadge({ desk, accent = false }: { desk: string; accent?: boolean })
 
 function LatestMarker({ localOnly }: { localOnly: boolean }) {
   return (
-    <span data-tandem-latest={localOnly ? 'local' : 'true'} style={chipStyle(localOnly ? COLOR.warn : COLOR.accent)}>
+    <span className="tdm-pill tdm-pill--latest" data-tandem-latest={localOnly ? 'local' : 'true'}>
       <span aria-hidden="true">♛</span>
       {localOnly ? t('latest · local only') : t('latest')}
     </span>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, kind, children }: { title: string; kind: 'map' | 'session' | 'timeline'; children: ReactNode }) {
   return (
-    <section aria-label={title} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-      <h3 style={sectionTitleStyle}>{title}</h3>
+    <section aria-label={title} className={`tdm-section tdm-section--${kind}`}>
+      <h3 className="tdm-section-title">{title}</h3>
       {children}
     </section>
   );
@@ -209,30 +136,19 @@ function GithubRow({ focus, now }: { focus: TandemBranchOverview; now: number })
   const { gh } = focus;
   const latest = focus.latest.where.includes('github');
   return (
-    <li data-tandem-row="github" style={{ ...lineStyle, alignItems: 'flex-start' }}>
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flex: '0 0 20px',
-          width: 20,
-          height: 20,
-          borderRadius: 'var(--mx-radius-sm)',
-          background: 'var(--mx-bg-layer-3)',
-        }}
-      >
+    <li className="tdm-row" data-tandem-row="github">
+      <span className="tdm-badge">
         <Github size={12} aria-hidden="true" />
       </span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
-        <div style={lineStyle}>
+      <div className="tdm-row-main">
+        <div className="tdm-line">
           <b>GitHub</b>
-          {gh && <code style={{ ...mutedStyle, fontSize: 11 }}>{gh.head}</code>}
-          {gh && <span style={{ ...mutedStyle, marginLeft: 'auto' }}>{ageLabel(gh.ts * 1000, now)}</span>}
+          {gh && <code className="tdm-mono tdm-muted">{gh.head.slice(0, 7)}</code>}
+          {gh && <span className="tdm-trail">{ageLabel(gh.ts * 1000, now)}</span>}
         </div>
-        <div style={wrapStyle}>
+        <div className="tdm-wrap">
           {latest && <LatestMarker localOnly={false} />}
-          <span style={{ ...mutedStyle, ...ellipsisStyle, flex: 1 }}>
+          <span className="tdm-subject tdm-ellipsis">
             {gh ? gh.subject : t('No copy of this branch on GitHub yet')}
           </span>
         </div>
@@ -261,26 +177,24 @@ function DeskRow({
       data-rel={row.rel.k}
       data-current={row.current ? 'true' : 'false'}
       title={t('Published {{age}}', { age: ageLabel(row.at, now) })}
-      style={{ ...lineStyle, alignItems: 'flex-start', opacity: row.current ? 1 : 0.8 }}
+      className="tdm-row"
     >
       <DeskBadge desk={row.desk} accent={mine} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
-        <div style={lineStyle}>
-          <b style={{ ...ellipsisStyle, flex: '0 1 auto', maxWidth: '60%' }}>{row.tool || t('No account label')}</b>
-          <span style={{ ...mutedStyle, ...ellipsisStyle, flex: '1 1 0' }}>{row.host}</span>
-          {mine && <span style={chipStyle(COLOR.accent)}>{t('this PC')}</span>}
-          <span
-            data-tandem-rel={row.rel.k}
-            title={row.rel.label}
-            style={{ ...chipStyle(relation.color), marginLeft: 'auto' }}
-          >
-            {relation.glyph}
+      <div className="tdm-row-main">
+        <div className="tdm-line">
+          <b className="tdm-tool tdm-ellipsis">{row.tool || t('No account label')}</b>
+          <span className="tdm-host tdm-ellipsis">{row.host}</span>
+          {mine && <Pill tone="accent">{t('this PC')}</Pill>}
+          <span className="tdm-trail">
+            <Pill tone={relation.tone} data-tandem-rel={row.rel.k} title={row.rel.label}>
+              {relation.glyph}
+            </Pill>
           </span>
         </div>
-        <div style={wrapStyle}>
+        <div className="tdm-wrap">
           {latest && <LatestMarker localOnly={focus.latest.localOnly} />}
-          {holding && <span style={chipStyle(COLOR.ok)}>{t('holding')}</span>}
-          <span style={mutedStyle}>
+          {holding && <Pill tone="ok">{t('holding')}</Pill>}
+          <span className="tdm-muted tdm-hide-compact">
             {row.dirty > 0 ? `${row.rel.label} · ${t('{{n}} modified', { n: row.dirty })}` : row.rel.label}
           </span>
         </div>
@@ -306,16 +220,16 @@ function DeskForm({
   return (
     <form
       data-tandem-form="desk"
-      style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+      className="tdm-form"
       onSubmit={(event) => {
         event.preventDefault();
         if (desk) onSubmit(desk, tool.trim());
       }}
     >
       {options.length === 0 ? (
-        <p style={{ ...mutedStyle, margin: 0 }}>{t('Every desk letter is already taken.')}</p>
+        <p className="tdm-p tdm-muted">{t('Every desk letter is already taken.')}</p>
       ) : (
-        <div role="radiogroup" aria-label={t('Desk letter')} style={wrapStyle}>
+        <div role="radiogroup" aria-label={t('Desk letter')} className="tdm-letters">
           {options.map((letter) => (
             <Button
               key={letter}
@@ -337,7 +251,7 @@ function DeskForm({
         aria-label={t('Account label')}
         maxLength={40}
       />
-      <div style={wrapStyle}>
+      <div className="tdm-actions">
         <Button type="submit" size="sm" variant="primary" busy={busy} disabled={!desk}>
           {t('Save desk')}
         </Button>
@@ -365,31 +279,29 @@ function LeaveForm({
   return (
     <form
       data-tandem-form="leave"
-      style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+      className="tdm-form"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit(memo.trim(), next.trim());
       }}
     >
       <textarea
-        className="mx-input"
+        className="mx-input tdm-field"
         rows={2}
         value={memo}
         onChange={(event) => setMemo(event.currentTarget.value)}
         placeholder={t('What did you do on this PC?')}
         aria-label={t('Handoff memo')}
-        style={fieldStyle}
       />
       <textarea
-        className="mx-input"
+        className="mx-input tdm-field"
         rows={2}
         value={next}
         onChange={(event) => setNext(event.currentTarget.value)}
         placeholder={t('What should the next PC do first?')}
         aria-label={t('Next step')}
-        style={fieldStyle}
       />
-      <div style={wrapStyle}>
+      <div className="tdm-actions">
         <Button type="submit" size="sm" variant="primary" busy={busy}>
           {t('Commit, push and leave')}
         </Button>
@@ -417,33 +329,20 @@ function ResumeNotice({ result, onDismiss }: { result: TandemResumeResult; onDis
     timer.current = window.setTimeout(() => setCopy('idle'), 2_000);
   };
   return (
-    <div data-tandem-notice="resume" style={{ ...cardStyle, background: 'transparent' }}>
-      <div style={lineStyle}>
-        <b style={{ ...ellipsisStyle, flex: 1 }}>{t('Resumed {{branch}}', { branch: result.branch })}</b>
+    <div data-tandem-notice="resume" className="tdm-notice">
+      <div className="tdm-line">
+        <b className="tdm-ellipsis tdm-grow">{t('Resumed {{branch}}', { branch: result.branch })}</b>
         <IconButton icon="close-small" label={t('Dismiss')} onClick={onDismiss} />
       </div>
       {result.pullError && (
-        <p style={{ margin: 0, color: COLOR.warn }}>{t('Pull failed: {{error}}', { error: result.pullError })}</p>
+        <p className="tdm-p tdm-warn-text">{t('Pull failed: {{error}}', { error: result.pullError })}</p>
       )}
-      <p style={{ ...mutedStyle, margin: 0 }}>
+      <p className="tdm-p tdm-muted">
         {t(
           'Claude Code and Mixdog read .tandem/SESSION.md automatically. Other agents can start from this prompt:'
         )}
       </p>
-      <pre
-        data-tandem-prompt=""
-        style={{
-          margin: 0,
-          maxHeight: 120,
-          overflow: 'auto',
-          padding: 6,
-          borderRadius: 'var(--mx-radius-sm)',
-          background: 'var(--mx-bg-base)',
-          fontSize: 11,
-          whiteSpace: 'pre-wrap',
-          overflowWrap: 'anywhere',
-        }}
-      >
+      <pre data-tandem-prompt="" className="tdm-prompt">
         {result.prompt}
       </pre>
       <div>
@@ -458,9 +357,9 @@ function ResumeNotice({ result, onDismiss }: { result: TandemResumeResult; onDis
 function LeaveNotice({ result, onDismiss }: { result: TandemLeaveResult; onDismiss(): void }) {
   const summary = leaveSummary(result);
   return (
-    <div data-tandem-notice="leave" style={{ ...cardStyle, background: 'transparent' }}>
-      <div style={lineStyle}>
-        <span style={{ flex: 1, color: summary.tone === 'warn' ? COLOR.warn : COLOR.ok }}>{summary.text}</span>
+    <div data-tandem-notice="leave" className="tdm-notice">
+      <div className="tdm-line">
+        <span className={cx('tdm-grow', summary.tone === 'warn' ? 'tdm-warn-text' : 'tdm-ok-text')}>{summary.text}</span>
         <IconButton icon="close-small" label={t('Dismiss')} onClick={onDismiss} />
       </div>
     </div>
@@ -470,60 +369,62 @@ function LeaveNotice({ result, onDismiss }: { result: TandemLeaveResult; onDismi
 function SessionCard({ overview }: { overview: TandemOverview }) {
   const session = overview.session;
   if (!session) {
-    return <p style={{ ...mutedStyle, margin: 0 }}>{t('No shared session yet. Leave from a PC to start one.')}</p>;
+    return <p className="tdm-p tdm-muted">{t('No shared session yet. Leave from a PC to start one.')}</p>;
   }
   const decisions = session.decisions.filter(Boolean);
   const field = (name: string, value: string) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-      <span style={{ ...mutedStyle, fontSize: 11 }}>{name}</span>
-      <span style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{value || '—'}</span>
+    <div className="tdm-session-item">
+      <dt>{name}</dt>
+      <dd>{value || '—'}</dd>
     </div>
   );
   return (
-    <div data-tandem-session="" style={cardStyle}>
+    <dl data-tandem-session="" className="tdm-session">
       {field(t('Goal'), session.goal)}
       {field(t('Next step'), session.next)}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-        <span style={{ ...mutedStyle, fontSize: 11 }}>{t('Decisions')}</span>
-        {decisions.length === 0 ? (
-          <span>—</span>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: 16, overflowWrap: 'anywhere' }}>
-            {decisions.map((decision, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: positional read-only list; identical lines may repeat
-              <li key={`${index}:${decision}`}>{decision}</li>
-            ))}
-          </ul>
-        )}
+      <div className="tdm-session-item">
+        <dt>{t('Decisions')}</dt>
+        <dd>
+          {decisions.length === 0 ? (
+            '—'
+          ) : (
+            <ul className="tdm-decisions">
+              {decisions.map((decision, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: positional read-only list; identical lines may repeat
+                <li key={`${index}:${decision}`}>{decision}</li>
+              ))}
+            </ul>
+          )}
+        </dd>
       </div>
-    </div>
+    </dl>
   );
 }
 
 function Timeline({ handoffs, now }: { handoffs: readonly TandemHandoff[]; now: number }) {
   const recent = handoffs.slice(-TIMELINE_LENGTH).reverse();
-  if (recent.length === 0) return <p style={{ ...mutedStyle, margin: 0 }}>{t('No handoffs yet.')}</p>;
+  if (recent.length === 0) return <p className="tdm-p tdm-muted">{t('No handoffs yet.')}</p>;
   return (
-    <ol data-tandem-timeline="" style={listStyle}>
+    <ol data-tandem-timeline="" className="tdm-timeline">
       {recent.map((entry, index) => {
         const kindLabel = entry.kind === 'leave' ? t('Left') : entry.kind === 'resume' ? t('Resumed') : t('Note');
-        const kindColor = entry.kind === 'leave' ? COLOR.warn : entry.kind === 'resume' ? COLOR.ok : COLOR.muted;
+        const kindTone: Tone = entry.kind === 'leave' ? 'warn' : entry.kind === 'resume' ? 'ok' : 'muted';
         return (
           <li
             // biome-ignore lint/suspicious/noArrayIndexKey: log lines are append-only and may repeat a stamp
             key={`${entry.at}:${index}`}
             data-tandem-handoff={entry.kind}
-            style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
+            className="tdm-entry"
           >
-            <div style={lineStyle}>
+            <div className="tdm-line">
               <DeskBadge desk={entry.desk} />
-              <span style={chipStyle(kindColor)}>{kindLabel}</span>
-              {entry.branch && <code style={{ ...ellipsisStyle, fontSize: 11 }}>{entry.branch}</code>}
-              <span style={{ ...mutedStyle, marginLeft: 'auto', flex: '0 0 auto' }} title={entry.at}>
+              <Pill tone={kindTone}>{kindLabel}</Pill>
+              {entry.branch && <code className="tdm-mono tdm-ellipsis tdm-hide-compact">{entry.branch}</code>}
+              <span className="tdm-trail" title={entry.at}>
                 {ageLabel(handoffTime(entry.at), now)}
               </span>
             </div>
-            <div style={{ ...mutedStyle, overflowWrap: 'anywhere' }}>
+            <div className="tdm-entry-note">
               {entry.tool}
               {entry.memo ? ` · ${entry.memo}` : ''}
             </div>
@@ -615,106 +516,101 @@ function TandemContent({
   const checked = fetchedAt ? t('Checked {{age}}', { age: ageLabel(fetchedAt, now) }) : '';
 
   return (
-    <div data-tandem-pane="" style={paneStyle}>
-      <section aria-label={t('Tandem status')} style={cardStyle}>
-        <div style={lineStyle}>
-          <span
-            data-tandem-dot={level}
-            aria-hidden="true"
-            style={{
-              flex: '0 0 auto',
-              width: 9,
-              height: 9,
-              borderRadius: '50%',
-              background: COLOR[level],
-            }}
-          />
-          <b data-tandem-verdict={level} style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-            {focus ? focus.verdict.text : t('No branch to follow yet')}
-          </b>
-          <IconButton
-            icon="refresh"
-            label={t('Refresh')}
-            disabled={loading}
-            aria-busy={loading || undefined}
-            onClick={() => void refresh({ fetch: true, force: true })}
-          />
-        </div>
-        <div style={{ ...wrapStyle, ...mutedStyle }}>
-          {checked && <span data-tandem-checked="">{checked}</span>}
-          {focus && checked && <span aria-hidden="true">·</span>}
-          {focus && <code style={{ fontSize: 11 }}>{focus.branch}</code>}
-        </div>
-        {action && (
-          <Button
-            variant="primary"
-            size="md"
-            style={{ width: '100%' }}
-            busy={busy === 'resume'}
-            disabled={!supported || busy !== null}
-            title={supported ? undefined : t('Not available in this app version')}
-            onClick={onPrimary}
-          >
-            {primaryLabel}
-          </Button>
+    <div data-tandem-pane="" className="tdm-pane">
+      <div className="tdm-layout">
+        <section aria-label={t('Tandem status')} className="tdm-hero">
+          <div className="tdm-verdict-line">
+            <span className="tdm-dot" data-tandem-dot={level} aria-hidden="true" />
+            <b className="tdm-verdict" data-tandem-verdict={level} aria-live="polite">
+              {focus ? focus.verdict.text : t('No branch to follow yet')}
+            </b>
+            <IconButton
+              icon="refresh"
+              label={t('Refresh')}
+              disabled={loading}
+              aria-busy={loading || undefined}
+              onClick={() => void refresh({ fetch: true, force: true })}
+            />
+          </div>
+          <div className="tdm-meta">
+            {checked && <span data-tandem-checked="">{checked}</span>}
+            {focus && checked && <span aria-hidden="true">·</span>}
+            {focus && <code className="tdm-mono tdm-ellipsis">{focus.branch}</code>}
+          </div>
+          {action && (
+            <Button
+              className="tdm-primary"
+              variant="primary"
+              size="md"
+              busy={busy === 'resume'}
+              disabled={!supported || busy !== null}
+              title={supported ? undefined : t('Not available in this app version')}
+              onClick={onPrimary}
+            >
+              {primaryLabel}
+            </Button>
+          )}
+          {mode === 'desk' && (
+            <DeskForm
+              overview={overview}
+              busy={busy === 'desk'}
+              onSubmit={(nextDesk, tool) => void saveDesk(nextDesk, tool)}
+              onCancel={() => setMode(null)}
+            />
+          )}
+          {mode === 'leave' && (
+            <LeaveForm
+              initialNext={overview.session?.next ?? ''}
+              busy={busy === 'leave'}
+              onSubmit={(memo, next) => void leave(memo, next)}
+              onCancel={() => setMode(null)}
+            />
+          )}
+          {actionError && <ErrorNotice error={actionError} role="status" />}
+          {error && <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true, force: true })} />}
+          {notice?.kind === 'resume' && <ResumeNotice result={notice.result} onDismiss={() => setNotice(null)} />}
+          {notice?.kind === 'leave' && <LeaveNotice result={notice.result} onDismiss={() => setNotice(null)} />}
+        </section>
+
+        {config && desk && (
+          <div className="tdm-desk-line">
+            <DeskBadge desk={desk} accent />
+            <span className="tdm-ellipsis">
+              {config.tool || t('No account label')}
+              <span className="tdm-host-inline"> · {config.host}</span>
+            </span>
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() => setMode(mode === 'desk' ? null : 'desk')}
+            >
+              {t('Change')}
+            </Button>
+          </div>
         )}
-        {mode === 'desk' && (
-          <DeskForm
-            overview={overview}
-            busy={busy === 'desk'}
-            onSubmit={(nextDesk, tool) => void saveDesk(nextDesk, tool)}
-            onCancel={() => setMode(null)}
-          />
-        )}
-        {mode === 'leave' && (
-          <LeaveForm
-            initialNext={overview.session?.next ?? ''}
-            busy={busy === 'leave'}
-            onSubmit={(memo, next) => void leave(memo, next)}
-            onCancel={() => setMode(null)}
-          />
-        )}
-        {actionError && <ErrorNotice error={actionError} role="status" />}
-        {error && <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true, force: true })} />}
-        {notice?.kind === 'resume' && <ResumeNotice result={notice.result} onDismiss={() => setNotice(null)} />}
-        {notice?.kind === 'leave' && <LeaveNotice result={notice.result} onDismiss={() => setNotice(null)} />}
-      </section>
 
-      {config && desk && (
-        <div style={{ ...lineStyle, ...mutedStyle }}>
-          <DeskBadge desk={desk} accent />
-          <span style={{ ...ellipsisStyle, flex: 1 }}>
-            {config.tool || t('No account label')} · {config.host}
-          </span>
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={busy !== null}
-            onClick={() => setMode(mode === 'desk' ? null : 'desk')}
-          >
-            {t('Change')}
-          </Button>
+        <div className="tdm-body">
+          {focus && (
+            <Section title={t('Where is the latest version?')} kind="map">
+              <ul data-tandem-map="" className="tdm-list">
+                <GithubRow focus={focus} now={now} />
+                {focus.rows.map((row) => (
+                  <DeskRow key={row.desk} row={row} focus={focus} mine={row.desk === desk} now={now} />
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          <Section title={t('Session')} kind="session">
+            <SessionCard overview={overview} />
+          </Section>
+
+          <Section title={t('Handoffs')} kind="timeline">
+            <Timeline handoffs={overview.handoffs ?? []} now={now} />
+          </Section>
         </div>
-      )}
-
-      {focus && (
-        <Section title={t('Where is the latest version?')}>
-          <ul data-tandem-map="" style={listStyle}>
-            <GithubRow focus={focus} now={now} />
-            {focus.rows.map((row) => (
-              <DeskRow key={row.desk} row={row} focus={focus} mine={row.desk === desk} now={now} />
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      <Section title={t('Session')}>
-        <SessionCard overview={overview} />
-      </Section>
-
-      <Section title={t('Handoffs')}>
-        <Timeline handoffs={overview.handoffs ?? []} now={now} />
-      </Section>
+      </div>
     </div>
   );
 }
@@ -731,8 +627,10 @@ export const TandemPane = memo(function TandemPane({ projectPath, active }: { pr
   if (!overview) {
     if (error) {
       return (
-        <div style={paneStyle}>
+        <div className="tdm-pane">
+          <div className="tdm-layout">
           <ErrorNotice error={error} role="status" onRetry={() => void refresh({ fetch: true, force: true })} />
+          </div>
         </div>
       );
     }
@@ -741,7 +639,7 @@ export const TandemPane = memo(function TandemPane({ projectPath, active }: { pr
   if (!overview.available) {
     return (
       <div className="utility-dock-empty" data-tandem-unavailable="">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="tdm-form">
           <span>{overview.reason || t('Open a git project with an origin remote')}</span>
           <Button size="sm" disabled={loading} onClick={() => void refresh({ fetch: true, force: true })}>
             {t('Refresh')}

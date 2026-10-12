@@ -21,10 +21,11 @@ import { rosepinePalette as rawRosepinePalette } from './rosepine.mjs';
 import { nordPalette as rawNordPalette } from './nord.mjs';
 import { gruvboxPalette as rawGruvboxPalette } from './gruvbox.mjs';
 import { everforestPalette as rawEverforestPalette } from './everforest.mjs';
+import { midnightPalette as rawMidnightPalette } from './midnight.mjs';
 import { softenTypographyColors } from './utils.mjs';
 
-/** Default theme id (Basic — amber-gold default dark). */
-export const DEFAULT_THEME_ID = 'basic';
+/** Default theme id (Midnight — Tandem Dog's calm navy dark). */
+export const DEFAULT_THEME_ID = 'midnight';
 
 /** Backward-compatible ids accepted from older persisted configs. */
 export const THEME_ALIASES = {
@@ -46,9 +47,16 @@ const rosepinePalette = softenTypographyColors(rawRosepinePalette);
 const nordPalette = softenTypographyColors(rawNordPalette);
 const gruvboxPalette = softenTypographyColors(rawGruvboxPalette);
 const everforestPalette = softenTypographyColors(rawEverforestPalette);
+const midnightPalette = softenTypographyColors(rawMidnightPalette);
 
 /** Theme registry: id -> { id, label, description, palette }. */
 export const THEME_REGISTRY = {
+  midnight: {
+    id: 'midnight',
+    label: 'Midnight',
+    description: 'Calm navy dark with one periwinkle accent (Tandem Dog default).',
+    palette: midnightPalette,
+  },
   basic: {
     id: 'basic',
     label: 'Basic',
@@ -122,6 +130,7 @@ export const THEME_REGISTRY = {
 
 /** Display order for the theme picker. */
 export const THEME_ORDER = [
+  'midnight',
   'basic',
   'indigo',
   'warm',
