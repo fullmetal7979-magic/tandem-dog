@@ -105,6 +105,12 @@ export function registerSessionIpc({
       requiredToolApprovalDecision(input)
     )
   );
+  handle(DESKTOP_IPC.cosmosContinueConversation, (_event, cwd, conversationId) =>
+    host.continueGalaxyConversation(
+      requiredString(cwd, 'cwd', 4_096),
+      conversationId === undefined || conversationId === null ? null : requiredString(conversationId, 'conversation id', 200)
+    )
+  );
   handle(DESKTOP_IPC.inheritSession, (_event, sourceSessionId, selection) =>
     host.inheritSession(
       requiredSessionId(sourceSessionId),

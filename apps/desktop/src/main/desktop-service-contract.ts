@@ -85,6 +85,11 @@ export interface DesktopService {
     sourceSessionId: string,
     route?: DesktopModelSelection | null
   ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }>;
+  /** COSMOS 해 — a new session carrying the planet's Galaxy conversation. */
+  continueGalaxyConversation(
+    cwd: string,
+    conversationId: string | null
+  ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }>;
   /** Split panes use daemon-owned session addresses directly. Pane actions
    *  never fall back to whichever session happens to be focused. */
   subscribeSessionStates(listener: (update: DesktopSessionStateUpdate) => void): () => void;
@@ -148,6 +153,7 @@ export const DESKTOP_SERVICE_METHODS = [
   'searchProjectFiles',
   'submitNewTask',
   'inheritSession',
+  'continueGalaxyConversation',
   'submitToSession',
   'abortSession',
   'resolveToolApprovalForSession',

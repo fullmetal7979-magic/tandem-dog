@@ -1,4 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { readConversationIn } from '../../../../src/runtime/galaxy/conversations.mjs';
+import { galaxyDir } from '../../../../src/runtime/galaxy/galaxy-repo.mjs';
+import { planetForRoot } from '../../../../src/runtime/galaxy/planet.mjs';
+import { repoRoot } from '../../../../src/runtime/tandem/tandem-core.mjs';
 
 import type {
   DesktopAbortOptions,
@@ -537,6 +541,45 @@ export class SessionHostLifecycle {
       return { sessionId, snapshot: inherited.snapshot ?? null };
     } catch (error) {
       // A half-built heir must not linger in the catalog.
+      await this.unsubscribeQuietly(sessionId);
+      throw error;
+    } finally {
+      this.owner.pendingCatalogSessionIds.delete(sessionId);
+    }
+  }
+
+  /**
+   * COSMOS 해: open a NEW session in the planet at `cwd` carrying the latest
+   * (or the named) conversation another star exported to the Galaxy. The
+   * session opens on this PC's current route, so whichever account this PC
+   * is signed in to continues it.
+   */
+  async continueGalaxyConversation(
+    cwd: string,
+    conversationId: string | null
+  ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
+    const root = await repoRoot(cwd);
+    const planet = await planetForRoot(root);
+    if (!planet.id) throw new Error('이 프로젝트에는 원격 저장소가 없어 은하수 교신을 찾을 수 없어요.');
+    const doc = await readConversationIn(galaxyDir(), planet.id, conversationId);
+    if (!doc?.messages?.length) throw new Error('이어갈 교신이 은하수에 없어요.');
+    // The planet root is the registered project on every star; the exporting
+    // star's sub-folder (doc.cwd) is advisory only.
+    const { cwd: sessionCwd, desktopSession } = await this.owner.resolveSessionWorkspace(root);
+    const created = await this.owner.client.create(
+      { cwd: sessionCwd, desktopSession },
+      this.owner.callOptions(`session-create:${process.pid}:${randomUUID()}`)
+    );
+    const sessionId = sessionIdOf(created.sessionId);
+    this.owner.pendingCatalogSessionIds.add(sessionId);
+    this.owner.applySessionResult(sessionId, created);
+    try {
+      const inherited = await this.owner.invokeSession(sessionId, 'inheritFromExport', [doc]);
+      await this.owner.sessionMetadata.load();
+      this.owner.pendingCatalogSessionIds.delete(sessionId);
+      void this.owner.publishCatalogs();
+      return { sessionId, snapshot: inherited.snapshot ?? null };
+    } catch (error) {
       await this.unsubscribeQuietly(sessionId);
       throw error;
     } finally {

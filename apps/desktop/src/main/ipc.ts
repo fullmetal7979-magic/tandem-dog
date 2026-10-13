@@ -21,11 +21,19 @@ import { registerTerminalIpc, type DesktopTerminalHost } from './ipc-terminal';
 import { registerWindowSettingsIpc } from './ipc-window-settings';
 import { SelectedFileAccess } from './selected-file-access';
 import { registerTandemIpc } from './ipc-tandem';
+import { registerCosmosIpc } from './ipc-cosmos';
 
 /** A sender-guarded `ipcMain.handle`, shared by every handler family. */
 export type IpcHandle = (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) => void;
 
 const SERVICE_OPERATION_NAMES = [
+  'cosmosOverview',
+  'cosmosSun',
+  'cosmosMoon',
+  'cosmosRequest',
+  'cosmosSetStar',
+  'cosmosSetupGalaxy',
+  'cosmosHeartbeat',
   'tandemOverview',
   'tandemLeave',
   'tandemResume',
@@ -249,6 +257,7 @@ export function registerDesktopIpc(
     grantedFile,
   });
   registerTandemIpc({ handle, operations: serviceOperations });
+  registerCosmosIpc({ handle, operations: serviceOperations });
   const eventChannels = new Set<string>([
     DESKTOP_IPC.state,
     DESKTOP_IPC.sessionState,

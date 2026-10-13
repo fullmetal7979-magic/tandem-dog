@@ -743,6 +743,12 @@ export class DesktopServiceClient implements DesktopService {
   ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
     return this.invoke('inheritSession', [sourceSessionId, route ?? null], INHERIT_SESSION_TIMEOUT_MS);
   }
+  continueGalaxyConversation(
+    cwd: string,
+    conversationId: string | null
+  ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
+    return this.invoke('continueGalaxyConversation', [cwd, conversationId ?? null], INHERIT_SESSION_TIMEOUT_MS);
+  }
   submitToSession(
     sessionId: string,
     prompt: DesktopPromptContent,

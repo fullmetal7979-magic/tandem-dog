@@ -595,6 +595,13 @@ export class SessionHost implements DesktopService {
     return this.lifecycle.inheritSession(sourceSessionId, route);
   }
 
+  async continueGalaxyConversation(
+    cwd: string,
+    conversationId: string | null
+  ): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
+    return this.lifecycle.continueGalaxyConversation(cwd, conversationId);
+  }
+
   async submitToSession(
     sessionId: string,
     prompt: DesktopPromptContent,

@@ -52,6 +52,13 @@ async function resolveGh(refresh = false): Promise<{ path: string; version: stri
   return null;
 }
 
+/** Run gh with the resolved executable; `null` when gh is not installed. */
+export async function ghRun(args: string[], timeout = 60_000): Promise<{ code: number; stdout: string; stderr: string } | null> {
+  const gh = await resolveGh();
+  if (!gh) return null;
+  return run(gh.path, args, timeout);
+}
+
 function loginFromAuthOutput(output: string): string {
   // gh ≥2.40 prints "✓ Logged in to github.com account <login> (keyring)";
   // older builds print "✓ Logged in to github.com as <login> (oauth_token)".

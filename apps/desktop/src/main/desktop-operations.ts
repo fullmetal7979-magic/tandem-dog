@@ -7,6 +7,7 @@ import * as gh from './gh-cli';
 import * as git from './git-cli';
 import * as github from './github-cli';
 import * as tandem from './tandem-service';
+import * as cosmos from './cosmos-service';
 import { REPO_SLUG } from '../shared/fork-identity';
 import { createGithubService } from './github-service';
 import { LanguageServerManager } from './language-server-manager';
@@ -197,6 +198,13 @@ export function createFolderWatchRegistry(
 }
 
 const STATIC_OPERATIONS = {
+  cosmosOverview: cosmos.cosmosOverview,
+  cosmosSun: cosmos.cosmosSun,
+  cosmosMoon: cosmos.cosmosMoon,
+  cosmosRequest: cosmos.cosmosRequest,
+  cosmosSetStar: cosmos.cosmosSetStar,
+  cosmosSetupGalaxy: cosmos.cosmosSetupGalaxy,
+  cosmosHeartbeat: cosmos.cosmosHeartbeat,
   tandemOverview: tandem.tandemOverview,
   tandemLeave: tandem.tandemLeave,
   tandemResume: tandem.tandemResume,

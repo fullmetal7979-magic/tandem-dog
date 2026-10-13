@@ -293,6 +293,10 @@ export class CaptureService implements DesktopService {
   async submitToSession(): Promise<boolean> {
     return true;
   }
+  async continueGalaxyConversation(): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
+    throw new Error('Capture host has no Galaxy.');
+  }
+
   async inheritSession(): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
     const sessionId = `capture_inherit_${Date.now()}`;
     return { sessionId, snapshot: { ...this.snapshot, sessionId } };
