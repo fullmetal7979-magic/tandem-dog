@@ -10,13 +10,35 @@ export function phoneClientCapacityAvailable(clientCount) {
   return Number(clientCount) < MAX_PHONE_CLIENTS_PER_DEVICE;
 }
 
+// Behind a TLS-terminating reverse proxy (the COSMOS Docker kit puts Caddy in
+// front), the socket is plain and every peer is the proxy. TRUST_PROXY=1 reads
+// the scheme and the caller from the proxy's X-Forwarded-* headers instead.
+// Only safe when the relay port is reachable from the proxy alone.
+let trustProxy = false;
+export function configureProxyTrust(enabled) {
+  trustProxy = Boolean(enabled);
+}
+
+function forwarded(request, name) {
+  const value = request?.headers?.[name];
+  return typeof value === 'string' ? value : '';
+}
+
+function requestProtocol(request) {
+  if (trustProxy) {
+    const proto = forwarded(request, 'x-forwarded-proto').split(',')[0].trim().toLowerCase();
+    if (proto === 'https' || proto === 'http') return `${proto}:`;
+  }
+  return request?.socket?.encrypted ? 'https:' : 'http:';
+}
+
 export function browserSocketOriginAllowed(request) {
   const origin = typeof request?.headers?.origin === 'string' ? request.headers.origin : '';
   const host = typeof request?.headers?.host === 'string' ? request.headers.host : '';
   if (!origin || !host) return false;
   try {
     const parsed = new URL(origin);
-    const protocol = request?.socket?.encrypted ? 'https:' : 'http:';
+    const protocol = requestProtocol(request);
     return (
       parsed.protocol === protocol &&
       parsed.host.toLowerCase() === host.toLowerCase() &&
@@ -32,6 +54,14 @@ export function browserSocketOriginAllowed(request) {
 }
 
 export function clientIp(request) {
+  if (trustProxy) {
+    // The proxy appends the peer it saw; the right-most entry is the one it vouches for.
+    const hops = forwarded(request, 'x-forwarded-for')
+      .split(',')
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    if (hops.length) return hops.at(-1);
+  }
   return request.socket?.remoteAddress || 'unknown';
 }
 

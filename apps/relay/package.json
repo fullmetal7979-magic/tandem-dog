@@ -3,19 +3,19 @@
   "version": "1.0.12",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Mixdog remote relay: pairs phone clients with a desktop over outbound WebSockets.",
+  "description": "코스모스(COSMOS) 릴레이: 폰과 PC를 종단간 암호화로 이어 주는 서버.",
   "type": "module",
   "main": "server.mjs",
   "scripts": {
     "stage:web": "node scripts/stage-web.mjs",
     "start": "node server.mjs",
-    "test": "node ../../scripts/test.mjs"
+    "test": "node ../../scripts/test.mjs",
+    "deploy:cosmos": "bash deploy/cosmos/deploy.sh"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "nodemailer": "^10.0.16",
     "ws": "^8.21.0"
   },
   "devDependencies": {

@@ -48,6 +48,7 @@ import {
   authenticateLeg,
   browserSocketOriginAllowed,
   clientIp,
+  configureProxyTrust,
   desktopLegOpen,
   phoneClientCapacityAvailable,
   requestUrl,
@@ -655,6 +656,7 @@ if (invokedDirectly) {
   const rendererDir = process.env.RENDERER_DIR || '';
   const tlsCert = process.env.TLS_CERT || '';
   const tlsKey = process.env.TLS_KEY || '';
+  configureProxyTrust(process.env.TRUST_PROXY === '1');
   startRelay({ port, dataDir, rendererDir, tlsCert, tlsKey })
     .then((relay) => {
       const scheme = tlsCert && tlsKey ? 'https' : 'http';

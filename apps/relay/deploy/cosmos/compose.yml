@@ -1,0 +1,31 @@
+# 코스모스 릴레이: Caddy (자동 HTTPS) → relay. The relay port is never
+# published, which is what makes TRUST_PROXY=1 safe.
+name: cosmos-relay
+services:
+  relay:
+    build:
+      context: ../..
+    restart: unless-stopped
+    expose:
+      - "9800"
+    volumes:
+      - relay-data:/data
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - relay
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?RELAY_DOMAIN 을 정해 주세요 (예: relay.example.com)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:

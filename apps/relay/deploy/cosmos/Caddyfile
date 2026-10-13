@@ -1,0 +1,5 @@
+# Let's Encrypt 인증서를 자동으로 받고 갱신해요. WebSocket도 그대로 지나가요.
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy relay:9800
+}

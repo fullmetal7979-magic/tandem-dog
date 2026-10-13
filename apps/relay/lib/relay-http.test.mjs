@@ -92,3 +92,17 @@ test('trust-on-first-use upgrades charge unknown ids and failed secrets', () => 
   );
   assert.deepEqual(unauthorizedHits, ['auth:198.51.100.4']);
 });
+
+test('behind a trusted proxy the scheme and the caller come from X-Forwarded-*', async (t) => {
+  const { configureProxyTrust } = await import('./relay-http.mjs');
+  t.after(() => configureProxyTrust(false));
+  const request = {
+    headers: { origin: 'https://relay.example.com', host: 'relay.example.com', 'x-forwarded-proto': 'https', 'x-forwarded-for': '1.2.3.4, 203.0.113.7' },
+    socket: { encrypted: false, remoteAddress: '172.18.0.2' },
+  };
+  assert.equal(browserSocketOriginAllowed(request), false, 'off by default: a plain socket is not https');
+  assert.equal(clientIp(request), '172.18.0.2');
+  configureProxyTrust(true);
+  assert.equal(browserSocketOriginAllowed(request), true);
+  assert.equal(clientIp(request), '203.0.113.7');
+});
