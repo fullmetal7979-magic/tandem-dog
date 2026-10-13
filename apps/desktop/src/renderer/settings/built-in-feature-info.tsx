@@ -127,7 +127,7 @@ export function BuiltInFeatureInfo({
   if (feature.id === 'autoEffort') {
     facts.push(
       // Mixdog's own judge, fine-tuned from the backbone calibration.json names.
-      ['Model', t('Mixdog Auto reasoning model')],
+      ['Model', t('COSMOS Auto reasoning model')],
       ['Base model', info.model ? `${String(info.model)} · ${t('fine-tuned')}` : ''],
       ['Quantization', String(info.quantization || '')],
       ['Engine', String(info.engine || '')],

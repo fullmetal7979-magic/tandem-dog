@@ -57,7 +57,7 @@ const rendererExpression = `(async () => {
     snapshotAvailable: snapshot !== null,
     approvalRoutingResult,
     chrome: {
-      windowTitle: document.title === 'Mixdog',
+      windowTitle: document.title === 'COSMOS',
       titlebar: Boolean(
         titlebarBounds
         && Math.round(titlebarBounds.top) === 0

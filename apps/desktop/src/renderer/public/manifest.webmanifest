@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Mixdog",
-  "short_name": "Mixdog",
-  "description": "Mixdog coding-agent web app",
+  "name": "COSMOS 코스모스",
+  "short_name": "코스모스",
+  "description": "어느 기기에서든 같은 세션으로 이어 쓰는 코스모스 개발 도구",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

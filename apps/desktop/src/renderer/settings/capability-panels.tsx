@@ -208,7 +208,7 @@ function UpdatePanel({ data, pending, run, updaterState, checkDesktopUpdate, ins
     <Group title={t('Update')}>
       <ResourceRow
         title={t('Current version')}
-        description={t('Installed Mixdog Desktop version.')}
+        description={t('Installed COSMOS Desktop version.')}
         meta={String(update.currentVersion || t('unknown'))}
       />
       <ResourceRow

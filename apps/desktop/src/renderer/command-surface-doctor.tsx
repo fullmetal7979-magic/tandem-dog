@@ -53,7 +53,7 @@ export function doctorReport(value: unknown): DoctorReport | null {
 function checkLabel(check: DoctorCheck): string {
   switch (check.id) {
     case 'mixdog':
-      return t('Mixdog');
+      return t('COSMOS');
     case 'node':
       return t('Node.js');
     case 'providers':

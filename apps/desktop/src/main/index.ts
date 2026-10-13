@@ -31,7 +31,8 @@ import { loginShellOverrides, readLoginShellEnvironment } from './login-shell-en
 import { createTurnAttention, type TurnAttention } from './turn-attention';
 import { createDesktopTurnNotifier } from './desktop-turn-notifier';
 import { desktopIdentity } from './desktop-identity';
-import { APP_NAME, USER_DATA_DIR_NAME } from '../shared/fork-identity';
+import { APP_NAME, LEGACY_USER_DATA_DIR_NAMES, USER_DATA_DIR_NAME } from '../shared/fork-identity';
+import { migrateLegacyUserData } from './legacy-user-data';
 import { notificationSoundPath, playWindowsNotificationSound } from './notification-sound';
 import { activateDesktopWindow, openDesktopNotificationSession } from './notification-window';
 import { createIdleReclaim, purgeRendererMemory, type IdleReclaim } from './idle-reclaim';
@@ -115,7 +116,7 @@ const DESKTOP_WINDOW_SHOW_DEADLINE_MS = 3_000;
 // Profile identity. Unpackaged shells (electron-vite dev/preview, source-mode
 // E2E) derive userData from this package's name (@mixdog/desktop), so every
 // dev run landed in a SEPARATE Chromium profile from the installed app
-// (extraMetadata.name = tandem-dog-desktop, see shared/fork-identity.ts). Recent models, the last
+// (extraMetadata.name = cosmos-desktop, see shared/fork-identity.ts). Recent models, the last
 // session/project, and window state therefore started empty each time — the
 // New task composer read "Select model" even though the installed app had a
 // route. Pin the dev profile to the packaged one; MIXDOG_DESKTOP_USER_DATA
@@ -134,6 +135,12 @@ if (process.env.MIXDOG_DESKTOP_USER_DATA) {
   }
 } else if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), PACKAGED_USER_DATA_DIRECTORY));
+}
+// COSMOS replaced the Tandem Dog build: carry its profile over once, before
+// anything opens the folder. A failure only costs the old preferences.
+if (!process.env.MIXDOG_DESKTOP_USER_DATA) {
+  const migration = migrateLegacyUserData(app.getPath('appData'), PACKAGED_USER_DATA_DIRECTORY, LEGACY_USER_DATA_DIR_NAMES);
+  if (migration.error) console.warn(`[cosmos] legacy profile copy failed: ${migration.error}`);
 }
 
 // Branding must not relocate an existing profile. Development and notification
@@ -955,9 +962,9 @@ function handleGpuChildCrash(reason: string, exitCode: number): void {
   gpuFallbackPromptOpen = true;
   const options = {
     type: 'warning' as const,
-    title: nativeT('Restart Mixdog?'),
-    message: nativeT("Mixdog's graphics process has crashed repeatedly."),
-    detail: nativeT('Restart with software rendering to keep Mixdog from disrupting video playback in other apps.'),
+    title: nativeT('Restart COSMOS?'),
+    message: nativeT("COSMOS's graphics process has crashed repeatedly."),
+    detail: nativeT('Restart with software rendering to keep COSMOS from disrupting video playback in other apps.'),
     buttons: [nativeT('Restart with software rendering'), nativeT('Keep running')],
     defaultId: 0,
     cancelId: 1,
@@ -1151,7 +1158,7 @@ function installRendererCrashRecovery(window: BrowserWindow, reloadRenderer: () 
     void dialog
       .showMessageBox(window, {
         type: 'error',
-        title: nativeT('Mixdog needs to recover'),
+        title: nativeT('COSMOS needs to recover'),
         message: nativeT('The interface stopped repeatedly.'),
         detail: nativeT('Your active task remains in the desktop host. Reload the interface to continue.'),
         buttons: [nativeT('Reload interface'), nativeT('Close window')],

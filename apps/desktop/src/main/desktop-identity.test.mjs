@@ -6,10 +6,10 @@ import test from 'node:test';
 import { desktopIdentity } from './desktop-identity.ts';
 import { APP_ID, APP_NAME } from '../shared/fork-identity.ts';
 
-test('installed Tandem Dog keeps the fork identity, not upstream Mixdog; dev/probes cannot collide', () => {
+test('installed COSMOS keeps its own identity, not upstream Mixdog; dev/probes cannot collide', () => {
   assert.deepEqual(desktopIdentity('installed'), { appId: APP_ID, name: APP_NAME });
-  assert.equal(APP_ID, 'io.tandemdog.desktop');
-  assert.equal(APP_NAME, 'Tandem Dog');
+  assert.equal(APP_ID, 'app.cosmos.desktop');
+  assert.equal(APP_NAME, 'COSMOS');
   for (const identity of ['installed', 'development', 'probe'].map(desktopIdentity)) {
     assert.doesNotMatch(identity.appId, /mixdog/i);
     assert.doesNotMatch(identity.name, /mixdog/i);
@@ -17,8 +17,8 @@ test('installed Tandem Dog keeps the fork identity, not upstream Mixdog; dev/pro
   const identities = ['installed', 'development', 'probe'].map(desktopIdentity);
   assert.equal(new Set(identities.map((identity) => identity.appId)).size, 3);
   assert.equal(new Set(identities.map((identity) => identity.name)).size, 3);
-  assert.equal(desktopIdentity('development').name, 'Tandem Dog Dev');
-  assert.equal(desktopIdentity('probe').name, 'Tandem Dog Notification Test');
+  assert.equal(desktopIdentity('development').name, 'COSMOS Dev');
+  assert.equal(desktopIdentity('probe').name, 'COSMOS Notification Test');
 });
 
 test('the native probe rejects a production identity override before launching Electron', async () => {

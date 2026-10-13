@@ -295,7 +295,7 @@ test('subscription values distinguish recorded money, inferred outside use and t
   assert.equal(cards[2].querySelector('em'), null, 'no forecast sentence or breakdown under the amount');
   assert.ok(cards[2].querySelector('b').title.includes(`${t('Recorded value')}: ${usageMoney(30)}`));
   const outside = [...document.querySelectorAll('.quota-table .stats-model-row')].find(
-    (row) => row.firstElementChild.textContent === t('Outside Mixdog')
+    (row) => row.firstElementChild.textContent === t('Outside COSMOS')
   );
   assert.match(outside.lastElementChild.textContent, /^\$/);
   const total = Number(

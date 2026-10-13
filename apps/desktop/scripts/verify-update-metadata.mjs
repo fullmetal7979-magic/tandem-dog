@@ -4,7 +4,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// Tandem Dog must never auto-update from (or publish to) upstream Mixdog.
+// COSMOS must never auto-update from (or publish to) upstream Mixdog.
 const UPSTREAM = Object.freeze({ owner: 'tribgames', repo: 'mixdog' });
 
 async function findMetadataFiles(directory) {
@@ -29,14 +29,14 @@ function escapeRegExp(value) {
  * carries no hard-coded publish target; CI passes
  * `-c.publish.owner/-c.publish.repo` from the repository it runs in, so the
  * same repository is the expectation here. Precedence: explicit arguments,
- * TANDEM_PUBLISH_OWNER / TANDEM_PUBLISH_REPO, then GITHUB_REPOSITORY. Null
+ * COSMOS_PUBLISH_OWNER / COSMOS_PUBLISH_REPO, then GITHUB_REPOSITORY. Null
  * when none is available (a local build), which still enforces "not upstream".
  */
 export function expectedPublishTarget(env = process.env, argv = []) {
   const arg = (name) => argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3).trim();
   const [slugOwner, slugRepo] = String(env.GITHUB_REPOSITORY ?? '').split('/');
-  const owner = arg('owner') || String(env.TANDEM_PUBLISH_OWNER ?? '').trim() || slugOwner || '';
-  const repo = arg('repo') || String(env.TANDEM_PUBLISH_REPO ?? '').trim() || slugRepo || '';
+  const owner = arg('owner') || String(env.COSMOS_PUBLISH_OWNER ?? '').trim() || slugOwner || '';
+  const repo = arg('repo') || String(env.COSMOS_PUBLISH_REPO ?? '').trim() || slugRepo || '';
   return owner && repo ? { owner, repo } : null;
 }
 
@@ -70,7 +70,7 @@ export async function verifyUpdateMetadata(distDirectory, expected = expectedPub
     if (!owner || !repo) {
       throw new Error(
         `${file} declares no owner/repo; pass -c.publish.owner/-c.publish.repo to electron-builder ` +
-          'or set GITHUB_REPOSITORY / TANDEM_PUBLISH_OWNER / TANDEM_PUBLISH_REPO'
+          'or set GITHUB_REPOSITORY / COSMOS_PUBLISH_OWNER / COSMOS_PUBLISH_REPO'
       );
     }
     if (owner.toLowerCase() === UPSTREAM.owner && repo.toLowerCase() === UPSTREAM.repo) {

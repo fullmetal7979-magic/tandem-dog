@@ -31,12 +31,12 @@ export function createDesktopTray(options: DesktopTrayOptions): DesktopTray {
   const tray = new Tray(image);
   tray.on('click', () => options.open());
   const relabel = () => {
-    tray.setToolTip('Mixdog');
+    tray.setToolTip('COSMOS');
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: nativeT('Open Mixdog'), click: () => options.open() },
+        { label: nativeT('Open COSMOS'), click: () => options.open() },
         { type: 'separator' },
-        { label: nativeT('Quit Mixdog'), click: () => options.quit() },
+        { label: nativeT('Quit COSMOS'), click: () => options.quit() },
       ])
     );
   };

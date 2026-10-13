@@ -11,7 +11,7 @@ import { relayPayloadTooLargeMessage } from '../shared/remote-payload-limit';
 
 function toastTitle(tone: string): string {
   if (tone === 'success') return t('Completed');
-  return tone === 'warn' || tone === 'warning' ? t('Attention') : 'Mixdog';
+  return tone === 'warn' || tone === 'warning' ? t('Attention') : 'COSMOS';
 }
 
 export const DESKTOP_TOAST_EVENT = 'mixdog:desktop-toast';

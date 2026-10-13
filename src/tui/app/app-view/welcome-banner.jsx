@@ -29,7 +29,7 @@ export function renderWelcomeBanner({ frameColumns, cwd }) {
       ))}
       <Box height={1} flexShrink={0} />
       <Text color={theme.inactive}>
-        {centerLine(`mixdog coding agent · v${localPackageVersion()} · ${cwd}`, frameColumns, 4)}
+        {centerLine(`COSMOS 코스모스 · v${localPackageVersion()} · ${cwd}`, frameColumns, 4)}
       </Text>
     </Box>
   );

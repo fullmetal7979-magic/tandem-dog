@@ -1,10 +1,10 @@
-# Fork identity (Tandem Dog). This file cannot import TypeScript, so these
+# Product identity (COSMOS). This file cannot import TypeScript, so these
 # literals mirror src/shared/fork-identity.ts; packaging.test.mjs fails when
 # the two drift apart. Side-by-side with upstream Mixdog needs a distinct appId
 # (Windows AUMID, macOS bundle id), protocol scheme and userData name.
-appId: io.tandemdog.desktop
-productName: Tandem Dog
-artifactName: tandem-dog-desktop-${os}-${arch}.${ext}
+appId: app.cosmos.desktop
+productName: COSMOS
+artifactName: cosmos-desktop-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
   # The singleton service may be owned by the plain Node CLI. Keep its one-file
@@ -22,11 +22,11 @@ asarUnpack:
 npmRebuild: false
 nodeGypRebuild: false
 extraMetadata:
-  name: tandem-dog-desktop
+  name: cosmos-desktop
 protocols:
-  name: Tandem Dog
+  name: COSMOS
   schemes:
-    - tandemdog
+    - cosmos
 directories:
   buildResources: build
 files:
@@ -100,8 +100,8 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    NSMicrophoneUsageDescription: Tandem Dog uses the microphone for voice dictation.
-    NSAppleEventsUsageDescription: Tandem Dog uses AppleScript to show native folder pickers and read clipboard attachments.
+    NSMicrophoneUsageDescription: COSMOS(코스모스)는 음성 받아쓰기에 마이크를 사용합니다.
+    NSAppleEventsUsageDescription: COSMOS(코스모스)는 폴더 선택 창과 클립보드 첨부를 위해 AppleScript를 사용합니다.
 linux:
   category: Development
   target:

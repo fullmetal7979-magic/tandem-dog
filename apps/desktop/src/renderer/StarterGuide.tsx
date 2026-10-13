@@ -163,7 +163,7 @@ export function StarterGuide({
     {
       id: 'project',
       label: t('Add a project'),
-      hint: t('Add a folder for Mixdog to work in.'),
+      hint: t('Add a folder for COSMOS to work in.'),
       doneWhen: t('Done when a project is added or you finish this tour.'),
       icon: viewIcon('projects', GraduationCap),
       // A folder is optional (tasks run without one): finishing the tour
@@ -175,7 +175,7 @@ export function StarterGuide({
           target: '.projects-common-instructions .projects-row',
           title: t('Memories'),
           body: t(
-            'Install Memory under Extensions → Built-in and turn on the Maintainer, and Mixdog remembers what matters.'
+            'Install Memory under Extensions → Built-in and turn on the Maintainer, and COSMOS remembers what matters.'
           ),
         },
         {

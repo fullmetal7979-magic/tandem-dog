@@ -1,7 +1,7 @@
 import { APP_ID, APP_NAME } from '../shared/fork-identity';
 
 /** Windows resolves notification branding through the shortcut's AUMID.
- * Sharing the installed ID with electron.exe lets a probe replace Tandem Dog's
+ * Sharing the installed ID with electron.exe lets a probe replace COSMOS's
  * sender name/icon in the shell cache, even with an isolated userData path. */
 const IDENTITIES = {
   installed: { appId: APP_ID, name: APP_NAME },

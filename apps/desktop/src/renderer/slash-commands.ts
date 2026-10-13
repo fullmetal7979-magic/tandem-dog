@@ -178,7 +178,7 @@ export const SLASH_COMMANDS: ReadonlyArray<DesktopSlashCommand> = [
     description: 'Set your title, development experience, and response language',
     settingsRow: 'profile',
   },
-  { name: 'update', usage: '/update', description: 'Check version and update mixdog', settingsRow: 'update' },
+  { name: 'update', usage: '/update', description: 'Check version and update COSMOS', settingsRow: 'update' },
   { name: 'doctor', usage: '/doctor', description: 'Diagnose installation health', surface: 'doctor' },
   {
     name: 'quit',

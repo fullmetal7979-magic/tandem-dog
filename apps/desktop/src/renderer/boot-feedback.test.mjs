@@ -247,7 +247,7 @@ test('the real pre-React installation guide uses early catalogs and treats trans
       h.dom.window.TextDecoder = TextDecoder;
       h.dom.window.eval(remoteSource);
       const heading = h.document.querySelector('[data-role="heading"]');
-      const key = 'Install Mixdog on your phone';
+      const key = 'Install COSMOS on your phone';
       assert.equal(heading?.textContent, catalog[key] || key, language);
       assert.equal(
         h.document.querySelector('[data-role="step-one"]').textContent,

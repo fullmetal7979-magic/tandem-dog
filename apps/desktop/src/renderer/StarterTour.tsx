@@ -423,7 +423,7 @@ export function StarterWelcome({
         <span className="starter-welcome-icon" aria-hidden="true">
           <GraduationCap size={20} />
         </span>
-        <h2 id={titleId}>{t('Welcome to Mixdog')}</h2>
+        <h2 id={titleId}>{t('Welcome to COSMOS')}</h2>
         <p>{t('Five quick steps to get set up.')}</p>
         <ol>
           {steps.map((label) => (

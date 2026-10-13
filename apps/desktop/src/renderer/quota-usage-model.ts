@@ -13,12 +13,12 @@ export function quotaValue(row: Row, fullLimit = false): string {
 
 export function quotaValueBreakdown(row: Row): string {
   const outside = row.outsideCostUsd == null ? '—' : usageMoney(row.outsideCostUsd);
-  return `${t('Recorded value')}: ${usageMoney(row.costUsd)} · ${t('Outside Mixdog')}: ${outside}`;
+  return `${t('Recorded value')}: ${usageMoney(row.costUsd)} · ${t('Outside COSMOS')}: ${outside}`;
 }
 
 export function quotaValueCaution(): string {
   return t(
-    'Estimates use Mixdog’s usage pattern. Different external models or continuous mixed use can change the result.'
+    'Estimates use COSMOS’s usage pattern. Different external models or continuous mixed use can change the result.'
   );
 }
 

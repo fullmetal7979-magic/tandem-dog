@@ -349,7 +349,7 @@ function paintBootSplash() {
       out += `${bold}${fg}${center(logo[i])}${reset}\r\n`;
     }
     out += '\r\n';
-    out += `${subtleFg}${center(`mixdog coding agent · v${localPackageVersion()} · ${process.cwd()}`, 4)}${reset}`;
+    out += `${subtleFg}${center(`COSMOS 코스모스 · v${localPackageVersion()} · ${process.cwd()}`, 4)}${reset}`;
 
     // Park the cursor at home so ink's first frame paints top-down over the
     // splash instead of starting at the bottom row and scrolling the screen.

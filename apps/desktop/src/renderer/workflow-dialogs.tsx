@@ -260,11 +260,11 @@ export function AgentEditorDialog({
           </label>
           <label className="schedules-field">
             <span>{t('When to use')}</span>
-            <small>{t('When Mixdog should delegate to this agent.')}</small>
+            <small>{t('When COSMOS should delegate to this agent.')}</small>
             <input
               name="agent-description"
               defaultValue={String(agent?.description || '')}
-              placeholder={t('When Mixdog should use this')}
+              placeholder={t('When COSMOS should use this')}
               disabled={busy}
               maxLength={160}
             />

@@ -724,7 +724,7 @@ test('mobile cold boot hydrates the composer project catalog from local cache', 
     },
   };
   const cached = [
-    { name: 'Mixdog', path: 'C:\\Project\\mixdog', alias: 'Core' },
+    { name: 'COSMOS', path: 'C:\\Project\\mixdog', alias: 'Core' },
     { name: 'Duplicate', path: 'c:/project/mixdog/', alias: null },
   ];
 

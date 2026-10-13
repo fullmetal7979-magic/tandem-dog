@@ -43,7 +43,7 @@ export const BUILT_IN_FEATURES: ReadonlyArray<BuiltInFeatureDefinition> = [
   {
     id: 'localProvider',
     title: 'Local Provider',
-    description: 'Download AI models and run them directly in Mixdog.',
+    description: 'Download AI models and run them directly in COSMOS.',
   },
   {
     id: 'autoEffort',

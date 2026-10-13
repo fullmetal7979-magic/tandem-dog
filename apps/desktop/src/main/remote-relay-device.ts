@@ -10,7 +10,7 @@ import { readSecretFile, writeSecretFile } from './secret-file';
 
 export const REVOKE_TIMEOUT_MS = 5_000;
 
-/** Tandem Dog ships with the relay OFF: the upstream Mixdog relay is third-party
+/** COSMOS ships with the relay OFF: the upstream Mixdog relay is third-party
  *  infrastructure this fork must never contact. An empty default means
  *  "disabled" for every consumer (phone pairing, webhook tunnel, feedback).
  *  Set MIXDOG_RELAY_URL=<wss url> to point the app at a relay you operate;

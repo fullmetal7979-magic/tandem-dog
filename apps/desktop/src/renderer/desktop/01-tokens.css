@@ -22,7 +22,7 @@
  *   6. Elevation   — raised/floating/overlay/button shadows.
  */
 :root {
-  /* Tandem Dog: the default dark ramp is "Midnight" — navy-black surfaces,
+  /* COSMOS: the default dark ramp is "Midnight" — navy-black surfaces,
      cool slate ink, one muted periwinkle accent (src/tui/themes/midnight.mjs). */
   /* ── 1. Primitives ── */
   --mx-grey-50: #fff;

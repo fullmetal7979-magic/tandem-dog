@@ -50,8 +50,8 @@ test('ASAR API paths always use native separators', () => {
 
 test('FastDirect shell integrity keeps the installed production runtime fallback', () => {
   assert.equal(
-    fastDirectRuntimeArchive(join('C:', 'Mixdog', 'resources')),
-    join('C:', 'Mixdog', 'resources', 'runtime.asar')
+    fastDirectRuntimeArchive(join('C:', 'COSMOS', 'resources')),
+    join('C:', 'COSMOS', 'resources', 'runtime.asar')
   );
 });
 

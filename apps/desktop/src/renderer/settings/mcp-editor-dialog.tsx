@@ -318,7 +318,7 @@ export function McpEditorDialog({
         as="div"
         className="extensions-mcp-transport-field"
         label={t('Transport')}
-        note={t('How Mixdog connects to this MCP server.')}
+        note={t('How COSMOS connects to this MCP server.')}
       >
         {autoDetect && <ExtensionNote>{t('Auto-detect')}</ExtensionNote>}
         {!autoDetect && (

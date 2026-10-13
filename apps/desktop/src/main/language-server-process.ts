@@ -258,7 +258,7 @@ export class LanguageServerProcessManager {
       const initialization = await this.dependencies.withTimeout(
         connection.sendRequest('initialize', {
           processId: process.pid,
-          clientInfo: { name: 'Mixdog Desktop', version: '0.9' },
+          clientInfo: { name: 'COSMOS Desktop', version: '0.9' },
           rootUri: pathToFileURL(root).toString(),
           rootPath: root,
           workspaceFolders,

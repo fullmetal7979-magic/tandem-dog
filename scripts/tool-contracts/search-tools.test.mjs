@@ -69,7 +69,7 @@ test('grep content matches, explicit missing paths, and redundant globs', async 
   const grepOut = await executeBuiltinTool(
     'grep',
     {
-      pattern: 'standalone mixdog CLI/TUI coding agent|smoke passed',
+      pattern: 'one AI coding session that follows you across PCs|smoke passed',
       path: 'scripts',
       glob: '*.mjs',
       output_mode: 'content_with_context',
@@ -95,7 +95,7 @@ test('grep content matches, explicit missing paths, and redundant globs', async 
   const redundantAllFilesGlobGrepOut = await executeBuiltinTool(
     'grep',
     {
-      pattern: 'standalone mixdog CLI/TUI coding agent',
+      pattern: 'one AI coding session that follows you across PCs',
       glob: '**/*',
       head_limit: 10,
     },

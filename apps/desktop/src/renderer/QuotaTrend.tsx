@@ -284,7 +284,7 @@ export function QuotaTrend({
     return {
       key,
       ink: key ? seriesInk(key) : 'outside',
-      label: key ? modelDisplayName(key, provider) : t('Outside Mixdog'),
+      label: key ? modelDisplayName(key, provider) : t('Outside COSMOS'),
       list: pointList(entry.points).map(([time, value]): [number, number] => [time, value]),
     };
   });
@@ -555,7 +555,7 @@ export function QuotaTrend({
                     <li>
                       <span>
                         <i data-series="outside" aria-hidden="true" />
-                        {t('Outside Mixdog')}
+                        {t('Outside COSMOS')}
                       </span>
                       <b>{`+${quotaPercent(slotOutside)}`}</b>
                     </li>

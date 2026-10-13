@@ -42,7 +42,7 @@ test('file dialogs use the selected UI language without translating filesystem c
   context.after(remove);
   const event = { sender: webContents, senderFrame: mainFrame };
   const cases = [
-    [DESKTOP_IPC.chooseProject, 'Choose a Mixdog project folder', []],
+    [DESKTOP_IPC.chooseProject, 'Choose a COSMOS project folder', []],
     [DESKTOP_IPC.chooseFile, 'Open file', []],
     [DESKTOP_IPC.chooseFiles, 'Open files', []],
     [DESKTOP_IPC.chooseWorkspace, 'Open Project File', []],

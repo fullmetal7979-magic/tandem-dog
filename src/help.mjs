@@ -2,7 +2,8 @@ import { stdout } from 'node:process';
 
 /** Help text printed by `--help`. */
 const HELP_LINES = [
-  'mixdog — standalone mixdog CLI/TUI coding agent.',
+  'cosmos — COSMOS(코스모스) CLI/TUI: one AI coding session that follows you across PCs and AI accounts.',
+  '(`mixdog` stays available as an alias of `cosmos`.)',
   '',
   'Usage:',
   '  mixdog [options]           start the TUI in the current project',

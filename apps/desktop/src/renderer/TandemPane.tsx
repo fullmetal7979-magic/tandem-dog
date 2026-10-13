@@ -339,7 +339,7 @@ function ResumeNotice({ result, onDismiss }: { result: TandemResumeResult; onDis
       )}
       <p className="tdm-p tdm-muted">
         {t(
-          'Claude Code and Mixdog read .tandem/SESSION.md automatically. Other agents can start from this prompt:'
+          'Claude Code and COSMOS read .tandem/SESSION.md automatically. Other agents can start from this prompt:'
         )}
       </p>
       <pre data-tandem-prompt="" className="tdm-prompt">

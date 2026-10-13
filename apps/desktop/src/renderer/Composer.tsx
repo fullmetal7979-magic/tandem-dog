@@ -751,7 +751,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
             aria-controls={palettes.paletteId}
             aria-expanded={slash.open || mention.open}
             aria-activedescendant={palettes.activeDescendant}
-            aria-label={t('Message Mixdog')}
+            aria-label={t('Message COSMOS')}
           />
         </div>
         <ComposerFooter

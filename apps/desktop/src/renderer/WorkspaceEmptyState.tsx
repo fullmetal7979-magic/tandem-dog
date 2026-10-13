@@ -29,7 +29,7 @@ export function WorkspaceEmptyState(): React.JSX.Element {
         </span>
         {/* Product vocabulary has ONE Project concept (user decision) — no
             "workspace" wording anywhere, including assistive labels. */}
-        <h1 className="sr-only">Mixdog</h1>
+        <h1 className="sr-only">COSMOS</h1>
         {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: labels the plain shortcuts container for assistive tech; adding a role would change semantics */}
         <div className="welcome-shortcuts" aria-label={t('Keyboard shortcuts')}>
           <div>

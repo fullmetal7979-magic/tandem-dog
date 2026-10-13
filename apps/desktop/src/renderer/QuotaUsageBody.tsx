@@ -110,7 +110,7 @@ function QuotaMix({
         label: modelDisplayName(String(row.model || ''), provider),
         value: statsNumber(row.consumed),
       })),
-    ...(outside > 0 ? [{ key: 'outside', ink: 'outside', label: t('Outside Mixdog'), value: outside }] : []),
+    ...(outside > 0 ? [{ key: 'outside', ink: 'outside', label: t('Outside COSMOS'), value: outside }] : []),
     ...(remaining !== null ? [{ key: 'remaining', ink: 'remaining', label: t('Remaining'), value: remaining }] : []),
   ];
   const total = parts.reduce((sum, part) => sum + part.value, 0);
@@ -245,7 +245,7 @@ function QuotaTable({
               })}
             {open && outside > 0 && (
               <tr className="stats-model-row">
-                <td className="stats-model-cell">{t('Outside Mixdog')}</td>
+                <td className="stats-model-cell">{t('Outside COSMOS')}</td>
                 <td className="stats-share-cell">{quotaPercent(outside)}</td>
                 <td colSpan={7} />
                 <td className="stats-cost-cell" title={quotaValueCaution()}>
@@ -659,7 +659,7 @@ export function QuotaUsageBody({ api }: { api: QuotaApi }) {
       {empty ? (
         <p className="quota-empty">
           <b>{t('No OAuth usage recorded yet.')}</b>
-          <span>{t('Mixdog records it from now on whenever it checks provider usage.')}</span>
+          <span>{t('COSMOS records it from now on whenever it checks provider usage.')}</span>
         </p>
       ) : (
         <>

@@ -131,7 +131,7 @@ export function RemoteClaimPrompt() {
           <h3 id="remote-claim-title">{t('Connect {{device}}?', { device })}</h3>
         </header>
         <p id="remote-claim-description">
-          {t('It is asking to use this desktop. Approve it only if you just opened Mixdog there.')}
+          {t('It is asking to use this desktop. Approve it only if you just opened COSMOS there.')}
         </p>
         {answerError?.claimId === claim.claimId && <ErrorNotice error={answerError.reason} />}
         <footer>

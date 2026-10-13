@@ -174,7 +174,7 @@ const requestApproval = async (
       layer.classList.add('mrp-ok');
       const waitTitle = layer.querySelector<HTMLElement>('[data-role="wait-title"]');
       if (waitTitle) waitTitle.textContent = earlyUiT('Success');
-      onStatus(earlyUiT('Securely connected. Opening Mixdog…'));
+      onStatus(earlyUiT('Securely connected. Opening COSMOS…'));
       try {
         navigator.vibrate?.([30, 60, 30]);
       } catch {
@@ -280,13 +280,13 @@ export const createRemotePairingScreen = (
         cardBody +
         '</main>';
       // Catalog text enters only textContent, never HTML.
-      let heading = earlyUiT('Install Mixdog on your phone');
+      let heading = earlyUiT('Install COSMOS on your phone');
       if (standalone) heading = earlyUiT('Approve this device');
-      else if (mobile) heading = earlyUiT('Install Mixdog');
+      else if (mobile) heading = earlyUiT('Install COSMOS');
       let stepOne = earlyUiT('Open this page on your phone or tablet');
-      let stepTwo = earlyUiT('Install Mixdog from the mobile browser');
+      let stepTwo = earlyUiT('Install COSMOS from the mobile browser');
       if (mobile) {
-        stepOne = ios ? earlyUiT('Tap the Share button') : earlyUiT('Install Mixdog from your browser menu');
+        stepOne = ios ? earlyUiT('Tap the Share button') : earlyUiT('Install COSMOS from your browser menu');
         stepTwo = ios ? earlyUiT('Choose Add to Home Screen') : earlyUiT('Open it and approve it on your desktop');
       }
       const labels: Record<string, string> = {
@@ -298,7 +298,7 @@ export const createRemotePairingScreen = (
         'step-two': stepTwo,
         'step-three': !mobile
           ? earlyUiT('Open the installed app and approve it on your desktop')
-          : earlyUiT('Open Mixdog and approve it on your desktop'),
+          : earlyUiT('Open COSMOS and approve it on your desktop'),
       };
       for (const [role, label] of Object.entries(labels)) {
         const target = layer.querySelector<HTMLElement>(`[data-role="${role}"]`);
@@ -307,13 +307,13 @@ export const createRemotePairingScreen = (
       const note = layer.querySelector<HTMLElement>('[data-role="note"]');
       if (note) {
         if (standalone) {
-          note.textContent = message || earlyUiT('Mixdog needs a one-time approval from the desktop it belongs to.');
+          note.textContent = message || earlyUiT('COSMOS needs a one-time approval from the desktop it belongs to.');
         } else if (mobile) {
           note.textContent = earlyUiT(
-            'Mixdog runs as an installed mobile app. Install it, then approve it once on your desktop.'
+            'COSMOS runs as an installed mobile app. Install it, then approve it once on your desktop.'
           );
         } else {
-          note.textContent = earlyUiT('The Mixdog web app works only when installed on a mobile device.');
+          note.textContent = earlyUiT('The COSMOS web app works only when installed on a mobile device.');
         }
       }
       const install = layer.querySelector<HTMLButtonElement>('[data-role="install"]');

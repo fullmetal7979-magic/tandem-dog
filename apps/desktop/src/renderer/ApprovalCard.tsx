@@ -44,15 +44,15 @@ export function ApprovalCard({
     try {
       const accepted = await resolveRef.current(approved);
       if (accepted === true) return;
-      setApprovalError(t('Mixdog could not record this decision. Please try again.'));
+      setApprovalError(t('COSMOS could not record this decision. Please try again.'));
       resolvingRef.current = false;
       setResolving(false);
     } catch (reason) {
       const detail = reason instanceof Error ? reason.message : String(reason || '');
       setApprovalError(
         detail
-          ? t('Mixdog could not record this decision: {{detail}}', { detail })
-          : t('Mixdog could not record this decision. Please try again.')
+          ? t('COSMOS could not record this decision: {{detail}}', { detail })
+          : t('COSMOS could not record this decision. Please try again.')
       );
       resolvingRef.current = false;
       setResolving(false);

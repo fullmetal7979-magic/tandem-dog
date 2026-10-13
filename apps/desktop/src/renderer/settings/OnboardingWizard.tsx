@@ -48,7 +48,7 @@ const STEPS = [
     id: 'profile',
     label: () => t('Profile'),
     title: () => t('Make it yours'),
-    subtitle: () => t('Tell Mixdog what to call you, your development experience, and which language to answer in.'),
+    subtitle: () => t('Tell COSMOS what to call you, your development experience, and which language to answer in.'),
   },
   {
     id: 'providers',
@@ -66,7 +66,7 @@ const STEPS = [
     id: 'star',
     label: () => t('Star'),
     title: () => t('One last thing'),
-    subtitle: () => t('Mixdog is free and open source — a GitHub star genuinely helps it grow.'),
+    subtitle: () => t('COSMOS is free and open source — a GitHub star genuinely helps it grow.'),
   },
 ] as const;
 
@@ -382,7 +382,7 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
           </div>
         </header>
         <div className="onboarding-body">
-          <PaneSurfaceGate ready={!loading} label={t('Loading your Mixdog configuration…')}>
+          <PaneSurfaceGate ready={!loading} label={t('Loading your COSMOS configuration…')}>
             <div className="onboarding-ready-content">
               <div className="onboarding-step-view" key={meta.id}>
                 {meta.id === 'profile' && (
@@ -483,7 +483,7 @@ function OnboardingSkipConfirmation({ onCancel, onConfirm }: { onCancel(): void;
         data-settings-nested-dialog
       >
         <header>
-          <h3 id="onboarding-skip-title">{t('Skip Mixdog setup?')}</h3>
+          <h3 id="onboarding-skip-title">{t('Skip COSMOS setup?')}</h3>
           <button type="button" aria-label={t('Close skip confirmation')} onClick={onCancel}>
             <X aria-hidden="true" size={16} />
           </button>
@@ -786,8 +786,8 @@ function GitStep({ api }: { api: DesktopApi }) {
   const showAvatar = authenticated && Boolean(login) && !avatarFailed;
   const connectHint =
     !status?.installed && !loading
-      ? t('Mixdog installs the GitHub CLI and signs you in — one click, no terminal needed.')
-      : t('Sign in opens github.com with a one-time code — Mixdog links your commits automatically.');
+      ? t('COSMOS installs the GitHub CLI and signs you in — one click, no terminal needed.')
+      : t('Sign in opens github.com with a one-time code — COSMOS links your commits automatically.');
   // In-card actions stay plated, not primary: the footer's Next is the one
   // primary action on every step.
   return (
@@ -973,7 +973,7 @@ function StarStep({ api }: { api: DesktopApi }) {
       <p className="onboarding-card-text">
         {t('Standalone coding agent — multi-provider agent workflows across CLI, desktop, and phone.')}{' '}
         {starred
-          ? t('Thank you for the star — it genuinely helps mixdog grow!')
+          ? t('Thank you for the star — it genuinely helps COSMOS grow!')
           : t('Built in the open; a star helps other developers find it.')}
       </p>
       <div className="onboarding-repo-meta">
@@ -1051,7 +1051,7 @@ function ProfileStep({
         <label>
           <span>
             <b>{t('Title')}</b>
-            <small>{t('How Mixdog addresses you.')}</small>
+            <small>{t('How COSMOS addresses you.')}</small>
           </span>
           <input
             name="title"

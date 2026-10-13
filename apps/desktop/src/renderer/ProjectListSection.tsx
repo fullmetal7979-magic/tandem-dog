@@ -284,7 +284,7 @@ function memoryAddRow({
         autoFocus
         rows={3}
         disabled={memoryBusy}
-        placeholder={t('What should Mixdog remember?')}
+        placeholder={t('What should COSMOS remember?')}
         onChange={(event) => setAddMemoryDraft(event.currentTarget.value)}
       />
       <div className="projects-memory-row-foot">
@@ -863,7 +863,7 @@ export function ProjectListSection({
           <p>
             {projects.length
               ? t('No projects match the current search.')
-              : t('No projects yet. Add a folder to make it available in Mixdog.')}
+              : t('No projects yet. Add a folder to make it available in COSMOS.')}
           </p>
         </div>
       )}

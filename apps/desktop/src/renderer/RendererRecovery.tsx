@@ -288,7 +288,7 @@ export class DesktopErrorBoundary extends Component<{ children: ReactNode }, { f
             <span className="desktop-recovery-mark" aria-hidden="true">
               !
             </span>
-            <h1>{t('Mixdog could not draw this view')}</h1>
+            <h1>{t('COSMOS could not draw this view')}</h1>
             <p>{t('Your active task is still running in the desktop host. Retry the view or reload the interface.')}</p>
             <div className="desktop-recovery-actions">
               <button type="button" onClick={this.retry}>

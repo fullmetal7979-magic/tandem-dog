@@ -359,7 +359,7 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = null;
   }
-  const title = (payload && typeof payload.title === 'string' && payload.title.trim()) || 'Mixdog';
+  const title = (payload && typeof payload.title === 'string' && payload.title.trim()) || 'COSMOS';
   const supplied = payload && typeof payload.body === 'string' ? payload.body.trim() : '';
   const sessionId = payload?.data && typeof payload.data.sessionId === 'string' ? payload.data.sessionId : '';
   event.waitUntil(

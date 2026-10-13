@@ -36,7 +36,7 @@ export function DesktopNotificationToggle() {
     <Group
       title={t('Notifications')}
       description={t(
-        'Get a notification on this computer when a task finishes while the Mixdog window is not in focus.'
+        'Get a notification on this computer when a task finishes while the COSMOS window is not in focus.'
       )}
     >
       <ToggleRow

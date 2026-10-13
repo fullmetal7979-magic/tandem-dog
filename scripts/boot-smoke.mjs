@@ -79,7 +79,7 @@ function runCase(
 
 const rows = [
   runCase('help', ['src/cli.mjs', '--help'], {
-    expectStdout: 'standalone mixdog CLI/TUI coding agent',
+    expectStdout: 'one AI coding session that follows you across PCs',
   }),
   runCase('tui_import', [
     '--input-type=module',
@@ -143,7 +143,7 @@ const rows = [
   ),
   runCase('boot_profile', ['src/cli.mjs', '--help'], {
     env: { MIXDOG_BOOT_PROFILE: '1' },
-    expectStdout: 'standalone mixdog CLI/TUI coding agent',
+    expectStdout: 'one AI coding session that follows you across PCs',
     expectStderr: 'app:run:start',
   }),
   runCase('plain_quit', ['src/cli.mjs', '--plain'], {

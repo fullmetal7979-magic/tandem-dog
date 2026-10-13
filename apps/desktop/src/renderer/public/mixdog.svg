@@ -1,11 +1,45 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <rect width="256" height="256" rx="60" fill="#07080b"/>
-  <g fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round">
-    <path d="M116.2 61A68 68 0 0 1 191.9 104.7"/>
-    <path d="M116.2 61A68 68 0 0 1 191.9 104.7" transform="rotate(120 128 128)"/>
-    <path d="M116.2 61A68 68 0 0 1 191.9 104.7" transform="rotate(240 128 128)"/>
+  <defs>
+    <radialGradient id="space" cx="0.37" cy="0.28" r="0.95">
+      <stop offset="0" stop-color="#212468"/>
+      <stop offset="1" stop-color="#07091c"/>
+    </radialGradient>
+    <radialGradient id="nebula" cx="0.77" cy="0.77" r="0.47">
+      <stop offset="0" stop-color="#7c5cff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7c5cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="planet" x1="0.15" y1="0.1" x2="0.85" y2="0.9">
+      <stop offset="0" stop-color="#c7d2fe"/>
+      <stop offset="0.5" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#3730a3"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fef08a"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <clipPath id="ring-front">
+      <rect x="-100" y="0" width="200" height="40"/>
+    </clipPath>
+    <path id="ring-band" fill-rule="evenodd" d="M-94 0A94 25 0 1 0 94 0A94 25 0 1 0-94 0ZM-73.3 0A73.3 19.5 0 1 0 73.3 0A73.3 19.5 0 1 0-73.3 0Z"/>
+  </defs>
+  <rect width="256" height="256" rx="60" fill="url(#space)"/>
+  <rect width="256" height="256" rx="60" fill="url(#nebula)"/>
+  <g fill="#ffffff">
+    <circle cx="46" cy="58" r="2.4"/>
+    <circle cx="150" cy="44" r="1.8"/>
+    <circle cx="58" cy="202" r="1.8"/>
+    <circle cx="214" cy="176" r="2.4"/>
+    <circle cx="96" cy="36" r="1.4"/>
+    <circle cx="160" cy="220" r="1.5"/>
+    <circle cx="30" cy="128" r="1.3"/>
   </g>
-  <polygon points="128,112 133,123 144,128 133,133 128,144 123,133 112,128 123,123" fill="#ffffff"/>
-  <circle cx="128" cy="128" r="3.5" fill="#07080b"/>
-  <circle cx="128" cy="128" r="1.5" fill="#ffffff"/>
+  <g transform="translate(120 140) rotate(-22)">
+    <use href="#ring-band" fill="url(#ring)"/>
+  </g>
+  <circle cx="120" cy="140" r="52" fill="url(#planet)"/>
+  <g transform="translate(120 140) rotate(-22)" clip-path="url(#ring-front)">
+    <use href="#ring-band" fill="url(#ring)"/>
+  </g>
+  <path d="M198 38L203 55L220 60L203 65L198 82L193 65L176 60L193 55Z" fill="#fff7cc"/>
+  <circle cx="198" cy="60" r="3.2" fill="#ffffff"/>
 </svg>

@@ -64,7 +64,7 @@ export function AboutPanel() {
       <ResourceRow
         title={t('GitHub')}
         className="settings-about-row"
-        description={t('Source, releases, and discussions — a star helps mixdog grow.')}
+        description={t('Source, releases, and discussions — a star helps COSMOS grow.')}
         actions={
           <>
             <ActionButton disabled={busy || starred} onClick={star}>

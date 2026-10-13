@@ -14,7 +14,7 @@ import {
 const CONNECTION_RETRY_MS = 2_000;
 const CONNECTION_STALLED_ATTEMPTS = 5;
 const RELAY_CONNECTING_MESSAGE =
-  'Connecting to the Mixdog relay… this card refreshes automatically. If this persists, check this PC’s internet connection.';
+  'Connecting to the COSMOS relay… this card refreshes automatically. If this persists, check this PC’s internet connection.';
 
 function unpairLabel(busy: boolean, confirming: boolean): string {
   if (busy) return t('Unpairing…');

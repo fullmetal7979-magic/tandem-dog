@@ -281,14 +281,14 @@ test('fork identity: electron-builder.yml mirrors shared/fork-identity.ts and ne
   assert.doesNotMatch(builder, /tribgames/i);
   // The CI workflow feeds desktop-package.yml the same names the config uses.
   const workflow = await readFile(
-    new URL('../../../../.github/workflows/tandem-desktop.yml', import.meta.url),
+    new URL('../../../../.github/workflows/cosmos-desktop.yml', import.meta.url),
     'utf8'
   );
   assert.match(workflow, new RegExp(`artifact_prefix:\\s*${USER_DATA_DIR_NAME}\\s*$`, 'm'));
   assert.match(workflow, new RegExp(`product_name:\\s*${APP_NAME}\\s*$`, 'm'));
 });
 
-test('Windows installer is one-click, per-user, and registers Tandem Dog deep links', async () => {
+test('Windows installer is one-click, per-user, and registers COSMOS deep links', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   const builder = await readFile(new URL('../../electron-builder.yml', import.meta.url), 'utf8');
   const installer = await readFile(new URL('../../build/installer.nsh', import.meta.url), 'utf8');

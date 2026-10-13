@@ -1,8 +1,8 @@
-# Tandem Dog desktop installers (unsigned): macOS arm64 + x64 .dmg/.zip and
+# COSMOS desktop installers (unsigned): macOS arm64 + x64 .dmg/.zip and
 # Windows x64 .exe, attached to ONE draft GitHub release on this repository.
 #
-# Run it from Actions > tandem-desktop > Run workflow (the tag input names the
-# draft release), or push a tag matching tandem-v*. Nothing is published
+# Run it from Actions > cosmos-desktop > Run workflow (the tag input names the
+# draft release), or push a tag matching cosmos-v*. Nothing is published
 # automatically: review the draft's assets, then publish it by hand.
 #
 # No signing or notarization secrets are needed (or passed). desktop-package.yml
@@ -11,10 +11,10 @@
 #
 # The fork's GitHub owner/repo are never hard-coded: they come from the
 # repository this workflow runs in and are baked into the build twice, as the
-# VITE_TANDEM_REPO_* defines read by shared/fork-identity.ts and as the
+# VITE_COSMOS_REPO_* defines read by shared/fork-identity.ts and as the
 # electron-builder publish target (the packaged auto-update feed).
 
-name: tandem-desktop
+name: cosmos-desktop
 
 on:
   workflow_dispatch:
@@ -22,17 +22,17 @@ on:
       tag:
         description: "Tag name of the draft release to create or update"
         required: true
-        default: v0.1.0-tandem.1
+        default: v0.1.0-cosmos.1
         type: string
   push:
     tags:
-      - "tandem-v*"
+      - "cosmos-v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: tandem-desktop-${{ inputs.tag || github.ref_name }}
+  group: cosmos-desktop-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -45,8 +45,8 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=6144
       # Build-time defines for apps/desktop/src/shared/fork-identity.ts.
-      VITE_TANDEM_REPO_OWNER: ${{ github.repository_owner }}
-      VITE_TANDEM_REPO_NAME: ${{ github.event.repository.name }}
+      VITE_COSMOS_REPO_OWNER: ${{ github.repository_owner }}
+      VITE_COSMOS_REPO_NAME: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -104,7 +104,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: Tandem Dog ${{ steps.tag.outputs.tag }}
+          name: COSMOS ${{ steps.tag.outputs.tag }}
           draft: true
           prerelease: false
 
@@ -144,7 +144,7 @@ jobs:
       arch: ${{ matrix.arch }}
       artifact_arch: ${{ matrix.artifact_arch }}
       target: ${{ matrix.target }}
-      product_name: Tandem Dog
-      artifact_prefix: tandem-dog-desktop
+      product_name: COSMOS
+      artifact_prefix: cosmos-desktop
       publish_owner: ${{ github.repository_owner }}
       publish_repo: ${{ github.event.repository.name }}

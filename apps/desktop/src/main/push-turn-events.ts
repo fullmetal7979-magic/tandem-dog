@@ -99,7 +99,7 @@ export function createTurnCompletionTracker(): TurnCompletionTracker {
         completions.push({
           sessionId: id,
           sourceType: session.sourceType,
-          title: clip(session.title || session.preview || 'Mixdog', MAX_TITLE_CHARS) || 'Mixdog',
+          title: clip(session.title || session.preview || 'COSMOS', MAX_TITLE_CHARS) || 'COSMOS',
           preview: '',
           startedAt: started.get(id) ?? nowMs,
           at: nowMs,

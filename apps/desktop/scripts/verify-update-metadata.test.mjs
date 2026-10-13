@@ -6,10 +6,10 @@ import { join } from 'node:path';
 
 import { expectedPublishTarget, verifyUpdateMetadata } from './verify-update-metadata.mjs';
 
-const TARGET = { owner: 'acme', repo: 'tandem-dog' };
+const TARGET = { owner: 'acme', repo: 'cosmos' };
 
 const metadataFor = ({ owner, repo }) =>
-  ['provider: github', `owner: ${owner}`, `repo: ${repo}`, 'updaterCacheDirName: tandem-dog-desktop-updater', ''].join(
+  ['provider: github', `owner: ${owner}`, `repo: ${repo}`, 'updaterCacheDirName: cosmos-desktop-updater', ''].join(
     '\n'
   );
 const validMetadata = metadataFor(TARGET);
@@ -33,7 +33,7 @@ test('packaged updater metadata accepts every platform resource layout', async (
   await withDist(async (root) => {
     const paths = [
       join(root, 'win-unpacked', 'resources'),
-      join(root, 'mac-arm64', 'Tandem Dog.app', 'Contents', 'Resources'),
+      join(root, 'mac-arm64', 'COSMOS.app', 'Contents', 'Resources'),
       join(root, 'linux-unpacked', 'resources'),
     ];
     for (const directory of paths) {
@@ -48,8 +48,8 @@ test('packaged updater metadata accepts every platform resource layout', async (
 test('packaged updater metadata fails closed when absent or misrouted', async () => {
   await withDist(async (root) => {
     await assert.rejects(() => verifyUpdateMetadata(root, TARGET), /metadata is missing/);
-    await writeMetadata(root, validMetadata.replace('repo: tandem-dog', 'repo: other'));
-    await assert.rejects(() => verifyUpdateMetadata(root, TARGET), /does not declare repo: tandem-dog/);
+    await writeMetadata(root, validMetadata.replace('repo: cosmos', 'repo: other'));
+    await assert.rejects(() => verifyUpdateMetadata(root, TARGET), /does not declare repo: cosmos/);
     await writeMetadata(root, validMetadata.replace('owner: acme', 'owner: tribgames'));
     await assert.rejects(() => verifyUpdateMetadata(root, TARGET), /does not declare owner: acme/);
     await writeMetadata(root, validMetadata.replace('provider: github', 'provider: generic'));
@@ -59,7 +59,7 @@ test('packaged updater metadata fails closed when absent or misrouted', async ()
 
 test('owner and repository comparison ignores case like GitHub does', async () => {
   await withDist(async (root) => {
-    await writeMetadata(root, metadataFor({ owner: 'ACME', repo: 'Tandem-Dog' }));
+    await writeMetadata(root, metadataFor({ owner: 'ACME', repo: 'Cosmos' }));
     assert.equal((await verifyUpdateMetadata(root, TARGET)).length, 1);
   });
 });
@@ -75,16 +75,16 @@ test('without an expected target the feed must name some non-upstream repository
   });
 });
 
-test('the expected publish target comes from arguments, TANDEM_PUBLISH_*, then GITHUB_REPOSITORY', () => {
+test('the expected publish target comes from arguments, COSMOS_PUBLISH_*, then GITHUB_REPOSITORY', () => {
   assert.equal(expectedPublishTarget({}, []), null);
-  assert.deepEqual(expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/tandem-dog' }, []), TARGET);
+  assert.deepEqual(expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/cosmos' }, []), TARGET);
   assert.deepEqual(
-    expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/tandem-dog', TANDEM_PUBLISH_OWNER: 'zed', TANDEM_PUBLISH_REPO: 'fork' }, []),
+    expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/cosmos', COSMOS_PUBLISH_OWNER: 'zed', COSMOS_PUBLISH_REPO: 'fork' }, []),
     { owner: 'zed', repo: 'fork' }
   );
   assert.deepEqual(
-    expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/tandem-dog' }, ['--owner=other', '--repo=thing']),
+    expectedPublishTarget({ GITHUB_REPOSITORY: 'acme/cosmos' }, ['--owner=other', '--repo=thing']),
     { owner: 'other', repo: 'thing' }
   );
-  assert.equal(expectedPublishTarget({ TANDEM_PUBLISH_OWNER: 'zed' }, []), null);
+  assert.equal(expectedPublishTarget({ COSMOS_PUBLISH_OWNER: 'zed' }, []), null);
 });

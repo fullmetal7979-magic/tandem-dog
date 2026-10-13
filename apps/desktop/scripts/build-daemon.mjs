@@ -12,7 +12,7 @@ const outfile = join(desktopDir, 'out', 'main', 'daemon.cjs');
 // an empty env here and the daemon would fall back to the placeholder GitHub
 // owner even when CI supplied the real one.
 const forkEnv = Object.fromEntries(
-  ['VITE_TANDEM_REPO_OWNER', 'VITE_TANDEM_REPO_NAME']
+  ['VITE_COSMOS_REPO_OWNER', 'VITE_COSMOS_REPO_NAME']
     .filter((name) => process.env[name])
     .map((name) => [name, process.env[name]])
 );

@@ -58,7 +58,7 @@ export function TidyEngines({
       <ExtensionSection title={t('Engines')} count={installedCount}>
         <EngineRows rows={active} />
         <ExtensionNote>
-          {t('Structural rules ship with Mixdog; engines download to {{toolsDir}}.', {
+          {t('Structural rules ship with COSMOS; engines download to {{toolsDir}}.', {
             toolsDir: status?.toolsDir || '',
           })}
         </ExtensionNote>

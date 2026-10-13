@@ -3,7 +3,7 @@
   "version": "1.0.12",
   "private": false,
   "type": "module",
-  "description": "Open-source coding agent that matches Codex on Terminal-Bench 2.1 with 63% fewer tokens.",
+  "description": "COSMOS(코스모스) — 어느 컴퓨터·어느 AI 계정에서든 같은 환경과 같은 세션으로 이어 쓰는 AI 개발 도구. Mixdog 기반.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -28,6 +28,7 @@
     "mcp"
   ],
   "bin": {
+    "cosmos": "src/cli.mjs",
     "mixdog": "src/cli.mjs"
   },
   "files": [

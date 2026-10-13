@@ -1049,7 +1049,7 @@ test('Code Tidy card renders engine list, install progress, and failed engine ro
     // ExtensionNote under Engines section
     assert.match(
       dialog.textContent,
-      /Structural rules ship with Mixdog; engines download to C:\\Users\\tempe\\\.mixdog\\data\\tools\./
+      /Structural rules ship with COSMOS; engines download to C:\\Users\\tempe\\\.mixdog\\data\\tools\./
     );
 
     // Info block fact

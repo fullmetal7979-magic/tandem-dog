@@ -111,7 +111,7 @@ test('a shared link arrives as composer text with nothing attached', async () =>
   const { receiveSharedPayload } = loadWorker({ caches });
   const redirect = await receiveSharedPayload(
     shareRequest([
-      ['title', 'Mixdog'],
+      ['title', 'COSMOS'],
       ['url', 'https://mixdog.example/docs'],
     ])
   );
@@ -122,7 +122,7 @@ test('a shared link arrives as composer text with nothing attached', async () =>
     replaceUrl: () => {},
   });
   assert.equal(intake.files.length, 0);
-  assert.equal(intake.text, 'Mixdog https://mixdog.example/docs');
+  assert.equal(intake.text, 'COSMOS https://mixdog.example/docs');
 });
 
 test('an empty share reopens the app without a claim token', async () => {

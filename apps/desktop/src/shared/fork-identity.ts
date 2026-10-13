@@ -1,5 +1,5 @@
-// Tandem Dog fork identity: the single source of truth for every name that must
-// differ from upstream Mixdog so both apps install and run side by side.
+// COSMOS (코스모스) product identity: the single source of truth for every name
+// that must differ from upstream Mixdog so both apps install and run side by side.
 //
 // Consumers
 //  - App code (main, renderer, tests) imports these constants directly.
@@ -11,18 +11,22 @@
 // Keep this file free of runtime imports: it is bundled into Electron main,
 // the renderer and the plain-Node daemon, and loaded straight by tsx tests.
 
-export const APP_NAME = 'Tandem Dog';
-export const APP_ID = 'io.tandemdog.desktop';
-export const PROTOCOL_SCHEME = 'tandemdog';
+export const APP_NAME = 'COSMOS';
+export const APP_ID = 'app.cosmos.desktop';
+export const PROTOCOL_SCHEME = 'cosmos';
 /** Packaged userData folder. Electron derives it from package.json "name",
  *  which electron-builder sets through extraMetadata.name, so the two must be
  *  equal; the artifact file-name prefix reuses it too. */
-export const USER_DATA_DIR_NAME = 'tandem-dog-desktop';
+export const USER_DATA_DIR_NAME = 'cosmos-desktop';
+/** userData folders of the builds COSMOS replaces, newest first. The first
+ *  launch copies the newest one that exists so window layout, sign-ins kept by
+ *  the desktop host and remote pairings survive the rename. */
+export const LEGACY_USER_DATA_DIR_NAMES: readonly string[] = ['tandem-dog-desktop'];
 
 // GitHub repository that hosts this fork's releases, issues and star button.
 //
 // The owner is not known at source level (it is whoever forks the repo), so it
-// is a BUILD-TIME define: CI exports VITE_TANDEM_REPO_OWNER / VITE_TANDEM_REPO_NAME
+// is a BUILD-TIME define: CI exports VITE_COSMOS_REPO_OWNER / VITE_COSMOS_REPO_NAME
 // (from github.repository_owner / the repository name) before `npm run build`.
 // electron-vite exposes every VITE_* variable as import.meta.env.VITE_* to the
 // main, preload and renderer bundles. Without the variables (local builds,
@@ -31,7 +35,7 @@ export const USER_DATA_DIR_NAME = 'tandem-dog-desktop';
 // exist yet, which is intentional and visible instead of silently pointing at
 // upstream.
 const PLACEHOLDER_OWNER = 'OWNER';
-const PLACEHOLDER_REPO = 'tandem-dog';
+const PLACEHOLDER_REPO = 'cosmos';
 
 type BuildEnv = Record<string, string | undefined>;
 const buildEnv: BuildEnv = (import.meta as unknown as { env?: BuildEnv }).env ?? {};
@@ -44,12 +48,12 @@ function definedName(value: string | undefined, pattern: RegExp, fallback: strin
 }
 
 export const REPO_OWNER = definedName(
-  buildEnv.VITE_TANDEM_REPO_OWNER,
+  buildEnv.VITE_COSMOS_REPO_OWNER,
   /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/,
   PLACEHOLDER_OWNER
 );
 export const REPO_NAME = definedName(
-  buildEnv.VITE_TANDEM_REPO_NAME,
+  buildEnv.VITE_COSMOS_REPO_NAME,
   /^(?!\.+$)[A-Za-z0-9._-]{1,100}$/,
   PLACEHOLDER_REPO
 );

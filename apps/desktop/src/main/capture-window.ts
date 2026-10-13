@@ -570,7 +570,7 @@ async function runCaptureDictationSmoke(window: BrowserWindow): Promise<{
       if (!mic.className.includes('is-recording')) throw new Error('Dictation did not start recording.');
       await new Promise((resolve) => setTimeout(resolve, 900));
       mic.click();
-      const textarea = document.querySelector('textarea[aria-label="Message Mixdog"]');
+      const textarea = document.querySelector('textarea[aria-label="Message COSMOS"]');
       const stopped = Date.now();
       while (Date.now() - stopped < 6000) {
         if ((textarea.value || '').includes('dictation smoke transcript')) break;
@@ -619,7 +619,7 @@ async function runCaptureToolShowcase(window: BrowserWindow, host: CaptureServic
       if (!(link instanceof HTMLElement)) throw new Error('Missing capture element: New task');
       link.click();
       await new Promise((resolve) => setTimeout(resolve, 250));
-      const textarea = document.querySelector('textarea[aria-label="Message Mixdog"]');
+      const textarea = document.querySelector('textarea[aria-label="Message COSMOS"]');
       if (!(textarea instanceof HTMLTextAreaElement)) throw new Error('Missing capture element: composer textarea');
       const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
       setValue.call(textarea, 'Run the test suite and fix the retry regression.');

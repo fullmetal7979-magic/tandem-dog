@@ -33,7 +33,7 @@ export function registerFileDialogIpc({
 
   handle(DESKTOP_IPC.chooseProject, async () => {
     const result = await dialog.showOpenDialog(window, {
-      title: nativeT('Choose a Mixdog project folder'),
+      title: nativeT('Choose a COSMOS project folder'),
       properties: ['openDirectory', 'createDirectory'],
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);

@@ -96,7 +96,7 @@ export function DesktopTitlebar({ updaterState, onOpenUpdate }: DesktopTitlebarP
             aria-label={
               updateInstalling
                 ? t('Installing update')
-                : t('Install Mixdog {{version}}', { version: updaterState?.version })
+                : t('Install COSMOS {{version}}', { version: updaterState?.version })
             }
             data-tooltip={updateInstalling ? t('Installing update') : t('Update')}
           >

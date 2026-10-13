@@ -4,26 +4,29 @@ import { fileURLToPath } from 'node:url';
 
 const iconSizes = [16, 24, 32, 48, 64, 128, 256];
 const supersample = 4;
-// 23-B OS mark: near-black tile, three titanium arcs, and a silver star core.
-const tile = [7, 8, 11];
-const titanium = [
-  [
-    [255, 255, 255],
-    [203, 213, 225],
-    [255, 255, 255],
-  ],
-  [
-    [241, 245, 249],
-    [148, 163, 184],
-    [241, 245, 249],
-  ],
-  [
-    [226, 232, 240],
-    [100, 116, 139],
-    [226, 232, 240],
-  ],
+// COSMOS mark (256 grid): a deep-space tile with a faint nebula, scattered
+// stars, a ringed planet (해·달 사이의 행성) and one four-point sparkle (별).
+// The ring's far half passes behind the planet and its near half in front.
+const SPACE_TOP = [33, 36, 104];
+const SPACE_EDGE = [7, 9, 28];
+const NEBULA = [124, 92, 255];
+const PLANET_LIGHT = [199, 210, 254];
+const PLANET_MID = [129, 140, 248];
+const PLANET_DARK = [55, 48, 163];
+const RING_LIGHT = [254, 240, 138];
+const RING_DARK = [245, 158, 11];
+const STARS = [
+  [46, 58, 2.4],
+  [150, 44, 1.8],
+  [58, 202, 1.8],
+  [214, 176, 2.4],
+  [96, 36, 1.4],
+  [160, 220, 1.5],
+  [30, 128, 1.3],
 ];
-
+const PLANET = { x: 120, y: 140, r: 52 };
+const RING = { a: 94, b: 25, tilt: (-22 * Math.PI) / 180, inner: 0.78, outer: 1 };
+const SPARKLE = { x: 198, y: 60, long: 22, short: 5 };
 let crcTable;
 function crc32(buffer) {
   crcTable ??= Array.from({ length: 256 }, (_, n) => {
@@ -82,48 +85,67 @@ function insideRoundedSquareInset(x, y, size, inset) {
   return dx * dx + dy * dy <= radius * radius;
 }
 
-function rotatePoint(x, y, angle) {
-  const cosine = Math.cos(angle);
-  const sine = Math.sin(angle);
-  return [128 + (x - 128) * cosine + (y - 128) * sine, 128 - (x - 128) * sine + (y - 128) * cosine];
+const mix = (from, to, t) => from.map((channel, index) => channel + (to[index] - channel) * t);
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+function spaceColor(x, y) {
+  const toCenter = Math.hypot(x - 96, y - 72) / 230;
+  let color = mix(SPACE_TOP, SPACE_EDGE, clamp01(toCenter));
+  const nebula = clamp01(1 - Math.hypot(x - 196, y - 196) / 120);
+  color = mix(color, NEBULA, nebula * nebula * 0.35);
+  return color;
 }
 
-function arcSample(x, y, size, rotation) {
-  const scale = size / 256;
-  const [localX, localY] = rotatePoint(x / scale, y / scale, -rotation);
-  const dx = localX - 128;
-  const dy = localY - 128;
-  const angle = Math.atan2(dy, dx);
-  const start = (-100 * Math.PI) / 180;
-  const end = (-20 * Math.PI) / 180;
-  const radius = 68;
-  const halfWidth = 14;
-  const startX = 128 + radius * Math.cos(start);
-  const startY = 128 + radius * Math.sin(start);
-  const endX = 128 + radius * Math.cos(end);
-  const endY = 128 + radius * Math.sin(end);
-  const onCurve = angle >= start && angle <= end && Math.abs(Math.hypot(dx, dy) - radius) <= halfWidth;
-  const onStartCap = Math.hypot(localX - startX, localY - startY) <= halfWidth;
-  const onEndCap = Math.hypot(localX - endX, localY - endY) <= halfWidth;
-  if (!onCurve && !onStartCap && !onEndCap) return null;
-  return Math.max(0, Math.min(1, (localX + localY - 177) / 91));
+function ringSample(x, y) {
+  const dx = x - PLANET.x;
+  const dy = y - PLANET.y;
+  const cos = Math.cos(-RING.tilt);
+  const sin = Math.sin(-RING.tilt);
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  const radius = Math.hypot(localX / RING.a, localY / RING.b);
+  if (radius < RING.inner || radius > RING.outer) return null;
+  const band = (radius - RING.inner) / (RING.outer - RING.inner);
+  const color = mix(RING_LIGHT, RING_DARK, clamp01(0.25 + band * 0.6 + (localX / RING.a) * 0.25));
+  return { color, front: localY > 0 };
 }
 
-function gradientColor(colors, position) {
-  const segment = position <= 0.5 ? position * 2 : (position - 0.5) * 2;
-  const from = position <= 0.5 ? colors[0] : colors[1];
-  const to = position <= 0.5 ? colors[1] : colors[2];
-  return from.map((channel, index) => Math.round(channel + (to[index] - channel) * segment));
+function planetColor(x, y) {
+  const dx = (x - PLANET.x) / PLANET.r;
+  const dy = (y - PLANET.y) / PLANET.r;
+  if (dx * dx + dy * dy > 1) return null;
+  // Light from the upper left: lit limb pale, terminator deep indigo.
+  const light = clamp01(0.55 - dx * 0.55 - dy * 0.6);
+  const base = light > 0.5 ? mix(PLANET_MID, PLANET_LIGHT, (light - 0.5) * 2) : mix(PLANET_DARK, PLANET_MID, light * 2);
+  // Two soft cloud bands follow the ring's tilt.
+  const band = Math.sin((dy * Math.cos(RING.tilt) - dx * Math.sin(RING.tilt)) * 7.5);
+  return mix(base, PLANET_LIGHT, band > 0.6 ? 0.12 : 0);
 }
 
-function insidePolygon(x, y, points) {
-  let inside = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
-    const [xi, yi] = points[i];
-    const [xj, yj] = points[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+function sparkleColor(x, y) {
+  const dx = Math.abs(x - SPARKLE.x);
+  const dy = Math.abs(y - SPARKLE.y);
+  // Four-point star: the union of two thin diamonds plus a bright core.
+  const inDiamond = (u, v) => u / SPARKLE.short + v / SPARKLE.long <= 1;
+  if (Math.hypot(dx, dy) <= 3.2) return [255, 255, 255];
+  if (inDiamond(dx, dy) || inDiamond(dy, dx)) return mix([255, 255, 255], RING_LIGHT, clamp01(Math.hypot(dx, dy) / SPARKLE.long));
+  return null;
+}
+
+function cosmosColor(x, y) {
+  let color = spaceColor(x, y);
+  for (const [sx, sy, radius] of STARS) {
+    const distance = Math.hypot(x - sx, y - sy);
+    if (distance <= radius) color = mix(color, [255, 255, 255], clamp01(1.2 - distance / radius));
   }
-  return inside;
+  const ring = ringSample(x, y);
+  if (ring && !ring.front) color = ring.color;
+  const planet = planetColor(x, y);
+  if (planet) color = planet;
+  if (ring && ring.front) color = ring.color;
+  const sparkle = sparkleColor(x, y);
+  if (sparkle) color = sparkle;
+  return color.map((channel) => Math.round(channel));
 }
 
 function renderIcon(size) {
@@ -138,26 +160,9 @@ function renderIcon(size) {
 
       if (insideRoundedSquare(iconX, iconY, size)) {
         const scale = size / 256;
-        const pointX = iconX / scale;
-        const pointY = iconY / scale;
-        let color = insideRoundedSquareInset(iconX, iconY, size, 2.5 * scale) ? tile : [148, 163, 184];
-        for (let arc = 0; arc < 3; arc += 1) {
-          const sample = arcSample(iconX, iconY, size, (arc * 120 * Math.PI) / 180);
-          if (sample !== null) color = gradientColor(titanium[arc], sample);
-        }
-        const star = [
-          [128, 112],
-          [133, 123],
-          [144, 128],
-          [133, 133],
-          [128, 144],
-          [123, 133],
-          [112, 128],
-          [123, 123],
-        ];
-        if (insidePolygon(pointX, pointY, star)) color = [241, 245, 249];
-        if (Math.hypot(pointX - 128, pointY - 128) <= 3.5) color = tile;
-        if (Math.hypot(pointX - 128, pointY - 128) <= 1.5) color = [255, 255, 255];
+        const color = insideRoundedSquareInset(iconX, iconY, size, 2.5 * scale)
+          ? cosmosColor(iconX / scale, iconY / scale)
+          : [76, 82, 160];
         highPixels.set([...color, 255], offset);
       }
     }
@@ -254,4 +259,8 @@ await mkdir(buildDir, { recursive: true });
 await writeFile(`${buildDir}/mixdog.ico`, Buffer.concat([ico, ...pngEntries.map(({ png }) => png)]));
 await writeFile(`${buildDir}/mixdog.png`, pngEntries.at(-1).png);
 await writeFile(`${buildDir}/icon.icns`, Buffer.concat([icnsHeader, icnsBody]));
-console.log(`BRAND_ICONS=Mixdog; ICO_BYTES=${offset}; ICNS_BYTES=${icnsBody.length + 8}`);
+// The installable web app (phone PWA) and the desktop tab icon share the mark.
+const publicDir = fileURLToPath(new URL('../src/renderer/public/', import.meta.url));
+await writeFile(`${publicDir}/mixdog-192.png`, encodePng(192, renderIcon(192)));
+await writeFile(`${publicDir}/mixdog-512.png`, encodePng(512, renderIcon(512)));
+console.log(`BRAND_ICONS=COSMOS; ICO_BYTES=${offset}; ICNS_BYTES=${icnsBody.length + 8}`);

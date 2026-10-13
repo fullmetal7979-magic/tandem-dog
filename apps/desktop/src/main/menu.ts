@@ -31,7 +31,7 @@ function nativeMenuTemplate(
           ? [...fileItems, { role: 'close', label: nativeT('Close window'), accelerator: 'CmdOrCtrl+Shift+W' }]
           : // Ctrl+Q belongs to the focused workspace tab. Keep explicit menu
             // quit available without registering an accelerator ahead of React.
-            [...fileItems, { role: 'quit', label: nativeT('Quit Mixdog'), registerAccelerator: false }],
+            [...fileItems, { role: 'quit', label: nativeT('Quit COSMOS'), registerAccelerator: false }],
     },
     {
       label: nativeT('Edit'),

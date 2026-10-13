@@ -117,7 +117,7 @@ function SkillExtensionCreateDialog({
           <Plug size={18} aria-hidden="true" />
           <span>
             <b>{t('MCP')}</b>
-            <small>{t('How Mixdog connects to this MCP server.')}</small>
+            <small>{t('How COSMOS connects to this MCP server.')}</small>
           </span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
@@ -215,7 +215,7 @@ export function McpPanel({ api, data, pending, run, confirm, createOpen, closeCr
           onRemove={() =>
             confirm({
               title: t('Remove MCP server?'),
-              description: t('{{name}} will be removed from Mixdog.', { name: openName }),
+              description: t('{{name}} will be removed from COSMOS.', { name: openName }),
               confirmLabel: t('Remove'),
               danger: true,
               onConfirm: () => {
@@ -387,7 +387,7 @@ function PluginDetailDialog({
             onClick={() =>
               confirm({
                 title: t('Remove plugin?'),
-                description: t('{{name}} will be removed from Mixdog.', { name: label(open) }),
+                description: t('{{name}} will be removed from COSMOS.', { name: label(open) }),
                 confirmLabel: t('Remove'),
                 danger: true,
                 onConfirm: () => {

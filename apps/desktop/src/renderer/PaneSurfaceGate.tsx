@@ -165,7 +165,7 @@ export function DesktopBootGate({
   ready,
   restorePending = false,
   enabled = true,
-  label = t('Starting Mixdog…'),
+  label = t('Starting COSMOS…'),
   children,
 }: {
   ready: boolean;

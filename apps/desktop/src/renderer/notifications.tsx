@@ -82,13 +82,13 @@ export function DesktopUpdateDialog({
         data-desktop-update-dialog
       >
         <header>
-          <h3 id="desktop-update-title">{t('Install Mixdog {{version}}?', { version })}</h3>
+          <h3 id="desktop-update-title">{t('Install COSMOS {{version}}?', { version })}</h3>
           <button type="button" aria-label={t('Close update confirmation')} onClick={onCancel}>
             <X aria-hidden="true" size={16} />
           </button>
         </header>
         <p id="desktop-update-description">
-          {t('Mixdog will close while the update is installed, then reopen automatically.')}
+          {t('COSMOS will close while the update is installed, then reopen automatically.')}
         </p>
         <footer>
           <button ref={cancelRef} type="button" onClick={onCancel}>
