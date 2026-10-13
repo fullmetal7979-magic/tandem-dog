@@ -17,7 +17,6 @@ export const DESKTOP_IPC = {
   addProject: 'mixdog:add-project',
   openProjectInExplorer: 'mixdog:open-project-in-explorer',
   openExternal: 'mixdog:open-external',
-  submitFeedback: 'mixdog:submit-feedback',
   openLocalFileLink: 'mixdog:open-local-file-link',
   localPageUrl: 'mixdog:local-page-url',
   renameProject: 'mixdog:rename-project',

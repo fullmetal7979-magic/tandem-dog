@@ -16,7 +16,6 @@ import type { DesktopSettingsStore } from './settings-store';
 import type { DesktopLocalPathEntry, DesktopSettings } from '../shared/contract';
 import { normalizeRemoteBrowserControl } from '../shared/remote-browser';
 import { requiredSessionId } from './desktop-state';
-import { submitFeedback } from './feedback-client';
 import { validateGithubRequest } from '../../../../src/runtime/github/contract.mjs';
 import type { TerminalSpawnProfile } from './terminal-contract';
 import {
@@ -620,7 +619,6 @@ export function createRemoteMethods({
   const grants = createSelectedFileGrants();
   const { grantedFile, grantedIf } = grants;
   const methods: Record<string, RemoteMethod> = {
-    submitFeedback: ([input]) => submitFeedback(input),
     readActivityRailPins: () => invokeDesktopOperation('readActivityRailPins', []),
     // A web client writes normally; it never initializes from its local cache.
     updateActivityRailPins: ([pins]) => invokeDesktopOperation('updateActivityRailPins', [pins]),

@@ -71,7 +71,6 @@ const api: DesktopApi = {
   addProject: (projectPath) => ipcRenderer.invoke(DESKTOP_IPC.addProject, projectPath),
   openProjectInExplorer: (projectPath) => ipcRenderer.invoke(DESKTOP_IPC.openProjectInExplorer, projectPath),
   openExternal: (url) => ipcRenderer.invoke(DESKTOP_IPC.openExternal, url),
-  submitFeedback: (input) => ipcRenderer.invoke(DESKTOP_IPC.submitFeedback, input),
   openLocalFileLink: (projectPath, href, confirmedPath) =>
     ipcRenderer.invoke(DESKTOP_IPC.openLocalFileLink, projectPath, href, confirmedPath),
   localPageUrl: (projectPath, relPath, accessToken) =>

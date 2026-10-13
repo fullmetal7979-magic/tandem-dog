@@ -4,7 +4,6 @@ import type { Shell } from 'electron';
 import { DESKTOP_IPC } from '../shared/contract';
 import type { DesktopService } from './desktop-service-contract';
 import { openLocalFileLink } from './local-file-links';
-import { submitFeedback } from './feedback-client';
 import {
   projectDisplayName,
   requiredExternalUrl,
@@ -47,7 +46,6 @@ export function registerProjectIpc({
     if (failure) throw new Error(`Unable to open project folder: ${failure}`);
   });
   handle(DESKTOP_IPC.openExternal, (_event, url) => shell.openExternal(requiredExternalUrl(url)));
-  handle(DESKTOP_IPC.submitFeedback, (_event, input) => submitFeedback(input));
   handle(DESKTOP_IPC.openLocalFileLink, (_event, projectPath, href, confirmedPath) =>
     openLocalFileLink(projectPath, href, (file) => shell.openPath(file), confirmedPath)
   );
