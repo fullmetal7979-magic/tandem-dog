@@ -30,6 +30,7 @@ process.env.NODE_ENV = 'development';
 // i18n into Korean and break every English-asserting suite. Tests always run
 // English unless a suite opts into another language explicitly.
 process.env.MIXDOG_UI_LANGUAGE ||= 'en';
+process.env.COSMOS_UI_MODE ??= 'advanced';
 // ONE React per desktop test process. Shared modules that live outside this
 // package (src/tui/**, imported by renderer suites) resolve `react` from the
 // ROOT node_modules, so a hook of theirs rendered by the desktop react-dom

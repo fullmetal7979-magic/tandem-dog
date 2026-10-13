@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DESKTOP_WORKSPACE_MIN_WIDTH } from '../shared/window-layout';
 import { DesktopTitlebar, type NavigationSelection } from './navigation';
 import { usePaneWorkspace } from './pane-workspace-state';
@@ -364,6 +364,21 @@ export function App() {
     finishPendingConversationHandoff,
     activateSelection,
   });
+  // COSMOS surfaces (space home, seat badge, Galaxy) talk to the shell
+  // through window events so they stay independent of the pane plumbing.
+  useEffect(() => {
+    const openGalaxy = () => sideDocks.openDockTab('tandem');
+    const openContinued = (event: Event) => {
+      const sessionId = String((event as CustomEvent<{ sessionId?: string }>).detail?.sessionId || '');
+      if (sessionId) openSession(sessionId);
+    };
+    window.addEventListener('cosmos:open-galaxy', openGalaxy);
+    window.addEventListener('cosmos:open-session', openContinued);
+    return () => {
+      window.removeEventListener('cosmos:open-galaxy', openGalaxy);
+      window.removeEventListener('cosmos:open-session', openContinued);
+    };
+  }, [sideDocks, openSession]);
   openSessionRef.current = openSession;
   const prefetchSession = useCallback((sessionId: string) => requestSessionRead(sessionId), []);
   const { openSettings } = useAppSettingsRouter({
@@ -733,7 +748,7 @@ export function App() {
         }
       >
         <RemoteConnectionBanner />
-        <DesktopTitlebar updaterState={updaterState} onOpenUpdate={openDesktopUpdate} />
+        <DesktopTitlebar updaterState={updaterState} onOpenUpdate={openDesktopUpdate} projectPath={toolProjectPath} />
         <div className="desktop-body">
           <AppSidebarDrawer
             {...shellPanels}

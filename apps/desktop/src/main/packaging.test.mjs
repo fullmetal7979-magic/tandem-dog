@@ -464,8 +464,8 @@ test('production entry has no capture side effects and capture harness is exclud
   // path races it against a short grace instead of awaiting it bare.
   assert.match(capture, /await Promise\.race\(\[\s*host\.dispose\(\),/);
   assert.match(options, /Object\.freeze/);
-  assert.match(options, /DESKTOP_BACKGROUND_COLOR\s*=\s*'#18181b'/);
-  assert.match(options, /DESKTOP_LIGHT_BACKGROUND_COLOR\s*=\s*'#f7f7f7'/);
+  assert.match(options, /DESKTOP_BACKGROUND_COLOR\s*=\s*'#0b1024'/);
+  assert.match(options, /DESKTOP_LIGHT_BACKGROUND_COLOR\s*=\s*'#f6f4fc'/);
   assert.match(options, /DESKTOP_TITLEBAR_HEIGHT\s*=\s*35/);
   assert.match(options, /color:\s*'#00000000'/);
   assert.match(options, /backgroundColor:\s*DESKTOP_BACKGROUND_COLOR/);

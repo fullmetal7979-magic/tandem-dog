@@ -22,8 +22,35 @@
  *   6. Elevation   — raised/floating/overlay/button shadows.
  */
 :root {
-  /* COSMOS: the default dark ramp is "Midnight" — navy-black surfaces,
-     cool slate ink, one muted periwinkle accent (src/tui/themes/midnight.mjs). */
+  /* COSMOS 밤하늘 (Night Sky): the default dark ramp — deep space indigo
+     surfaces, starlight ink and one nebula-violet accent. The light block
+     below is 새벽 (Dawn). The --cosmos-* tokens carry the space vocabulary:
+     해 (sun) gold for starting, 달 (moon) silver for finishing, 은하수 (Milky
+     Way) violet→teal for sync, and the three relay states. */
+  --cosmos-sun: #fbbf24;
+  --cosmos-sun-strong: #f59e0b;
+  --cosmos-sun-ink: #1c1303;
+  --cosmos-moon: #c7d2fe;
+  --cosmos-moon-strong: #a5b4fc;
+  --cosmos-moon-ink: #0f1430;
+  --cosmos-nebula: #8b5cf6;
+  --cosmos-teal: #22d3ee;
+  --cosmos-milky: linear-gradient(100deg, #8b5cf6 0%, #6366f1 45%, #22d3ee 100%);
+  --cosmos-ok: #34d399;
+  --cosmos-warn: #fbbf24;
+  --cosmos-bad: #fb7185;
+  --cosmos-ok-plate: rgba(52, 211, 153, 0.12);
+  --cosmos-warn-plate: rgba(251, 191, 36, 0.12);
+  --cosmos-bad-plate: rgba(251, 113, 133, 0.12);
+  --cosmos-star-field:
+    radial-gradient(1.2px 1.2px at 12% 18%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 72% 12%, rgba(255, 255, 255, 0.45), transparent 60%),
+    radial-gradient(1.4px 1.4px at 86% 64%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 34% 78%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(1.1px 1.1px at 56% 42%, rgba(255, 255, 255, 0.3), transparent 60%),
+    radial-gradient(1px 1px at 8% 56%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(900px 480px at 85% 110%, rgba(139, 92, 246, 0.16), transparent 70%),
+    radial-gradient(700px 420px at -10% -20%, rgba(99, 102, 241, 0.14), transparent 70%);
   /* ── 1. Primitives ── */
   --mx-grey-50: #fff;
   --mx-grey-100: #fafafa;
@@ -69,14 +96,14 @@
      the composer keep their existing raised tones; only the shell's broad
      surfaces deepen. A small blue offset keeps these near-black neutrals
      from looking brown beside warm content. */
-  --mx-bg-deep: #0a0e19;
-  --mx-window-band: #0e1322;
-  --mx-workspace-sheet: #0c111d;
-  --mx-bg-base: #151c2d;
-  --mx-bg-layer-1: #1b2337;
-  --mx-bg-layer-2: #222b42;
-  --mx-bg-layer-3: #2b354f;
-  --mx-bg-contrast: #44506d;
+  --mx-bg-deep: #070a17;
+  --mx-window-band: #0b1024;
+  --mx-workspace-sheet: #090d1e;
+  --mx-bg-base: #121833;
+  --mx-bg-layer-1: #18203f;
+  --mx-bg-layer-2: #1f284c;
+  --mx-bg-layer-3: #28325a;
+  --mx-bg-contrast: #47517a;
   /* Surface-base: translucent plate used by chat bubbles. */
   --mx-surface-plate: rgba(255, 255, 255, 0.035);
   /* Container grammar, every theme: cards (settings groups, usage groups,
@@ -93,8 +120,8 @@
   --mx-composer-lift: 0 12px 24px -4px rgb(0 0 0 / 22%);
   --mx-user-bubble: var(--mx-bg-layer-1);
   /* Terminal canvas and ink stay dark-theme paired in every app theme. */
-  --mx-terminal-bg: #0c111d;
-  --mx-terminal-fg: #dce2f0;
+  --mx-terminal-bg: #090d1e;
+  --mx-terminal-fg: #e4e8fb;
 
   /* ── Type scale ── */
   /* One chrome ramp on SIX real sizes — 12 badge · 13 meta · 14 item ·
@@ -220,8 +247,8 @@
   --mx-op-soft: 0.85;
 
   /* ── 3. Ink: text, icons, borders ── */
-  --mx-text: #dce2f0;
-  --mx-text-muted: #95a0b9;
+  --mx-text: #e4e8fb;
+  --mx-text-muted: #9aa3c7;
   /* Faint IS muted. It was raised for legibility until it sat one shade under
      muted (#9b9b9b against #a8a8a8, 5.8 against 6.9:1) — a step no eye could
      read, which left three near-identical greys on screen and no real third
@@ -259,7 +286,7 @@
      로해볼까). Paper takes the 800 rung (light block below).
      It lives on the THEME, not on a surface attribute, so the web shell
      paints the same accent as the desktop window. */
-  --mx-text-accent: #8fa8f0;
+  --mx-text-accent: #a5b4fc;
   --mx-accent: var(--mx-text-accent);
   /* Markdown inline-code ink stays a SEPARATE token from the brand accent.
      Both are blue now, but code ink answers to "reads as code/reference"
@@ -275,12 +302,12 @@
   --mx-icon-muted: var(--mx-text-muted);
   /* Neutral hairlines, one step stronger than the old warm set so the
      sidebar/dock/tab-strip seams read crisply (#2b2b2b-class). */
-  --mx-border-muted: rgba(160, 180, 230, 0.09);
-  --mx-border: rgba(160, 180, 230, 0.13);
+  --mx-border-muted: rgba(165, 180, 252, 0.1);
+  --mx-border: rgba(165, 180, 252, 0.15);
   /* Workbench seams (titlebar, rail, sidebar, docks, pane splits) share the
      muted weight: fewer, lighter lines carry the structure (user: 선 정리). */
   --mx-border-structure: var(--mx-border-muted);
-  --mx-border-strong: rgba(160, 180, 230, 0.26);
+  --mx-border-strong: rgba(165, 180, 252, 0.3);
 
   /* ── 4. Interaction ── */
   /* Neutral focus ring in BOTH themes (user: 파란 강조/선택 톤 제거, 입력 포커스
@@ -291,8 +318,8 @@
   --mx-focus: var(--mx-border-strong);
   /* 8 / 12: at 6% the dark hover (1.15:1) was the quietest among the
      reference dark themes (VS Code 1.19, Primer 1.20, Radix 1.32). */
-  --mx-hover: rgba(160, 180, 230, 0.07);
-  --mx-pressed: rgba(160, 180, 230, 0.11);
+  --mx-hover: rgba(165, 180, 252, 0.08);
+  --mx-pressed: rgba(165, 180, 252, 0.13);
   /* Opaque hover/pressed equivalents for rows that stack OPAQUE action
      gradients on top (a translucent wash under them renders a visible
      rectangle around the actions). */
@@ -311,7 +338,7 @@
   /* The v2 token sheet says alpha-light-30 for the dark scrim, but the
      the desktop shell dims dialogs DARK; a white haze over a dark
      shell reads as washed out. Dim with black in both themes. */
-  --mx-scrim: rgba(4, 7, 16, 0.6);
+  --mx-scrim: rgba(3, 5, 14, 0.66);
   /* Over-media plates (badges/actions on thumbnails and stages) and the
      ink on top of them — theme-invariant by design. */
   --mx-media-scrim: rgba(0, 0, 0, 0.55);
@@ -322,7 +349,7 @@
      carries white button text at 5:1, where the 600 used for text/links
      lands at 4:1 — under AA for the recovery button's label. Paired with the
      contrast-button hover overlay (dark: alpha-dark-24, light: alpha-light-12). */
-  --mx-accent-bg: #4a63c4;
+  --mx-accent-bg: #5b5fd6;
   --mx-contrast-hover: var(--mx-alpha-dark-24);
   /* Flat action washes: ONE overlay over the family's own plate, composed
      once here so no state rule re-spells the gradient stack. */
@@ -548,6 +575,24 @@
 }
 
 :root[data-mixdog-theme="light"] {
+  /* 새벽 (Dawn): the same space vocabulary on paper; inks one step deeper. */
+  --cosmos-sun: #d97706;
+  --cosmos-sun-strong: #b45309;
+  --cosmos-sun-ink: #ffffff;
+  --cosmos-moon: #4f46e5;
+  --cosmos-moon-strong: #4338ca;
+  --cosmos-moon-ink: #ffffff;
+  --cosmos-nebula: #7c3aed;
+  --cosmos-teal: #0e7490;
+  --cosmos-ok: #047857;
+  --cosmos-warn: #b45309;
+  --cosmos-bad: #be123c;
+  --cosmos-ok-plate: rgba(4, 120, 87, 0.08);
+  --cosmos-warn-plate: rgba(180, 83, 9, 0.08);
+  --cosmos-bad-plate: rgba(190, 18, 60, 0.07);
+  --cosmos-star-field:
+    radial-gradient(900px 480px at 85% 110%, rgba(124, 58, 237, 0.08), transparent 70%),
+    radial-gradient(700px 420px at -10% -20%, rgba(251, 191, 36, 0.1), transparent 70%);
   /* Neutral paper: equal RGB channels keep the chrome free of a violet
      cast. Shared by desktop, browser and APK surfaces. */
 
@@ -555,14 +600,14 @@
      Grok Bot's light ladder: subtle grey sidebar (#f7f7f7), near-white
      reading canvas (#fcfcfc), white popups and prompt card. Controls, chips,
      bubbles and selections are flat grey fills; cards keep one hairline. */
-  --mx-bg-deep: #e8e8e8;
-  --mx-window-band: #f7f7f7;
-  --mx-workspace-sheet: #fcfcfc;
+  --mx-bg-deep: #e9e7f5;
+  --mx-window-band: #f6f4fc;
+  --mx-workspace-sheet: #fbfaff;
   --mx-bg-base: #ffffff;
-  --mx-bg-layer-1: #f3f3f3;
-  --mx-bg-layer-2: #eeeeee;
-  --mx-bg-layer-3: #e8e8e8;
-  --mx-bg-contrast: #141414;
+  --mx-bg-layer-1: #f2f0fa;
+  --mx-bg-layer-2: #ebe8f6;
+  --mx-bg-layer-3: #e3dff1;
+  --mx-bg-contrast: #1d1b38;
   --mx-surface-plate: rgba(119, 119, 119, 0.09);
   /* Paper: the prompt card stays white; the bubble is Grok's grey fill. */
   --mx-composer-surface: var(--mx-bg-base);
@@ -573,21 +618,21 @@
   /* Body ink matches dark's prose contrast on the reading canvas (15.5:1,
      #e9e9e9 on #111113), so switching themes keeps the same text weight.
      Muted stays AA on layer-3; status and link colors stay semantic. */
-  --mx-text: #222222;
-  --mx-text-muted: #606060;
+  --mx-text: #1d1b38;
+  --mx-text-muted: #5b5778;
   --mx-text-faint: var(--mx-text-muted);
   /* Google Blue 800 for INK: the 700 rung #1967d2 fell to 4.2:1 on the grey
      plates. The filled accent surface (--mx-accent-bg) keeps 700. */
-  --mx-text-accent: #185abc;
+  --mx-text-accent: #4f46e5;
   --mx-accent: var(--mx-text-accent);
   --mx-md-code: var(--mx-text-accent);
   --mx-icon: var(--mx-text);
   --mx-icon-muted: var(--mx-text-muted);
   /* Grok's weak / default / strong hairlines. */
-  --mx-border-muted: rgba(20, 20, 20, 0.1);
-  --mx-border: rgba(20, 20, 20, 0.15);
+  --mx-border-muted: rgba(40, 30, 90, 0.1);
+  --mx-border: rgba(40, 30, 90, 0.15);
   --mx-border-structure: var(--mx-border-muted);
-  --mx-border-strong: rgba(20, 20, 20, 0.3);
+  --mx-border-strong: rgba(40, 30, 90, 0.3);
 
   /* ── 4. Interaction ── */
   --mx-focus: var(--mx-border-strong);
@@ -599,7 +644,7 @@
   --mx-hover-opaque: #f0f0f0;
   --mx-pressed-opaque: #e6e6e6;
   --mx-scrim: rgba(20, 20, 20, 0.5);
-  --mx-accent-bg: #1967d2;
+  --mx-accent-bg: #4338ca;
   --mx-contrast-hover: rgba(255, 255, 255, 0.122);
 
   /* ── 5. Status ── */

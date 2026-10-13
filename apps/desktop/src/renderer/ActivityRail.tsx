@@ -2,6 +2,7 @@
 // on every surface (chat and code alike). It contains only destinations that
 // swap the adjacent panel; creation actions live in the Sessions panel header.
 // Usage and Settings live at the rail foot.
+import { CURRENT_UI_MODE } from './cosmos/ui-mode';
 import type React from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
@@ -232,6 +233,7 @@ export function ActivityRail({
           onClick={onOpenSettings}
         >
           <span className="codicon codicon-settings-gear" aria-hidden="true" />
+          {CURRENT_UI_MODE === 'simple' && <span className="cosmos-rail-label">관제실</span>}
         </button>
       )}
       {/* The flyout's bottom edge tracks the Usage button itself (user). */}

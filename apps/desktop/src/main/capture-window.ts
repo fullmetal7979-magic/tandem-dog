@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { app, BrowserWindow, dialog, ipcMain, shell, type NativeImage } from 'electron';
@@ -774,6 +774,35 @@ async function runCaptureToolShowcase(window: BrowserWindow, host: CaptureServic
   return { toolShowcase, toolsPng, toolsTopPng, toolShowcaseDimensions };
 }
 
+/**
+ * Screenshot-only pass (design review): a JSON list of scenes, each an
+ * optional window size, a script run in the renderer and a settle delay.
+ * Every scene lands next to the output path as <name>.png; no assertions.
+ */
+async function runCaptureShots(window: BrowserWindow, scenesPath: string): Promise<void> {
+  const scenes = JSON.parse(readFileSync(scenesPath, 'utf8')) as Array<{
+    name: string;
+    width?: number;
+    height?: number;
+    script?: string;
+    wait?: number;
+  }>;
+  mkdirSync(dirname(outputPath), { recursive: true });
+  for (const scene of scenes) {
+    if (scene.width && scene.height) window.setContentSize(scene.width, scene.height);
+    if (scene.script) {
+      try {
+        await window.webContents.executeJavaScript(`(async () => { ${scene.script} })()`);
+      } catch (error) {
+        writeFileSync(outputPath.replace(/\.png$/i, `-${scene.name}.error.txt`), String(error));
+      }
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, scene.wait ?? 600));
+    const image = await window.webContents.capturePage();
+    writeFileSync(outputPath.replace(/\.png$/i, `-${scene.name}.png`), image.toPNG());
+  }
+}
+
 async function captureWindow(): Promise<void> {
   if (!requestedOutputPath) throw new Error('Capture output path is required and must end in .png.');
   if (!captureId) throw new Error('Capture ID is required.');
@@ -790,6 +819,13 @@ async function captureWindow(): Promise<void> {
       return;
     }
     await ensureCaptureTaskWorkspace(window);
+    if (process.env.MIXDOG_CAPTURE_SHOTS) {
+      await runCaptureShots(window, process.env.MIXDOG_CAPTURE_SHOTS);
+      removeIpc();
+      window.destroy();
+      app.exit(0);
+      return;
+    }
     const startupGeometry = await readCaptureStartupGeometry(window);
     await expandCaptureSessionSidebar(window);
     const { liveMobile, resizedBounds } = await runCaptureMobilePass(window);

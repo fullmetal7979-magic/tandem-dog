@@ -7,11 +7,11 @@ import {
   Globe,
   Layers3,
   MessageSquare,
+  Orbit,
   Package,
   PanelsTopLeft,
   Search,
   SquareTerminal,
-  Users,
   Webhook,
 } from 'lucide-react';
 import { t } from './i18n';
@@ -60,7 +60,7 @@ export function createAppSideViewDescriptors(
     ],
     ['agents', { id: 'agents', label: t('Agents'), icon: Bot, onPrefetch: () => onPrefetch('agents') }],
     ['search', { id: 'search', label: t('Search'), icon: Search, onPrefetch: () => onPrefetch('search') }],
-    ['tandem', { id: 'tandem', label: t('Tandem'), icon: Users, onPrefetch: () => onPrefetch('tandem') }],
+    ['tandem', { id: 'tandem', label: t('Galaxy'), icon: Orbit, onPrefetch: () => onPrefetch('tandem') }],
     [
       'source-control',
       {

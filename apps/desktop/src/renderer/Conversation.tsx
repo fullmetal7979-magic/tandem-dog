@@ -33,7 +33,8 @@ import type { CommandSurface as CommandSurfaceName, SettingsSection } from './sl
 import { ApprovalCard } from './ApprovalCard';
 import { Composer, WorkflowSelect, OrchestrationModeSelect } from './Composer';
 import { ProjectContextSelector } from './composer-support';
-import { BrandTile } from './WorkspaceEmptyState';
+import { CosmosHome } from './cosmos/CosmosHome';
+import { SeatLock } from './cosmos/SeatLock';
 import { EMPTY_TRANSCRIPT_ITEMS, type RecordValue, type Snapshot, type TranscriptItem } from './desktop-types';
 import { ComposerDock } from './ComposerDock';
 import { TranscriptList } from './TranscriptList';
@@ -444,13 +445,13 @@ export function Conversation({
               visibleWarmPaintHandoff) && (
               <div
                 className={`thread-welcome thread-welcome-task${
-                  visibleWarmPaintHandoff ? ' thread-welcome-paint-handoff' : ''
+                  visibleWarmPaintHandoff ? ' thread-welcome-paint-handoff' : ' has-cosmos-home'
                 }`}
-                aria-hidden="true"
+                aria-hidden={visibleWarmPaintHandoff ? 'true' : undefined}
               >
-                <span className="welcome-logo">
-                  <BrandTile crop />
-                </span>
+                {/* COSMOS: an empty draft is the space home — relay state,
+                    the big ☀️/🌙/💬 buttons and the star map. */}
+                {!visibleWarmPaintHandoff && <CosmosHome projectPath={activeProjectPath} projectLabel={activeProjectLabel} />}
               </div>
             )}
             {/* ONE mount per session, always with the real rows: a placeholder
@@ -589,6 +590,11 @@ export function Conversation({
             dropTargetRef={conversation}
           />
         </ComposerDock>
+      )}
+      {/* Another device holds this planet's seat: lock the pane (relay rule:
+          one device at a time). Read-only panes never need the curtain. */}
+      {!readOnly && (draftMode ? activeProjectPath : routeProject) && (
+        <SeatLock projectPath={draftMode ? activeProjectPath : routeProject} />
       )}
     </section>
   );

@@ -360,6 +360,7 @@ const api: DesktopApi = {
   cosmosSetStar: (request) => ipcRenderer.invoke(DESKTOP_IPC.cosmosSetStar, request),
   cosmosSetupGalaxy: (request) => ipcRenderer.invoke(DESKTOP_IPC.cosmosSetupGalaxy, request),
   cosmosHeartbeat: (planets) => ipcRenderer.invoke(DESKTOP_IPC.cosmosHeartbeat, planets),
+  cosmosSetPreference: (key, value) => ipcRenderer.invoke(DESKTOP_IPC.cosmosSetPreference, key, value),
   cosmosContinueConversation: (cwd, conversationId) =>
     ipcRenderer.invoke(DESKTOP_IPC.cosmosContinueConversation, cwd, conversationId ?? null),
   tandemOverview: (cwd, options) => ipcRenderer.invoke(DESKTOP_IPC.tandemOverview, cwd, options),

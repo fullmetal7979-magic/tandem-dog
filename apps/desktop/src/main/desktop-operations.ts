@@ -205,6 +205,7 @@ const STATIC_OPERATIONS = {
   cosmosSetStar: cosmos.cosmosSetStar,
   cosmosSetupGalaxy: cosmos.cosmosSetupGalaxy,
   cosmosHeartbeat: cosmos.cosmosHeartbeat,
+  cosmosSetPreference: cosmos.cosmosSetPreference,
   tandemOverview: tandem.tandemOverview,
   tandemLeave: tandem.tandemLeave,
   tandemResume: tandem.tandemResume,
@@ -295,6 +296,7 @@ export function createDesktopOperations({
   loadDocumentPreview,
   emit,
 }: DesktopOperationsOptions) {
+  cosmos.configureCosmosRuntime({ packaged, resourcesPath, appPath });
   const languageServers = new LanguageServerManager();
   const terminals = new TerminalManager();
   const settingsStore = new DesktopSettingsStore({

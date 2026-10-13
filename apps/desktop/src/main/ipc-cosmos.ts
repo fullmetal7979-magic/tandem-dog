@@ -2,7 +2,7 @@ import { DESKTOP_IPC } from '../shared/contract';
 import type { IpcHandle as Handle } from './ipc';
 
 type CosmosOperations = Record<
-  'cosmosOverview' | 'cosmosSun' | 'cosmosMoon' | 'cosmosRequest' | 'cosmosSetStar' | 'cosmosSetupGalaxy' | 'cosmosHeartbeat',
+  'cosmosOverview' | 'cosmosSun' | 'cosmosMoon' | 'cosmosRequest' | 'cosmosSetStar' | 'cosmosSetupGalaxy' | 'cosmosHeartbeat' | 'cosmosSetPreference',
   (...args: unknown[]) => Promise<unknown>
 >;
 
@@ -15,4 +15,5 @@ export function registerCosmosIpc({ handle, operations }: { handle: Handle; oper
   handle(DESKTOP_IPC.cosmosSetStar, (_event, request) => operations.cosmosSetStar(request ?? null));
   handle(DESKTOP_IPC.cosmosSetupGalaxy, (_event, request) => operations.cosmosSetupGalaxy(request ?? null));
   handle(DESKTOP_IPC.cosmosHeartbeat, (_event, planets) => operations.cosmosHeartbeat(planets ?? []));
+  handle(DESKTOP_IPC.cosmosSetPreference, (_event, key, value) => operations.cosmosSetPreference(key, value ?? null));
 }

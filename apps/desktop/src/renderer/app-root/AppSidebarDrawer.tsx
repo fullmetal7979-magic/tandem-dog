@@ -1,3 +1,4 @@
+import { CURRENT_UI_MODE } from '../cosmos/ui-mode';
 import type React from 'react';
 import { ActivityRail } from '../ActivityRail';
 import {
@@ -96,6 +97,9 @@ export function AppSidebarDrawer({
         onMoveView={moveWorkbenchSideView}
         renderView={(id, active, titleDragProps) => renderWorkbenchSideView('left', id, active, titleDragProps)}
         footer={
+          // 심플 모드: the Galaxy's new-device checklist replaces the Mixdog tour,
+          // whose steps point at advanced tools (workflows, agents, extensions).
+          CURRENT_UI_MODE === 'simple' ? undefined : (
           <StarterGuide
             descriptors={sideViewDescriptors}
             onboardingActive={onboardingActive}
@@ -106,6 +110,7 @@ export function AppSidebarDrawer({
             }}
             onCloseSettings={() => setSettingsOpen(false)}
           />
+          )
         }
       />
       <SidebarDiffColumn

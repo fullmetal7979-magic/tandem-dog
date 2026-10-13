@@ -3,20 +3,9 @@
 // project, no remote) is returned as a CosmosRefusal so the renderer can draw
 // it as a state, not surface it as a crash.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import {
-  heartbeat as cosmosCoreHeartbeat,
-  moon as cosmosCoreMoon,
-  overview as cosmosCoreOverview,
-  requestTurn as cosmosCoreRequest,
-  sun as cosmosCoreSun,
-} from '../../../../src/runtime/galaxy/cosmos.mjs';
-import { connectGalaxy, galaxyDir, galaxyReady } from '../../../../src/runtime/galaxy/galaxy-repo.mjs';
-import { updateStar } from '../../../../src/runtime/galaxy/star.mjs';
-import { latestSessionFor } from '../../../../src/runtime/galaxy/cosmos-cli.mjs';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { configureGitEnvironment, oneLine, repoRoot } from '../../../../src/runtime/tandem/tandem-core.mjs';
-import { readConfig } from '../../../../src/runtime/shared/config.mjs';
-import { resolvePluginData } from '../../../../src/runtime/shared/plugin-paths.mjs';
 import type {
   CosmosGalaxySetupResult,
   CosmosMoonResult,
@@ -32,10 +21,57 @@ import { childEnvironment } from './child-environment';
 import { requiredRepositoryCwd } from './git-contract.mjs';
 import { scrubGitCredentials } from './git-runner';
 import { ghRun } from './github-cli';
+import { packagedRuntimeSourceRoot } from './runtime-layout';
 
 configureGitEnvironment(() => childEnvironment({ GIT_SEQUENCE_EDITOR: 'true' }) as Record<string, string | undefined>);
 
 const NOTE_LIMIT = 300;
+
+// The Galaxy modules reach the runtime config (and through it the keychain
+// loader), which cannot live inside the plain-Node service bundle. Load them
+// from the runtime source tree at call time, like the settings store does.
+type CosmosModule = typeof import('../../../../src/runtime/galaxy/cosmos.mjs');
+type GalaxyRepoModule = typeof import('../../../../src/runtime/galaxy/galaxy-repo.mjs');
+type StarModule = typeof import('../../../../src/runtime/galaxy/star.mjs');
+type CliModule = typeof import('../../../../src/runtime/galaxy/cosmos-cli.mjs');
+type ConfigModule = typeof import('../../../../src/runtime/shared/config.mjs');
+type PathsModule = typeof import('../../../../src/runtime/shared/plugin-paths.mjs');
+
+export interface CosmosRuntimeLocation {
+  packaged?: boolean;
+  resourcesPath?: string;
+  appPath?: string;
+}
+
+export function runtimeModuleUrl(relativePath: string, { packaged = false, resourcesPath = process.resourcesPath, appPath = process.cwd() }: CosmosRuntimeLocation = {}): string {
+  const path = packaged
+    ? join(packagedRuntimeSourceRoot(resourcesPath), 'runtime', ...relativePath.split('/'))
+    : resolve(appPath, '../../src/runtime', ...relativePath.split('/'));
+  return pathToFileURL(path).href;
+}
+
+let location: CosmosRuntimeLocation = {};
+const modules = new Map<string, Promise<unknown>>();
+function load<T>(relativePath: string): Promise<T> {
+  let pending = modules.get(relativePath);
+  if (!pending) {
+    pending = import(/* @vite-ignore */ runtimeModuleUrl(relativePath, location));
+    modules.set(relativePath, pending);
+  }
+  return pending as Promise<T>;
+}
+const cosmosCore = () => load<CosmosModule>('galaxy/cosmos.mjs');
+const galaxyRepo = () => load<GalaxyRepoModule>('galaxy/galaxy-repo.mjs');
+const starModule = () => load<StarModule>('galaxy/star.mjs');
+const cliModule = () => load<CliModule>('galaxy/cosmos-cli.mjs');
+const configModule = () => load<ConfigModule>('shared/config.mjs');
+const pathsModule = () => load<PathsModule>('shared/plugin-paths.mjs');
+
+/** Where the runtime source lives; the desktop service sets it once at startup. */
+export function configureCosmosRuntime(next: CosmosRuntimeLocation): void {
+  location = { ...next };
+  modules.clear();
+}
 const GALAXY_REPO_NAME = 'cosmos-galaxy';
 
 /** One relay verb per planet at a time; overlapping clicks join the queue. */
@@ -109,9 +145,37 @@ async function resolveRoot(cwd: unknown): Promise<string> {
   }
 }
 
-function relayUrl(): string | null {
-  const cosmos = record(record(readConfig()).cosmos);
-  return typeof cosmos.relayUrl === 'string' && cosmos.relayUrl.trim() ? cosmos.relayUrl.trim() : null;
+async function sharedPreferences(): Promise<{ relayUrl: string | null; uiMode: 'simple' | 'advanced' | null }> {
+  const { readConfig } = await configModule();
+  const config = record(readConfig());
+  const cosmos = record(config.cosmos);
+  const desktop = record(config.desktop);
+  return {
+    relayUrl: typeof cosmos.relayUrl === 'string' && cosmos.relayUrl.trim() ? cosmos.relayUrl.trim() : null,
+    uiMode: desktop.uiMode === 'simple' || desktop.uiMode === 'advanced' ? desktop.uiMode : null,
+  };
+}
+
+/** desktop.uiMode / cosmos.relayUrl — synced to every star through the Galaxy. */
+export async function cosmosSetPreference(key: unknown, value: unknown): Promise<void> {
+  const { updateConfig } = await configModule();
+  if (key === 'uiMode') {
+    if (value !== 'simple' && value !== 'advanced') throw new TypeError('uiMode must be simple or advanced.');
+    updateConfig((config) => ({ ...config, desktop: { ...record(config.desktop), uiMode: value } }));
+    return;
+  }
+  if (key === 'relayUrl') {
+    const url = typeof value === 'string' ? value.trim() : '';
+    if (url && !/^wss?:\/\/[^\s]+$/i.test(url)) throw new TypeError('릴레이 주소는 wss:// 로 시작해야 해요.');
+    updateConfig((config) => {
+      const cosmos = { ...record(config.cosmos) };
+      if (url) cosmos.relayUrl = url;
+      else delete cosmos.relayUrl;
+      return { ...config, cosmos };
+    });
+    return;
+  }
+  throw new TypeError('Unknown COSMOS preference.');
 }
 
 // ------------------------------------------------------------------ overview
@@ -136,9 +200,9 @@ export async function cosmosOverview(cwd: unknown, options?: unknown): Promise<C
   const pending = overviewFlights.get(key);
   if (pending) return pending;
   const run = (async () => {
-    const view = (await cosmosCoreOverview({ root, fetch })) as CosmosOverview;
+    const view = (await (await cosmosCore()).overview({ root, fetch })) as CosmosOverview;
     if (fetch && view.ready && !view.offline) lastFetchAt = Date.now();
-    return { ...view, relayUrl: relayUrl() };
+    return { ...view, ...(await sharedPreferences()) };
   })();
   overviewFlights.set(key, run);
   try {
@@ -159,7 +223,7 @@ export async function cosmosSun(cwd: unknown, request?: unknown): Promise<Cosmos
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
-      const result = await cosmosCoreSun({ root, force });
+      const result = await (await cosmosCore()).sun({ root, force });
       invalidateOverview();
       const conversation = result.conversation
         ? {
@@ -187,12 +251,13 @@ export async function cosmosSun(cwd: unknown, request?: unknown): Promise<Cosmos
 async function sessionToCarry(root: string, sessionId: string | null): Promise<unknown> {
   if (sessionId && /^[\w-]+$/.test(sessionId)) {
     try {
+      const { resolvePluginData } = await pathsModule();
       return JSON.parse(await readFile(join(resolvePluginData(), 'sessions', `${sessionId}.json`), 'utf8'));
     } catch {
       /* fall through to the newest session of the planet */
     }
   }
-  return latestSessionFor(root);
+  return (await cliModule()).latestSessionFor(root);
 }
 
 export async function cosmosMoon(cwd: unknown, request?: unknown): Promise<CosmosOutcome<CosmosMoonResult>> {
@@ -204,7 +269,7 @@ export async function cosmosMoon(cwd: unknown, request?: unknown): Promise<Cosmo
   return serialized(root, () =>
     outcome(async () => {
       const session = await sessionToCarry(root, sessionId);
-      const result = await cosmosCoreMoon({ root, note, handoffTo, session });
+      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session });
       invalidateOverview();
       return result as CosmosMoonResult;
     })
@@ -216,7 +281,7 @@ export async function cosmosRequest(cwd: unknown, request?: unknown): Promise<Co
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
-      const result = await cosmosCoreRequest({ root, note: text(body.note, NOTE_LIMIT), withdraw: body.withdraw === true });
+      const result = await (await cosmosCore()).requestTurn({ root, note: text(body.note, NOTE_LIMIT), withdraw: body.withdraw === true });
       invalidateOverview();
       return { seat: result.seat as CosmosSeat };
     })
@@ -225,7 +290,7 @@ export async function cosmosRequest(cwd: unknown, request?: unknown): Promise<Co
 
 export async function cosmosHeartbeat(planets: unknown): Promise<void> {
   const list = Array.isArray(planets) ? planets.filter((value): value is string => typeof value === 'string').slice(0, 20) : [];
-  await cosmosCoreHeartbeat({ planets: list }).catch(() => null);
+  await (await cosmosCore()).heartbeat({ planets: list }).catch(() => null);
 }
 
 const STAR_KIND_SET = new Set<CosmosStarKind>(['pc', 'mac', 'phone']);
@@ -237,7 +302,7 @@ export async function cosmosSetStar(request: unknown): Promise<CosmosStar> {
   if (typeof body.kind === 'string' && STAR_KIND_SET.has(body.kind as CosmosStarKind)) patch.kind = body.kind;
   if (typeof body.color === 'string') patch.color = body.color;
   invalidateOverview();
-  return (await updateStar(patch)) as CosmosStar;
+  return (await (await starModule()).updateStar(patch)) as CosmosStar;
 }
 
 // ------------------------------------------------------------------ galaxy setup
@@ -280,6 +345,7 @@ export async function cosmosSetupGalaxy(request: unknown): Promise<CosmosOutcome
           created = true;
         }
       }
+      const { connectGalaxy, galaxyDir, galaxyReady } = await galaxyRepo();
       if (!remoteUrl && !(await galaxyReady(galaxyDir()))) {
         // Local-only start: still useful on one PC; a remote can be added later.
         const local = await connectGalaxy({});

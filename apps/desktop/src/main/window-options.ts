@@ -7,9 +7,9 @@ import { DESKTOP_WINDOW_DEFAULT_WIDTH, DESKTOP_WINDOW_MIN_WIDTH } from '../share
 import { installMicaActiveAppearance } from './window-mica';
 
 /* Dark window band — must track --mx-window-band in desktop.css :root. */
-export const DESKTOP_BACKGROUND_COLOR = '#18181b';
+export const DESKTOP_BACKGROUND_COLOR = '#0b1024';
 /* Light window band (neutral set) — must track --mx-window-band on light. */
-export const DESKTOP_LIGHT_BACKGROUND_COLOR = '#f7f7f7';
+export const DESKTOP_LIGHT_BACKGROUND_COLOR = '#f6f4fc';
 export const DESKTOP_TITLEBAR_HEIGHT = 35;
 
 /* Windows 11 22H2+ (build 22621) draws the Mica system backdrop behind a

@@ -218,7 +218,9 @@ export class CaptureService implements DesktopService {
   }
 
   async listProjects(): Promise<DesktopProjectSummary[]> {
-    return [];
+    // Design captures (scripts/cosmos-shots.mjs) can register one project.
+    const shotProject = process.env.COSMOS_SHOTS_PROJECT;
+    return shotProject ? [{ name: shotProject.split(/[\\/]/).pop() || 'project', path: shotProject, alias: null }] : [];
   }
   async addProject(): Promise<void> {}
   async projectDirectory(projectPath: string): Promise<string> {
@@ -329,7 +331,15 @@ export class CaptureService implements DesktopService {
     return this.snapshot;
   }
 
-  async invokeDesktopOperation(): Promise<unknown> {
+  async invokeDesktopOperation(name?: string, args: unknown[] = []): Promise<unknown> {
+    // COSMOS relay screens are plain file/git work with no daemon, so design
+    // captures run them for real against the isolated MIXDOG_HOME.
+    if (typeof name === 'string' && name.startsWith('cosmos')) {
+      const cosmos = await import('./cosmos-service');
+      cosmos.configureCosmosRuntime({ packaged: false, appPath: process.cwd() });
+      const operation = (cosmos as unknown as Record<string, (...input: unknown[]) => Promise<unknown>>)[name];
+      if (typeof operation === 'function') return operation(...args);
+    }
     throw new Error('The capture harness has no daemon.');
   }
 

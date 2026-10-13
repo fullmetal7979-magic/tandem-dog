@@ -1,6 +1,6 @@
-// Window title bar: a clean drag band. The workspace tab strips moved into
-// the panes themselves (WorkspaceTabStrip); the bar
-// keeps the draggable run, the updater badge, and the Windows caption reserve.
+// Window title bar: the COSMOS mark, the always-visible 조종석 (seat) badge,
+// the 심플/고급 mode switch, the updater badge and the Windows caption reserve.
+// Workspace tab strips live in the panes themselves (WorkspaceTabStrip).
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,6 +9,9 @@ import { version as appVersion } from '../../package.json';
 import type { DesktopUpdaterState } from '../shared/contract';
 import { t } from './i18n';
 import { ProgressSpinner } from './ProgressSpinner';
+import { CosmosMark } from './cosmos/CosmosParts';
+import { SeatBadge } from './cosmos/SeatBadge';
+import { CURRENT_UI_MODE, switchUiMode, type CosmosUiMode } from './cosmos/ui-mode';
 
 import type { ChangelogRelease } from './settings/changelog';
 import { takeWhatsNew } from './settings/whats-new';
@@ -24,9 +27,35 @@ function readWhatsNewPending(): boolean {
 interface DesktopTitlebarProps {
   updaterState?: DesktopUpdaterState;
   onOpenUpdate?(): void;
+  /** The project the seat badge reports on. */
+  projectPath?: string | null;
 }
 
-export function DesktopTitlebar({ updaterState, onOpenUpdate }: DesktopTitlebarProps) {
+const MODES: Array<{ value: CosmosUiMode; label: string; hint: string }> = [
+  { value: 'simple', label: '심플', hint: '꼭 필요한 기능만 크고 간단하게' },
+  { value: 'advanced', label: '고급', hint: '에이전트·자동화·확장까지 모든 기능' },
+];
+
+function ModeSwitch() {
+  return (
+    <div className="cosmos-mode-switch" role="radiogroup" aria-label="화면 모드">
+      {MODES.map((mode) => (
+        <button
+          key={mode.value}
+          type="button"
+          role="radio"
+          aria-checked={CURRENT_UI_MODE === mode.value}
+          title={mode.hint}
+          onClick={() => switchUiMode(mode.value)}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function DesktopTitlebar({ updaterState, onOpenUpdate, projectPath = null }: DesktopTitlebarProps) {
   // The - ㅁ x caption band belongs to the ELECTRON shell alone. A browser or
   // web surface serves the SAME bundle through the relay/LAN bridge
   // (remote-shim installs mixdogRemoteServer there), and reserving a caption
@@ -79,9 +108,13 @@ export function DesktopTitlebar({ updaterState, onOpenUpdate }: DesktopTitlebarP
   return (
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the top-level header is the window's banner landmark, which takes a name.
     <header className="topbar" aria-label={t('Window bar')}>
-      {/* No brand mark: the bare band reads lighter (user: 로고 뺄까 뭔가
-          로고 있으니까 답답하네). */}
+      <div className="cosmos-titlebar-brand">
+        <CosmosMark size={18} />
+        COSMOS <small>코스모스</small>
+      </div>
       <div className="titlebar-spacer" aria-hidden="true" />
+      <SeatBadge projectPath={projectPath} />
+      <ModeSwitch />
       {/* RIGHT cluster: updater badge ahead of the native caption reserve.
           Layout surfaces use contextual pane entry points. */}
       {/* biome-ignore lint/a11y/useSemanticElements: a <fieldset> brings its own border, padding and min-width into the titlebar. */}

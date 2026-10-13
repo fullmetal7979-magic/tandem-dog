@@ -34,6 +34,7 @@ const SERVICE_OPERATION_NAMES = [
   'cosmosSetStar',
   'cosmosSetupGalaxy',
   'cosmosHeartbeat',
+  'cosmosSetPreference',
   'tandemOverview',
   'tandemLeave',
   'tandemResume',

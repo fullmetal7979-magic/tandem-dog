@@ -88,6 +88,8 @@ export interface CosmosOverview {
   project?: CosmosProjectState | null;
   /** Relay server address shared through the Galaxy (phone turns). */
   relayUrl?: string | null;
+  /** 심플/고급 mode as synced through the Galaxy (desktop.uiMode). */
+  uiMode?: 'simple' | 'advanced' | null;
 }
 
 export interface CosmosEnvironmentSummary {
@@ -147,6 +149,8 @@ export interface DesktopCosmosApi {
   /** Connect an existing Galaxy repository URL, or create the private `cosmos-galaxy` repo with gh. */
   cosmosSetupGalaxy?(request: { remoteUrl?: string | null; create?: boolean }): Promise<CosmosOutcome<CosmosGalaxySetupResult>>;
   cosmosHeartbeat?(planets: string[]): Promise<void>;
+  /** Shared COSMOS preferences that travel through the Galaxy. */
+  cosmosSetPreference?(key: 'uiMode' | 'relayUrl', value: string | null): Promise<void>;
   /** Open a new session carrying the planet's latest (or the named) Galaxy conversation. */
   cosmosContinueConversation?(cwd: string, conversationId?: string | null): Promise<{ sessionId: string }>;
 }
@@ -159,5 +163,6 @@ export const COSMOS_IPC = {
   cosmosSetStar: 'mixdog:cosmos-set-star',
   cosmosSetupGalaxy: 'mixdog:cosmos-setup-galaxy',
   cosmosHeartbeat: 'mixdog:cosmos-heartbeat',
+  cosmosSetPreference: 'mixdog:cosmos-set-preference',
   cosmosContinueConversation: 'mixdog:cosmos-continue-conversation',
 } as const;
