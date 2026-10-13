@@ -33,7 +33,6 @@ function runtime(overrides = {}) {
     getToolModuleSettings: () => ({
       memory: { installed: true, enabled: true },
       git: { installed: true, enabled: true },
-      office: { installed: true, enabled: false },
       tidy: { installed: false, enabled: false },
       localProvider: { installed: true, enabled: true, models: [{ id: 'm', installed: true }], installations: [] },
     }),
@@ -191,7 +190,7 @@ test('local provider row: not installed, disabled, failed, empty and healthy', a
 test('built-ins row lists states and treats missing bridges as informational', async () => {
   const row = await rowOf('builtins');
   assert.equal(row.level, 'ok');
-  assert.match(row.detail, /^enabled: git · disabled: office · not installed: tidy · browser use .* · computer use /);
+  assert.match(row.detail, /^enabled: git · not installed: tidy · browser use .* · computer use /);
 });
 
 test('voice row: disabled ok, uninstalled warns, installed ok', async () => {

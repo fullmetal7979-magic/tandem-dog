@@ -39,7 +39,6 @@ export interface UseAppWorkbenchViewsOptions {
   unreadSessionIds: ReadonlySet<string>;
   sidebarSelection: NavigationSelection;
   sidebarNewTask: () => void;
-  sidebarNewStudio: () => void;
   prefetchSession: (sessionId: string) => Promise<boolean>;
   sidebarResumeSession: (sessionId: string) => void;
   renameSession: (sessionId: string, title: string) => Promise<void>;
@@ -106,7 +105,6 @@ export function useAppWorkbenchViews({
   unreadSessionIds,
   sidebarSelection,
   sidebarNewTask,
-  sidebarNewStudio,
   prefetchSession,
   sidebarResumeSession,
   renameSession,
@@ -171,7 +169,6 @@ export function useAppWorkbenchViews({
       unreadSessionIds,
       selection: sidebarSelection,
       onNewTask: sidebarNewTask,
-      onNewStudio: sidebarNewStudio,
       onPrefetchSession: window.mixdogDesktop?.prefetchSession ? prefetchSession : undefined,
       onResumeSession: sidebarResumeSession,
       onRenameSession: renameSession,

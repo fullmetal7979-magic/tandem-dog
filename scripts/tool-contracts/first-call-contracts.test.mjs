@@ -10,8 +10,6 @@ import { TOOL_DEFS as web } from '../../src/runtime/web-search/tool-defs.mjs';
 import { TOOL_DEFS as channels } from '../../src/runtime/channels/tool-defs.mjs';
 import { TOOL_DEFS as browser } from '../../src/runtime/browser-bridge/tool-defs.mjs';
 import { TOOL_DEFS as computer } from '../../src/runtime/computer-bridge/tool-defs.mjs';
-import { TOOL_DEFS as office } from '../../src/runtime/office/tool-defs.mjs';
-import { TOOL_DEFS as media } from '../../src/runtime/media/tool-defs.mjs';
 import { GOAL_TOOL_DEFS } from '../../src/session-runtime/goal-tool-defs.mjs';
 import { SETUP_TOOL_DEFS } from '../../src/session-runtime/setup-tool/tool-defs.mjs';
 import { CWD_TOOL, SKILL_TOOL, TOOL_SEARCH_TOOL } from '../../src/session-runtime/tool-defs.mjs';
@@ -19,7 +17,6 @@ import { AGENT_TOOL } from '../../src/standalone/agent-tool/tool-def.mjs';
 import { normalizeGoalTasks, patchGoalTasks } from '../../src/session-runtime/goal-tasks.mjs';
 import { validateBrowserToolArgs } from '../../src/runtime/browser-bridge/action-schema.mjs';
 import { validateComputerToolArgs, toComputerHostCommand } from '../../src/runtime/computer-bridge/action-schema.mjs';
-import { validateXlsxOperations } from '../../src/runtime/office/portable/xlsx-contract.mjs';
 import { normalizeGrokToolSchemas } from '../../src/runtime/agent/orchestrator/providers/lib/grok-tool-schema.mjs';
 import { toGeminiTools } from '../../src/runtime/agent/orchestrator/providers/gemini-schema.mjs';
 import { sanitizeAnthropicInputSchema } from '../../src/runtime/agent/orchestrator/providers/lib/anthropic-request-utils.mjs';
@@ -37,8 +34,6 @@ const catalog = [
   ...channels,
   ...browser,
   ...computer,
-  ...office,
-  ...media,
   ...GOAL_TOOL_DEFS,
   ...SETUP_TOOL_DEFS,
   CWD_TOOL,
@@ -205,33 +200,7 @@ test('computer nested text bounds match the public schema before host execution'
   assert.match(validateComputerToolArgs(args), /4096/);
 });
 
-test('Office matrices, row values and PDF field maps survive every provider schema', () => {
-  const operations = [
-    {
-      op: 'set_range',
-      range: 'A1:B2',
-      values: [
-        [1, 'two'],
-        [true, null],
-      ],
-    },
-    { op: 'append_row', values: [1, 'two', true] },
-    { op: 'fill_form', values: { name: 'Ada', accepted: true } },
-  ];
-  validateXlsxOperations(structuredClone(operations.slice(0, 2)));
-  for (const operation of operations) {
-    for (const [, schema] of projections(office[0])) {
-      accepts(schema, { action: 'batch', operations: [operation] });
-    }
-  }
-  assert.match(schemaFor('office').properties.pages.description, /analysis: select at most 100/);
-  accepts(schemaFor('office'), { action: 'render', pages: Array.from({ length: 101 }, (_, i) => i + 1) });
-});
-
 test('Gemini uses its JSON Schema wire field for opaque values instead of guessing a type', () => {
-  const declaration = toGeminiTools(office).functionDeclarations[0];
-  assert.equal(Object.hasOwn(declaration, 'parameters'), false);
-  assert.deepEqual(declaration.parametersJsonSchema, office[0].inputSchema);
   const untypedArray = {
     name: 'rows',
     inputSchema: {

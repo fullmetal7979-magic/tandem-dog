@@ -17,7 +17,6 @@ export const HEADLESS_MODEL_TOOL_NAMES = Object.freeze([
   'load_tool',
   'web_search',
   'web_fetch',
-  'office',
   'tidy',
 ]);
 

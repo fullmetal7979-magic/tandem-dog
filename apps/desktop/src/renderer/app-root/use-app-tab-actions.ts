@@ -4,12 +4,10 @@ import type { PullRequestOpenHandler } from '../PullRequestsPane';
 import type { SourceControlDiffRequest } from '../SourceControlDock';
 import type { WorkspaceSelection, WorkspaceTab } from '../navigation';
 import { t } from '../i18n';
-import { navigationKey, newBrowserSelection, newStudioSelection } from '../text-format';
+import { navigationKey, newBrowserSelection } from '../text-format';
 import { onBrowserMainRequested, type BrowserMainRequest } from '../browser-main-request';
 import { canSplitPaneSize, paneActiveSelection } from '../pane-layout';
 import type { usePaneWorkspace } from '../pane-workspace-state';
-import { beginStudioLoad, reportStudioLoadStage } from '../renderer-load-metrics';
-import { loadStudioViewModule } from '../studio-loader';
 import { prefetchBrowserPane, prefetchDiffView, prefetchEditorPane, prefetchTerminalPane } from '../lazy-widgets';
 import { useAgentBrowserSurfaceRequests } from '../use-agent-browser-surface-requests';
 import { browserSurfaceRevealPlan } from '../session-browser-policy';
@@ -23,7 +21,6 @@ import { cleanDiffTarget, paneSize } from './workspace-targets';
 export interface UseAppTabActionsOptions {
   paneWorkspace: ReturnType<typeof usePaneWorkspace>;
   setTabs: React.Dispatch<React.SetStateAction<WorkspaceTab[]>>;
-  closeSidebarPanels: () => void;
   setSessionSideSurface: (sessionId: string, surface: 'terminal' | 'browser') => void;
   paneSideDocks: ReturnType<typeof useAppSideDocks>['paneSideDocks'];
   closePaneRightRegion: ReturnType<typeof useAppSideDocks>['closePaneRightRegion'];
@@ -43,7 +40,6 @@ export interface UseAppTabActionsOptions {
 export function useAppTabActions({
   paneWorkspace,
   setTabs,
-  closeSidebarPanels,
   setSessionSideSurface,
   paneSideDocks,
   closePaneRightRegion,
@@ -55,7 +51,7 @@ export function useAppTabActions({
   const { openInFocused: openSelectionInFocusedPane, splitFocused: splitFocusedPane } = paneWorkspace;
 
   const openUtilityTab = (
-    utilitySelection: Extract<WorkspaceSelection, { kind: 'studio' | 'terminal' }>,
+    utilitySelection: Extract<WorkspaceSelection, { kind: 'terminal' }>,
     title: string,
     leafId = paneWorkspace.focusedLeafId
   ) => {
@@ -65,15 +61,6 @@ export function useAppTabActions({
       current.some((tab) => tab.key === key) ? current : [...current, { key, title, selection: utilitySelection }]
     );
     openSelectionInFocusedPane(utilitySelection);
-  };
-
-  const openStudioTab = (leafId = paneWorkspace.focusedLeafId) => {
-    closeSidebarPanels();
-    const metricToken = beginStudioLoad();
-    void loadStudioViewModule()
-      .then(() => reportStudioLoadStage('module', '', false, metricToken))
-      .catch(() => {});
-    openUtilityTab(newStudioSelection(), t('Studio'), leafId);
   };
 
   // The side browser's "Open in main tab": the page's URL opens as a new main
@@ -232,7 +219,6 @@ export function useAppTabActions({
 
   return {
     openUtilityTab,
-    openStudioTab,
     openTerminalTab,
     openBrowserTab,
     openDiffTab,

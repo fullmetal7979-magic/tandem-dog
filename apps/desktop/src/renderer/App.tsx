@@ -83,7 +83,6 @@ export function App() {
   const {
     applySidebarOpen,
     bottomPanel,
-    closeSidebarPanels,
     mainPanelRef,
     mountSidebarPanel,
     openConversationCommandSurface,
@@ -98,7 +97,6 @@ export function App() {
     setSettingsOpen,
     settingsOpen,
     sidebarOpen,
-    toggleSidebar,
     trackSidebarPanelModule,
   } = shellPanels;
   const { settingsMounted, settingsPrewarmed } = useAppSettingsMount(settingsOpen);
@@ -457,7 +455,6 @@ export function App() {
   const { sideFileGuardRef, openFileTab, openFileInSideDock } = useSideFileGuardOpeners(openFileTabRaw);
 
   const {
-    openStudioTab,
     openTerminalTab,
     dockOpenFile,
     dockOpenFileAt,
@@ -470,7 +467,6 @@ export function App() {
   } = useAppTabActions({
     paneWorkspace,
     setTabs,
-    closeSidebarPanels,
     setSessionSideSurface,
     paneSideDocks,
     closePaneRightRegion,
@@ -575,7 +571,6 @@ export function App() {
       chooseFileTab,
       activeFileKey,
       openTerminalTab,
-      openStudioTab,
       toolProjectPath,
       workbenchWorkspace,
       quickAccessMode,
@@ -583,7 +578,6 @@ export function App() {
 
   const {
     sidebarNewTask,
-    sidebarNewStudio,
     sidebarResumeSession,
     renderSidebarPanel,
     sideViewDescriptors,
@@ -601,7 +595,6 @@ export function App() {
     setExtensionsSection,
     closeSidebarForNavigation,
     startTask,
-    openStudioTab,
     openSession,
     renameProject,
     removeProject,
@@ -660,8 +653,6 @@ export function App() {
     registerEditorSaveHandle,
     openFileTab,
     latestEditorLocation,
-    sidebarOpen,
-    toggleSidebar,
   });
   const desktopBootReady = desktopBootPrerequisitesReady({
     snapshotHydrated,
@@ -687,7 +678,6 @@ export function App() {
     unreadSessionIds,
     sidebarSelection,
     sidebarNewTask,
-    sidebarNewStudio,
     prefetchSession,
     sidebarResumeSession,
     renameSession,

@@ -38,7 +38,6 @@ export interface UseAppSidebarHubOptions {
   setExtensionsSection: (section: ExtensionsSection) => void;
   closeSidebarForNavigation: (motion?: 'animated' | 'instant') => void;
   startTask: ReturnType<typeof useAppTaskLifecycle>['startTask'];
-  openStudioTab: (leafId?: string) => void;
   openSession: (sessionId: string, force?: boolean, title?: string) => Promise<void>;
   refreshProjects: ReturnType<typeof useAppProjectCatalog>['refreshProjects'];
   renameProject: (oldPath: string, newPath: string) => Promise<void>;
@@ -98,7 +97,6 @@ export function useAppSidebarHub({
   setExtensionsSection,
   closeSidebarForNavigation,
   startTask,
-  openStudioTab,
   openSession,
   refreshProjects,
   renameProject,
@@ -131,7 +129,7 @@ export function useAppSidebarHub({
   setSessionSideSurface,
   setSessionPanelView,
 }: UseAppSidebarHubOptions) {
-  const { sidebarNewTask, sidebarNewStudio, sidebarPanel, sidebarResumeSession, renderSidebarPanel } =
+  const { sidebarNewTask, sidebarPanel, sidebarResumeSession, renderSidebarPanel } =
     useAppSidebarSurface({
       schedulesOpen,
       webhooksOpen,
@@ -152,7 +150,6 @@ export function useAppSidebarHub({
       onExtensionsSectionChange: setExtensionsSection,
       closeSidebarForNavigation,
       startTask,
-      openStudio: openStudioTab,
       openSession,
       refreshProjects,
       renameProject,
@@ -244,7 +241,6 @@ export function useAppSidebarHub({
 
   return {
     sidebarNewTask,
-    sidebarNewStudio,
     sidebarPanel,
     sidebarResumeSession,
     renderSidebarPanel,

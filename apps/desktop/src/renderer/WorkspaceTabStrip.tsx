@@ -14,7 +14,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { clampOverlayIntoView } from './anchored-panel';
 import { explorerAbsolutePath } from './explorer-tree-model';
-import { FileText, FileDiff, Folder, Globe, MessageCircle, Plus, Sparkles, Terminal, X } from 'lucide-react';
+import { FileText, FileDiff, Folder, Globe, MessageCircle, Plus, Terminal, X } from 'lucide-react';
 
 import type { DesktopSessionSummary } from '../shared/contract';
 import type { WorkspaceTab } from './nav-types';
@@ -96,8 +96,6 @@ function tabGlyph(tab: WorkspaceTab, size = 14) {
       return <FileText size={size} />;
     case 'diff':
       return <FileDiff size={size} />;
-    case 'studio':
-      return <Sparkles size={size} />;
     case 'terminal':
       return <Terminal size={size} />;
     case 'browser':

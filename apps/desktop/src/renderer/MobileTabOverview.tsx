@@ -25,8 +25,6 @@ function tabKindGlyph(tab: WorkspaceTab): string {
       return 'diff';
     case 'terminal':
       return 'terminal';
-    case 'studio':
-      return 'wand';
     case 'pull-request':
       return 'git-pull-request';
     case 'new':
@@ -45,8 +43,6 @@ function tabKindMeta(tab: WorkspaceTab): string {
       return selection.rel;
     case 'terminal':
       return t('Terminal');
-    case 'studio':
-      return t('Studio');
     case 'pull-request':
       return `#${selection.number}`;
     case 'new':

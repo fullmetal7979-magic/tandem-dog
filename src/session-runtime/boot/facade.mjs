@@ -16,7 +16,6 @@ export function buildFacade(boot) {
       ...boot.channelConfigApi,
       ...boot.providerAuthApi,
       ...boot.usageStatsApi,
-      ...boot.mediaApi,
       ...boot.runtimeReviewApi,
     },
     goalApi: boot.goalFacadeApi,

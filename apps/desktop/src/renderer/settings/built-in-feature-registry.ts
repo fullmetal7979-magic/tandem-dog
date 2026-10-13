@@ -3,7 +3,6 @@ export type BuiltInFeatureId =
   | 'memory'
   | 'browser'
   | 'computer'
-  | 'office'
   | 'tidy'
   | 'localProvider'
   | 'autoEffort'
@@ -35,11 +34,6 @@ export const BUILT_IN_FEATURES: ReadonlyArray<BuiltInFeatureDefinition> = [
     id: 'computer',
     title: 'Computer Use',
     description: 'See your screen and use the mouse and keyboard to complete computer tasks.',
-  },
-  {
-    id: 'office',
-    title: 'Office',
-    description: 'Create, review, and edit documents, spreadsheets, and presentations.',
   },
   {
     id: 'tidy',

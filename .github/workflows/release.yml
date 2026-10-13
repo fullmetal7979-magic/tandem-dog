@@ -139,9 +139,6 @@ jobs:
       # commit (deploy.yml run_critical). The tool-contract files inside the
       # lane drive the debug native spawn binary.
       # Same runner provisioning as release-gate.yml.
-      - name: Install fonts and LibreOffice for the Office suites
-        if: inputs.run_critical
-        uses: ./.github/actions/office-runtime
 
       - name: Cache the native spawn test build
         if: inputs.run_critical

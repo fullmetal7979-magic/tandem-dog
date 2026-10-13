@@ -1644,8 +1644,8 @@ if (!app.requestSingleInstanceLock()) {
         const development = Boolean(process.env.ELECTRON_RENDERER_URL);
         // GitHub avatar hosts are allowed in img-src for the onboarding /
         // settings account cards (github.com redirects to avatars host).
-        // media-src mirrors img-src: Studio tiles load from the mixdog-media
-        // byte lane, and older paths still inline data:/blob: URLs, which
+        // media-src mirrors img-src: local file previews load from the
+        // mixdog-media byte lane, and older paths still inline data:/blob: URLs, which
         // default-src 'self' would otherwise block.
         const policy = development
           ? `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; connect-src 'self' ${MEDIA_SCHEME}: ws://127.0.0.1:* ws://localhost:*; img-src 'self' data: blob: ${MEDIA_SCHEME}: https://github.com https://avatars.githubusercontent.com; media-src 'self' data: blob: ${MEDIA_SCHEME}:; frame-src 'self' blob: ${MEDIA_SCHEME}:; style-src 'self' 'unsafe-inline'; font-src 'self' data:`
@@ -1659,7 +1659,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       // Gallery bytes leave the RPC lane here: tiles and clips become ordinary
       // cacheable, range-able resources fetched straight by the DOM.
-      registerMediaProtocol(host);
+      registerMediaProtocol();
       // Push-to-talk/pairing use getUserMedia; transcript copy uses clipboard
       // writes. Only the trusted desktop renderer receives these permissions.
       // Clipboard reads and every other permission still fail closed.

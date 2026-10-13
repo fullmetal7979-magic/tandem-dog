@@ -25,7 +25,6 @@ test('headless tool profile is an explicit stable allowlist', () => {
     'load_tool',
     'web_search',
     'web_fetch',
-    'office',
     'tidy',
   ]);
   assert.deepEqual(modelToolSchemaAllowlist('interactive'), null);
@@ -33,10 +32,10 @@ test('headless tool profile is an explicit stable allowlist', () => {
 });
 
 test('headless tool profile filters unknown and stateful tools fail-closed', () => {
-  const tools = [{ name: 'read' }, { name: 'office' }, { name: 'goal' }, { name: 'future_interactive_tool' }];
+  const tools = [{ name: 'read' }, { name: 'tidy' }, { name: 'goal' }, { name: 'future_interactive_tool' }];
   assert.deepEqual(
     filterModelToolsForProfile(tools, 'headless').map((tool) => tool.name),
-    ['read', 'office']
+    ['read', 'tidy']
   );
   assert.equal(modelToolAllowedForProfile('READ', 'headless'), true);
   assert.equal(modelToolAllowedForProfile('goal', 'headless'), false);

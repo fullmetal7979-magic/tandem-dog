@@ -23,17 +23,17 @@ test('feature-owned built-in skills follow the parent instead of stale individua
   delete process.env.MIXDOG_FEATURE_OFFICE;
   try {
     const skills = [
-      { name: 'bundled', source: 'builtin', requires: ['office'] },
-      { name: 'custom', source: 'global', requires: ['office'] },
+      { name: 'bundled', source: 'builtin', requires: ['git'] },
+      { name: 'custom', source: 'global', requires: ['git'] },
       { name: 'standalone', source: 'builtin', requires: [] },
     ];
     const active = {
-      builtins: { office: { installed: true } },
+      builtins: { git: { installed: true } },
       skills: { disabled: skills.map((skill) => skill.name) },
     };
     const names = (config) => filterSkillsExcludingDisabled(skills, config).map((skill) => skill.name);
     assert.deepEqual(names(active), ['bundled']);
-    assert.deepEqual(names({ ...active, modules: { office: { enabled: false } } }), []);
+    assert.deepEqual(names({ ...active, modules: { git: { enabled: false } } }), []);
     assert.deepEqual(names({ ...active, builtins: {} }), []);
     assert.deepEqual(names(active), ['bundled']);
   } finally {
@@ -376,7 +376,7 @@ test('a skill that requires a built-in feature is offered only while that featur
         'name: pptx',
         'description: Use for decks.',
         'metadata:',
-        '  requires: office',
+        '  requires: git',
         '---',
         '',
         '# Decks',
@@ -388,13 +388,13 @@ test('a skill that requires a built-in feature is offered only while that featur
 
     const fresh = { builtins: {} };
     assert.deepEqual(names(fresh), []);
-    assert.equal(skillMissingFeature('pptx', fresh), 'office');
+    assert.equal(skillMissingFeature('pptx', fresh), 'git');
     assert.equal(isSkillDisabled('pptx', fresh), true);
 
-    const installedOff = { builtins: { office: { installed: true } }, modules: { office: { enabled: false } } };
+    const installedOff = { builtins: { git: { installed: true } }, modules: { git: { enabled: false } } };
     assert.deepEqual(names(installedOff), []);
 
-    const active = { builtins: { office: { installed: true } } };
+    const active = { builtins: { git: { installed: true } } };
     assert.deepEqual(names(active), ['pptx']);
     assert.equal(skillMissingFeature('pptx', active), null);
     assert.equal(isSkillDisabled('pptx', active), false);

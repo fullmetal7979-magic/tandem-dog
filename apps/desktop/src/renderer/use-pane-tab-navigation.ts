@@ -92,7 +92,6 @@ export function usePaneTabNavigation({
   const navigateTab = (tab: WorkspaceTab) => {
     if (
       tab.selection.kind === 'file' ||
-      tab.selection.kind === 'studio' ||
       tab.selection.kind === 'terminal' ||
       tab.selection.kind === 'browser' ||
       tab.selection.kind === 'diff' ||

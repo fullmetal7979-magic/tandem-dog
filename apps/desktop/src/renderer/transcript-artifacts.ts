@@ -14,15 +14,8 @@ export interface TranscriptArtifact {
   kind: 'image' | 'video' | 'document';
   name: string;
   path: string;
-  assetId?: string;
-  /** Width/height the generation asked for; sizes the card before the thumbnail decodes. */
+  /** Width/height ratio known before the image decodes; sizes the card. */
   aspect?: number;
-}
-
-function requestedAspect(value: unknown): number | undefined {
-  const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(String(value ?? '').trim());
-  const ratio = match ? Number(match[1]) / Number(match[2]) : NaN;
-  return Number.isFinite(ratio) && ratio > 0 ? ratio : undefined;
 }
 
 const DOCUMENT = /\.(?:docx|xlsx|pptx|pdf|csv|tsv|rtf|odt|ods|odp)$/i;
@@ -86,31 +79,9 @@ export function transcriptArtifacts(items: readonly TranscriptItem[]): Transcrip
       artifacts.set(key, { key, kind: 'image', path, name: path.split(/[\\/]/).pop() || path });
     }
     const category = desktopToolActivityCategory(item.name, item.args);
-    if (category !== 'Media' && category !== 'Office') continue;
+    if (category !== 'Office') continue;
     for (const result of resultRecords(toolActivityResultValue(item))) {
       if (['running', 'failed', 'canceled', 'cancelled'].includes(String(result.status || ''))) continue;
-      if (
-        category === 'Media' &&
-        result.ok === true &&
-        typeof result.assetId === 'string' &&
-        result.assetId &&
-        (result.output || result.status === 'done')
-      ) {
-        const path = typeof result.output === 'string' ? result.output : '';
-        const args = asRecord(item.args);
-        const kind =
-          result.kind === 'video' || args?.kind === 'video' || /\.(mp4|webm|mov)$/i.test(path) ? 'video' : 'image';
-        const key = `media:${result.assetId}`;
-        artifacts.set(key, {
-          key,
-          kind,
-          assetId: result.assetId,
-          path,
-          name: path.split(/[\\/]/).pop() || result.assetId,
-        });
-        const aspect = requestedAspect(args?.aspect);
-        if (aspect) artifacts.get(key)!.aspect = aspect;
-      }
       if (category !== 'Office') continue;
       const outputs = Array.isArray(result.artifacts) ? result.artifacts : [];
       for (const output of outputs) {

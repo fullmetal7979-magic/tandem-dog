@@ -70,8 +70,6 @@ const api: DesktopApi = {
   listProjects: () => ipcRenderer.invoke(DESKTOP_IPC.listProjects),
   addProject: (projectPath) => ipcRenderer.invoke(DESKTOP_IPC.addProject, projectPath),
   openProjectInExplorer: (projectPath) => ipcRenderer.invoke(DESKTOP_IPC.openProjectInExplorer, projectPath),
-  openMediaAsset: (assetId) => ipcRenderer.invoke(DESKTOP_IPC.openMediaAsset, assetId),
-  openMediaFolder: (assetId) => ipcRenderer.invoke(DESKTOP_IPC.openMediaFolder, assetId),
   openExternal: (url) => ipcRenderer.invoke(DESKTOP_IPC.openExternal, url),
   submitFeedback: (input) => ipcRenderer.invoke(DESKTOP_IPC.submitFeedback, input),
   openLocalFileLink: (projectPath, href, confirmedPath) =>
@@ -82,8 +80,6 @@ const api: DesktopApi = {
   starGithub: () => ipcRenderer.invoke(DESKTOP_IPC.starGithub),
   gitCliStatus: () => ipcRenderer.invoke(DESKTOP_IPC.gitCliStatus),
   installGitCli: () => ipcRenderer.invoke(DESKTOP_IPC.installGitCli),
-  libreOfficeStatus: () => ipcRenderer.invoke(DESKTOP_IPC.libreOfficeStatus),
-  installLibreOffice: () => ipcRenderer.invoke(DESKTOP_IPC.installLibreOffice),
   githubCliStatus: () => ipcRenderer.invoke(DESKTOP_IPC.githubCliStatus),
   installGithubCli: () => ipcRenderer.invoke(DESKTOP_IPC.installGithubCli),
   githubCliLoginStart: () => ipcRenderer.invoke(DESKTOP_IPC.githubCliLoginStart),
@@ -517,10 +513,6 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC.browserCredentialFill, sessionId, credentialId),
   invokeCapability: (request) => ipcRenderer.invoke(DESKTOP_IPC.invokeCapability, request),
   readCapabilities: (requests) => ipcRenderer.invoke(DESKTOP_IPC.readCapabilities, requests),
-  // Byte lane for gallery media: a plain URL the DOM fetches itself (cached
-  // by Chromium, range-able for video), never an IPC base64 payload.
-  mediaUrl: (assetId, variant) =>
-    `mixdog-media://asset/${encodeURIComponent(assetId)}?variant=${encodeURIComponent(variant || 'original')}`,
   quit: () => ipcRenderer.invoke(DESKTOP_IPC.quit),
 };
 

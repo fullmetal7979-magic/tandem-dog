@@ -12,7 +12,6 @@ import {
   paneUtilitySurfaceSlotId,
   ReadyEditorPane,
   ReadyGitDiffPane,
-  ReadyStudioPane,
   ReadyTerminalPane,
   TERMINAL_STARTUP_DELAY_MS,
 } from './app-shell-components';
@@ -31,7 +30,7 @@ type WorkbenchWorkspace = ReturnType<typeof useWorkbenchWorkspace>;
 type UtilitySelection = Extract<
   WorkspaceSelection,
   {
-    kind: 'studio' | 'terminal' | 'browser' | 'diff' | 'pull-request';
+    kind: 'terminal' | 'browser' | 'diff' | 'pull-request';
   }
 >;
 
@@ -41,7 +40,6 @@ const UTILITY_STARTUP_DELAY_MS: Partial<Record<string, number>> = {
   terminal: TERMINAL_STARTUP_DELAY_MS,
 };
 function utilityStartupLabel(kind: string): string {
-  if (kind === 'studio') return t('Preparing Studio…');
   if (kind === 'diff') return t('Loading diff…');
   if (kind === 'terminal') return t('Loading terminal…');
   if (kind === 'browser') return t('Loading browser…');
@@ -51,7 +49,6 @@ function utilityStartupLabel(kind: string): string {
 /** Tabs that own a persistent utility surface (one mounted pane each). */
 function isUtilitySelection(selection: WorkspaceSelection): selection is UtilitySelection {
   return (
-    selection.kind === 'studio' ||
     selection.kind === 'terminal' ||
     selection.kind === 'browser' ||
     selection.kind === 'diff' ||
@@ -74,8 +71,6 @@ export function useAppPersistentPaneSurfaces({
   registerEditorSaveHandle,
   openFileTab,
   latestEditorLocation,
-  sidebarOpen,
-  toggleSidebar,
 }: {
   paneWorkspace: PaneWorkspace;
   workbenchWorkspace: WorkbenchWorkspace;
@@ -88,8 +83,6 @@ export function useAppPersistentPaneSurfaces({
   ): void;
   openFileTab(project: string, rel: string, line?: number, accessToken?: string): void;
   latestEditorLocation: MutableRefObject<EditorNavigationLocation | null>;
-  sidebarOpen: boolean;
-  toggleSidebar(): void;
 }) {
   // An activation latch is WORKSPACE-wide, so it may only be pruned against
   // every matching tab in every leaf, and only closing a tab releases it.
@@ -263,9 +256,7 @@ export function useAppPersistentPaneSurfaces({
     const startupDelayMs = baseStartupDelayMs + (descriptor.focused ? 0 : BACKGROUND_PANE_STARTUP_DELAY_MS);
     const startupLabel = utilityStartupLabel(utilitySelection.kind);
     let surface: ReactNode;
-    if (utilitySelection.kind === 'studio') {
-      surface = <ReadyStudioPane active={utilityActive} sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />;
-    } else if (utilitySelection.kind === 'terminal') {
+    if (utilitySelection.kind === 'terminal') {
       surface = (
         <ReadyTerminalPane cwd={utilitySelection.cwd || null} terminalId={utilitySelection.id} active={utilityActive} />
       );

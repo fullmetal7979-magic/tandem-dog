@@ -7,7 +7,6 @@ import { transcriptArtifacts } from './transcript-artifacts.ts';
 import { ToolActivityGroup } from './transcript-tool-ui.tsx';
 import { MarkdownOpenFileContext, MarkdownProjectContext } from './MarkdownLink.tsx';
 
-const media = (result, args = { action: 'generate', kind: 'image' }) => ({ kind: 'tool', name: 'media', args, result });
 const office = (path, extra = {}) => ({
   kind: 'tool',
   name: 'office',
@@ -15,27 +14,16 @@ const office = (path, extra = {}) => ({
   result: { ok: true, artifacts: [{ path, operation: 'create' }], ...extra },
 });
 
-test('completed media and Office outputs become deduplicated artifacts, including aggregate envelopes', () => {
-  const image = media({ ok: true, assetId: 'image-a', output: 'C:/work/a.png' });
+test('completed Office outputs from older transcripts become deduplicated artifacts, including aggregate envelopes', () => {
   const document = office('C:/work/report.docx');
   const items = [
-    image,
-    { ...image, result: { content: [{ type: 'text', text: JSON.stringify(image.result) }] } },
-    {
-      aggregate: true,
-      toolMembers: [
-        media({ ok: true, status: 'done', kind: 'video', assetId: 'video-b' }, { action: 'status' }),
-        document,
-      ],
-    },
+    document,
+    { ...document, result: { content: [{ type: 'text', text: JSON.stringify(document.result) }] } },
+    { aggregate: true, toolMembers: [document] },
   ];
   assert.deepEqual(
     transcriptArtifacts(items).map(({ kind, name }) => ({ kind, name })),
-    [
-      { kind: 'image', name: 'a.png' },
-      { kind: 'video', name: 'video-b' },
-      { kind: 'document', name: 'report.docx' },
-    ]
+    [{ kind: 'document', name: 'report.docx' }]
   );
   assert.deepEqual(transcriptArtifacts(JSON.parse(JSON.stringify(items))), transcriptArtifacts(items));
 });
@@ -72,10 +60,6 @@ test('SVG files written by edit and apply_patch become image artifacts; failed, 
 test('input paths, lookup, pending, failed and executable outputs never become result cards', () => {
   assert.deepEqual(
     transcriptArtifacts([
-      media({ ok: true, lanes: [] }, { action: 'list', path: 'a.png' }),
-      { ...media(null), args: { action: 'generate', path: 'a.png' } },
-      media({ ok: true, status: 'running', assetId: 'pending' }),
-      media({ ok: false, assetId: 'failed', output: 'a.png' }),
       { ...office('bad.docx'), isError: true },
       office('bad.pptx', { ok: false }),
       office('danger.exe'),
@@ -135,7 +119,7 @@ test('artifact images open in the shared lightbox and navigate within the strip'
   }
 });
 
-test('collapsed activity exposes image, playable video, a document that opens in its conversation Project, and a deleted one as deleted', async () => {
+test('collapsed activity exposes a written image, a document that opens in its conversation Project, and a deleted one as deleted', async () => {
   const { dom, restore } = installTestDom(null, {
     html: '<!doctype html><div id="root"></div>',
     jsdom: { url: 'http://localhost/' },
@@ -148,7 +132,6 @@ test('collapsed activity exposes image, playable video, a document that opens in
     this.open = true;
   };
   dom.window.mixdogDesktop = {
-    mediaUrl: (id, variant) => `http://localhost/media/${id}/${variant}`,
     openLocalFileLink: async (...args) => {
       launched.push(args);
     },
@@ -178,8 +161,6 @@ test('collapsed activity exposes image, playable video, a document that opens in
             { value: 'C:/work' },
             React.createElement(ToolActivityGroup, {
               items: [
-                media({ ok: true, assetId: 'a', output: 'C:/work/a.png' }),
-                media({ ok: true, assetId: 'b', output: 'C:/work/b.mp4' }, { action: 'generate', kind: 'video' }),
                 office('C:/work/report #1.docx'),
                 office('C:/work/gone.xlsx'),
                 { kind: 'tool', name: 'edit', args: { file_path: 'C:/work/chart.svg' }, result: 'ok' },
@@ -200,14 +181,6 @@ test('collapsed activity exposes image, playable video, a document that opens in
     // A written SVG renders as an image through the file preview lane, never inline markup.
     const svg = dom.window.document.querySelector('img[src="mixdog-media://preview/token/chart.svg"]');
     assert.equal(svg?.closest('figure')?.querySelector('figcaption > span')?.textContent, 'chart.svg');
-    // A video card shows its thumbnail; playback exists only in the dialog the user opens.
-    assert.equal(dom.window.document.querySelector('.transcript-artifacts video'), null);
-    const videoCard = dom.window.document.querySelector('.transcript-artifact-frame[aria-label="b.mp4"]');
-    await act(async () => videoCard.click());
-    const video = dom.window.document.querySelector('.transcript-artifact-preview video');
-    assert.equal(video.controls, true);
-    assert.equal(video.autoplay, false);
-    assert.equal(video.preload, 'none');
     const link = dom.window.document.querySelector('a.transcript-artifact-file');
     await act(async () => link.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })));
     // The renderer resolves the artifact inside its conversation Project and

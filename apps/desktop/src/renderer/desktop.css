@@ -28,7 +28,6 @@
 @import "./desktop/16-overlays.css";
 @import "./desktop/17-settings.css";
 @import "./desktop/18-surface-states.css";
-@import "./desktop/19-studio.css";
 @import "./desktop/20-automation.css";
 /* Layer 21 is imported by the lazy OnboardingWizard module. Its selectors are
    wizard-scoped, and Vite loads the chunk stylesheet before rendering it. The

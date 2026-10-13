@@ -416,7 +416,6 @@ test('headless tool profile keeps task-scoped tools and removes persistent or in
   const standalone = [
     { name: 'read' },
     { name: 'load_tool' },
-    { name: 'office' },
     { name: 'tidy' },
     { name: 'git' },
     { name: 'web_search' },
@@ -437,10 +436,9 @@ test('headless tool profile keeps task-scoped tools and removes persistent or in
   const catalogNames = new Set((surface.deferredToolCatalog || []).map((tool) => tool.name));
   const activeNames = new Set((surface.tools || []).map((tool) => tool.name));
 
-  for (const name of ['read', 'load_tool', 'office', 'tidy', 'git', 'web_search']) {
+  for (const name of ['read', 'load_tool', 'tidy', 'git', 'web_search']) {
     assert.equal(catalogNames.has(name), true, `${name} should remain available`);
   }
-  assert.equal(activeNames.has('office'), false);
   assert.equal(activeNames.has('tidy'), false);
   assert.equal(activeNames.has('git'), true);
   for (const name of ['goal', 'agent', 'memory', 'recall', 'cwd', 'Skill', 'browser', 'browser_devtools', 'computer']) {

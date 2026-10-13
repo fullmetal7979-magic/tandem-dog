@@ -19,8 +19,6 @@ export function createInternalToolExecutor({
   setupTool,
   webSearchEnabled,
   memoryToolsEnabled,
-  officeToolsEnabled,
-  mediaToolEnabled,
   tidyToolEnabled = () => true,
   getWebSearchModule,
   getMemoryModule,
@@ -34,7 +32,7 @@ export function createInternalToolExecutor({
 }) {
   const handlers = {
     ...createBridgeToolHandlers({ rt }),
-    ...createFeatureToolHandlers({ rt, setupTool, officeToolsEnabled, mediaToolEnabled, tidyToolEnabled }),
+    ...createFeatureToolHandlers({ rt, setupTool, tidyToolEnabled }),
     ...createKnowledgeToolHandlers({
       rt,
       getWebSearchModule,

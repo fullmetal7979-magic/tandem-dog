@@ -11,7 +11,6 @@ export function useStartupPaneSelection(paneWorkspace: ReturnType<typeof usePane
   const startupNavigationSelection =
     paneWorkspace.restoredFromStorage &&
     focusedPaneSelection &&
-    focusedPaneSelection.kind !== 'studio' &&
     focusedPaneSelection.kind !== 'terminal' &&
     focusedPaneSelection.kind !== 'browser' &&
     focusedPaneSelection.kind !== 'diff' &&

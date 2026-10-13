@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readGlobalCapabilities } from './global-capability-reads.ts';
-import { callCapability } from './studio-support.ts';
 
 test('global read batches preserve every value and position within the transport limit', async () => {
   const requests = Array.from({ length: 35 }, (_, id) => ({ capability: 'getMediaJob', args: [id] }));
@@ -111,26 +110,4 @@ test('legacy global reads retain invocation arguments and error identity', async
     ),
     (error) => error === failure
   );
-});
-
-test('Studio reads avoid snapshots while commands still execute exactly once', async () => {
-  const reads = [];
-  const commands = [];
-  const value = { base64: 'AAECAw==', mime: 'application/octet-stream', variant: 'original' };
-  const api = {
-    readCapabilities: async (requests) => {
-      reads.push(requests);
-      return requests.map(() => ({ ok: true, value }));
-    },
-    invokeCapability: async (request) => {
-      commands.push(request);
-      return { value: true, snapshot: {} };
-    },
-  };
-  const args = ['asset', { variant: 'original', allowOriginal: true }];
-  assert.equal(await callCapability(api, 'readMediaAsset', args), value);
-  assert.deepEqual(reads, [[{ capability: 'readMediaAsset', args }]]);
-  assert.equal(await callCapability(api, 'cancelMediaJob', ['job']), true);
-  assert.deepEqual(commands, [{ capability: 'cancelMediaJob', args: ['job'] }]);
-  assert.equal(reads.length, 1);
 });

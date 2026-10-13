@@ -65,8 +65,6 @@ export function useAppPaneChrome({
       case 'pull-request':
         if (selection.mode === 'changes') return t('Changes in Pull Request #{{number}}', { number: selection.number });
         return selection.title || t('Pull Request #{{number}}', { number: selection.number });
-      case 'studio':
-        return t('Studio');
       case 'terminal':
         return t('Terminal');
       case 'browser':
@@ -84,7 +82,6 @@ export function useAppPaneChrome({
 
   const activatePaneSurface = (paneSelection: WorkspaceSelection) => {
     if (
-      paneSelection.kind === 'studio' ||
       paneSelection.kind === 'terminal' ||
       paneSelection.kind === 'browser' ||
       paneSelection.kind === 'diff' ||

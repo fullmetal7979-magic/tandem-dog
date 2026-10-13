@@ -1,14 +1,7 @@
-// Git, GitHub CLI, LibreOffice status, git status/branches/log/stash, pull requests and commits.
+// Git, GitHub CLI status, git status/branches/log/stash, pull requests and commits.
 
 /** Extensions → Built-in: system Git dependency used by the first-party tool. */
 export interface DesktopGitCliStatus {
-  installed: boolean;
-  version?: string;
-}
-
-/** Extensions → Office: LibreOffice dependency behind document rendering and
- *  workbook recalculation, installed by the Office card's Install step. */
-export interface DesktopLibreOfficeStatus {
   installed: boolean;
   version?: string;
 }

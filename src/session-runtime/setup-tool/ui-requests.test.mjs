@@ -77,7 +77,7 @@ test('setup uses the Desktop receipt rather than treating notification delivery 
   );
 });
 
-test('Git and Office installs run on a claiming Desktop; only an unclaimed request falls back to the runtime', async () => {
+test('Git installs run on a claiming Desktop; only an unclaimed request falls back to the runtime', async () => {
   const installs = [];
   let desktop = 'claims';
   let executor;
@@ -116,9 +116,9 @@ test('Git and Office installs run on a claiming Desktop; only an unclaimed reque
   assert.deepEqual(installs, [], 'a Desktop failure is reported, never retried without the dependency');
 
   desktop = 'absent';
-  const runtimeOnly = JSON.parse(await executor.execute({ action: 'install_builtin', name: 'office' }));
-  assert.deepEqual(runtimeOnly.office, { installed: true, enabled: true });
-  assert.deepEqual(installs, ['office']);
+  const runtimeOnly = JSON.parse(await executor.execute({ action: 'install_builtin', name: 'git' }));
+  assert.deepEqual(runtimeOnly.git, { installed: true, enabled: true });
+  assert.deepEqual(installs, ['git']);
 });
 
 test('a claimed Desktop request loses mutation authority as soon as its turn is cancelled', async () => {

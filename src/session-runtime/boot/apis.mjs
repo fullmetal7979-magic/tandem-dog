@@ -1,5 +1,5 @@
 // Boot stage 8: the API slices the facade spreads together — settings,
-// channel config, provider auth, usage stats, media, lifecycle, resources,
+// channel config, provider auth, usage stats, lifecycle, resources,
 // model route, workflow/agents, the session turn api, review and goal.
 import { localPackageVersion } from '../../runtime/shared/update-checker.mjs';
 import { setConfiguredShell } from '../../runtime/agent/orchestrator/tools/builtin/shell-runtime.mjs';
@@ -36,7 +36,6 @@ import { createSettingsApi } from '../settings-api.mjs';
 import { createSessionTitleController } from '../../runtime/agent/orchestrator/runtime-core/session-title.mjs';
 import { closeNativeToolTransports, closePatchRuntimeIfLoaded, withTeardownDeadline } from '../native-teardown.mjs';
 import { createChannelConfigApi } from '../channel-config-api.mjs';
-import { createMediaApi } from '../media-api.mjs';
 import { createProviderAuthApi } from '../provider-auth-api.mjs';
 import { createUsageStatsApi } from '../usage-stats-api.mjs';
 import { listProviderAccounts } from '../services/provider-admin.mjs';
@@ -75,7 +74,6 @@ export function wireApis(boot) {
       Object.fromEntries(listProviderAccounts(provider).accounts.map((row) => [row.id, row.email || ''])),
   });
   boot.providerAuthApi = providerAuthApiFor(boot);
-  boot.mediaApi = createMediaApi();
   boot.sessionTitles = createSessionTitleController({
     dataRoot: () => dataDirOf(boot.cfgMod),
     promoteGeneratedTitle: (sessionId, title, stage) => boot.mgr.updateSessionGeneratedTitle(sessionId, title, stage),
@@ -122,7 +120,7 @@ function wireToolPolicyRefresh(boot) {
 
 // Built-in install adapters. Memory downloads and loads the embedding model at
 // install time instead of the first recall, and a failed download fails the
-// install; office provisions global Noto fonts; tidy downloads its core managed
+// install; tidy downloads its core managed
 // engines; the local provider downloads its runtime.
 function builtinFeatureAdapters(boot) {
   const { cfgMod, getMemoryModule } = boot;
@@ -131,9 +129,6 @@ function builtinFeatureAdapters(boot) {
       if (name === 'memory') {
         const memory = await getMemoryModule();
         await memory.warmupEmbedding();
-      } else if (name === 'office') {
-        const { prepareOfficeFonts } = await import('../../runtime/office/portable/font-provisioner.mjs');
-        await prepareOfficeFonts?.().catch?.(() => {});
       } else if (name === 'tidy') {
         const { installTidyCoreEngines } = await import('../../runtime/tidy/core-install.mjs');
         // Per-engine failures land in the install job, not in an exception:
@@ -240,7 +235,6 @@ function settingsApiFor(boot) {
     recapEnabledFn: boot.recapEnabledFn,
     memoryToolsEnabledFn: boot.memoryToolsEnabledFn,
     gitToolsEnabledFn: boot.gitToolsEnabledFn,
-    officeToolsEnabledFn: boot.officeToolsEnabledFn,
     tidyToolEnabledFn: boot.tidyToolEnabledFn,
     localProviderEnabledFn: boot.localProviderEnabledFn,
     webSearchEnabled: boot.webSearchEnabled,

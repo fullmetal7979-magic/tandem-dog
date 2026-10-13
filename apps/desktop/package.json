@@ -16,7 +16,6 @@
     "typecheck:renderer": "tsc -p tsconfig.renderer.json",
     "test": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx",
     "test:desktop-main": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx src/main",
-    "test:office-approval": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx src/renderer/office-approval.test.mjs",
     "test:slow": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx --lane slow",
     "test:live": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx --lane live",
     "test:all": "node ../../scripts/test.mjs --import ./scripts/test-env.mjs --import tsx --lane all",

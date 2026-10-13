@@ -1,7 +1,7 @@
 /**
  * media.mjs — the session object's media/presentation surface: voice
  * (status, toggle, desktop dictation), composer image resize, setup-request
- * claims, the TUI theme, and the media studio passthroughs.
+ * claims and the TUI theme.
  */
 import { listThemes, getThemeSetting, setThemeSetting } from '../../theme.mjs';
 import { getVoiceStatus, toggleVoice } from '../../lib/voice-setup.mjs';
@@ -116,23 +116,5 @@ export function createSessionMediaApi(bag) {
       set({ themeEpoch: (getState().themeEpoch || 0) + 1 });
       return applied;
     },
-    // Media studio (image/video generation). Reads stay quiet, and there is no
-    // notice on start either: the Studio surfaces progress on its own pending
-    // tile, and a toast for a user-initiated generation is pure noise.
-    listMediaLanes: () => runtime.listMediaLanes?.(),
-    getMediaDefault: (kind) => runtime.getMediaDefault?.(kind),
-    setMediaDefault: (input) => runtime.setMediaDefault?.(input),
-    listMediaAssets: (options) => runtime.listMediaAssets?.(options),
-    readMediaAsset: (id, options) => runtime.readMediaAsset?.(id, options),
-    cacheMediaThumbnail: (id, input) => runtime.cacheMediaThumbnail?.(id, input),
-    resolveMediaFile: (id, options) => runtime.resolveMediaFile?.(id, options),
-    getMediaJob: (id) => runtime.getMediaJob?.(id),
-    listMediaJobs: () => runtime.listMediaJobs?.(),
-    startMediaJob: (input) => runtime.startMediaJob(input),
-    cancelMediaJob: (id) => runtime.cancelMediaJob?.(id),
-    deleteMediaAsset: (id) => runtime.deleteMediaAsset?.(id),
-    deleteMediaAssets: (filter) => runtime.deleteMediaAssets?.(filter),
-    openMediaAsset: (id) => runtime.openMediaAsset?.(id),
-    openMediaFolder: (id) => runtime.openMediaFolder?.(id),
   };
 }

@@ -49,7 +49,6 @@ test('background setup installation returns a job, pauses all observers, and res
     webSearchEnabled: () => true,
     memoryToolsEnabledFn: () => true,
     gitToolsEnabledFn: () => true,
-    officeToolsEnabledFn: () => true,
   });
   const executor = createSetupToolExecutor({ getApi: () => api });
   const run = async (args) => JSON.parse(await executor.execute(args));

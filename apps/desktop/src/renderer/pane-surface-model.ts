@@ -44,7 +44,6 @@ export function parksConversationBehindSelection(selection: WorkspaceSelection |
 
 function usesPersistentUtilityPortal(selection: WorkspaceSelection | null): boolean {
   return (
-    selection?.kind === 'studio' ||
     selection?.kind === 'terminal' ||
     selection?.kind === 'browser' ||
     selection?.kind === 'diff' ||
@@ -58,7 +57,7 @@ function retainSurfaceForOneFrame(previousLeaf: PaneLeaf, currentLeaf: PaneLeaf)
   if (!previous || !currentLeaf.tabs.some((tab) => navigationKey(tab) === navigationKey(previous))) return false;
   // A utility destination needs its physical portal slot in the same commit.
   // Holding the outgoing layer suppresses that slot; a missed retirement frame
-  // then leaves a newly opened Studio mounted nowhere and the pane stays blank.
+  // then leaves a newly opened utility tab mounted nowhere and the pane stays blank.
   if (usesPersistentUtilityPortal(paneActiveSelection(currentLeaf))) return false;
   return isConversationSelection(previous) || parksConversationBehindSelection(previous);
 }

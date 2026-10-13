@@ -25,7 +25,6 @@ import { paneActiveSessionIds } from './pane-layout';
 import type { usePaneWorkspace } from './pane-workspace-state';
 import { remoteSurface } from './shell-viewport';
 import { DEFAULT_SIDEBAR_VIEW_ORDER } from './sidebar-view-layout';
-import { loadStudioViewModule } from './studio-loader';
 import { asRecord, navigationKey } from './text-format';
 import type { useAppShellPanels } from './use-app-shell-panels';
 import { loadSidebarUsageModule } from './use-usage-rail-pin';
@@ -63,11 +62,6 @@ export function useAppModuleWarmup(startupSettled: boolean, trackSidebarPanelMod
     if (!startupSettled) return undefined;
     const nativeWindow = Boolean(window.mixdogDesktop?.bootContext?.bootId);
     const cancels = [
-      scheduleBootWarmup({
-        id: 'module:studio',
-        priority: BOOT_WARMUP.studioModule,
-        run: () => loadStudioViewModule().catch(() => {}),
-      }),
       // The /context · /usage dialog chunk. A native window used to skip this
       // lane and pay the whole import on the first open (user: 컨텍스트창 왜
       // 바로 안 열리고 로딩이 심하지); the idle lane still yields to input.

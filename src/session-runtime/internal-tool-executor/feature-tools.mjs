@@ -1,9 +1,8 @@
-// Optional feature tools gated by settings for model-initiated calls: office,
-// media and tidy (each loaded on first use), and the setup tool.
-import { STANDALONE_DATA_DIR } from '../runtime-paths.mjs';
+// Optional feature tools gated by settings for model-initiated calls: tidy
+// (loaded on first use), and the setup tool.
 import { createCallerContextResolvers } from './caller-context.mjs';
 
-export function createFeatureToolHandlers({ rt, setupTool, officeToolsEnabled, mediaToolEnabled, tidyToolEnabled }) {
+export function createFeatureToolHandlers({ rt, setupTool, tidyToolEnabled }) {
   const { sessionIdFor, signalFor } = createCallerContextResolvers(rt);
   const requireEnabled = (callerCtx, enabled, label) => {
     if (callerCtx?.invocationSource === 'model-tool' && !enabled()) {
@@ -12,31 +11,6 @@ export function createFeatureToolHandlers({ rt, setupTool, officeToolsEnabled, m
   };
 
   return {
-    office: async (args, { callerCtx, callerCwd }) => {
-      requireEnabled(callerCtx, officeToolsEnabled, 'office');
-      const { executeOfficeTool } = await import('../../runtime/office/index.mjs');
-      return await executeOfficeTool(args, {
-        cwd: callerCwd,
-        dataDir: STANDALONE_DATA_DIR,
-        requestApproval: callerCtx?.toolApprovalHook,
-        sessionId: callerCtx?.sessionId,
-        toolCallId: callerCtx?.toolCallId,
-        signal: signalFor(callerCtx),
-      });
-    },
-    media: async (args, { callerCtx, callerCwd }) => {
-      requireEnabled(callerCtx, mediaToolEnabled, 'media');
-      const { executeMediaTool } = await import('../../runtime/media/tool.mjs');
-      const { getSession } = await import('../../runtime/agent/orchestrator/session/manager/session-crud.mjs');
-      // Generation spend is attributed to the calling session in the usage ledger.
-      const sessionId = sessionIdFor(callerCtx) || '';
-      return await executeMediaTool(args, {
-        cwd: callerCwd,
-        signal: signalFor(callerCtx),
-        sessionId,
-        sourceType: (sessionId && getSession(sessionId)?.sourceType) || '',
-      });
-    },
     tidy: async (args, { callerCtx, callerCwd }) => {
       requireEnabled(callerCtx, tidyToolEnabled, 'tidy');
       const { executeTidyTool } = await import('../../runtime/tidy/tool.mjs');

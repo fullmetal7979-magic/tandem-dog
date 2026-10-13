@@ -71,7 +71,7 @@ test('headless basic tools omit the loader and its guidance without removing opt
 
     for (const [name, config] of [
       ['web_search', { ...basic, modules: { webSearch: { enabled: true } } }],
-      ['office', { ...basic, builtins: { office: { installed: true } } }],
+      ['tidy', { ...basic, builtins: { tidy: { installed: true } } }],
       ['github', { ...basic, builtins: { git: { installed: true } } }],
     ]) {
       const optional = surface(config, 'headless');
@@ -105,7 +105,7 @@ test('a profile that predates the marker is grandfathered as installed', () => {
     presets: [{ id: 'main', provider: 'openai-oauth', model: 'gpt-5.6-sol' }],
     default: 'main',
   });
-  for (const id of ['git', 'memory', 'office']) {
+  for (const id of ['git', 'memory']) {
     assert.equal(builtinInstalled(config, id), true);
   }
   assert.equal(builtinInstalled(config, 'localProvider'), false);
@@ -138,7 +138,6 @@ test('a fresh profile keeps every gated tool family off the session surface', ()
     'browser_devtools',
     'computer',
     'terminal',
-    'office',
     'tidy',
   ]);
 });
@@ -187,24 +186,23 @@ test('Git needs no install marker but respects OFF and does not enable extension
 test('a disabled toggle removes tools even while the feature stays installed', () => {
   const config = {
     ...withGrandfatheredBuiltins({ presets: [] }),
-    modules: { office: { enabled: false } },
+    modules: { tidy: { enabled: false } },
     memoryTools: { enabled: false },
   };
   assert.deepEqual(featureDisallowedToolsFor(config, { browserAvailable: true, computerAvailable: true, terminalAvailable: true }), [
     'memory',
     'recall',
-    'office',
     'tidy',
   ]);
 });
 
 test('MIXDOG_FEATURE_* env overrides win over stored markers in both directions', () => {
-  process.env.MIXDOG_FEATURE_OFFICE = '1';
+  process.env.MIXDOG_FEATURE_TIDY = '1';
   process.env.MIXDOG_FEATURE_GIT = 'off';
   try {
-    // A headless run surfaces office without any install marker…
+    // A headless run surfaces tidy without any install marker…
     const fresh = featureDisallowedToolsFor(withGrandfatheredBuiltins({}));
-    assert.equal(fresh.includes('office'), false);
+    assert.equal(fresh.includes('tidy'), false);
     // …and forces git out of an installed, enabled profile.
     assert.deepEqual(
       featureDisallowedToolsFor(setBuiltinInstalledInConfig(withGrandfatheredBuiltins({ presets: [] }), 'tidy', true), {
@@ -215,19 +213,19 @@ test('MIXDOG_FEATURE_* env overrides win over stored markers in both directions'
       ['git', 'github']
     );
   } finally {
-    delete process.env.MIXDOG_FEATURE_OFFICE;
+    delete process.env.MIXDOG_FEATURE_TIDY;
     delete process.env.MIXDOG_FEATURE_GIT;
   }
 });
 
-test('code tidy installs like office and is not grandfathered', () => {
+test('code tidy is install-gated and not grandfathered', () => {
   const previous = process.env.MIXDOG_FEATURE_TIDY;
   delete process.env.MIXDOG_FEATURE_TIDY;
   try {
     assert.ok(INSTALLABLE_BUILTIN_IDS.includes('tidy'));
     // An upgraded profile keeps its grandfathered features but must install tidy.
     const upgraded = withGrandfatheredBuiltins({ presets: [{ id: 'main' }] });
-    assert.equal(builtinInstalled(upgraded, 'office'), true);
+    assert.equal(builtinInstalled(upgraded, 'git'), true);
     assert.equal(builtinInstalled(upgraded, 'tidy'), false);
     assert.equal(builtinFeatureActive(upgraded, 'tidy'), false);
     assert.ok(featureDisallowedToolsFor(upgraded).includes('tidy'));
@@ -236,7 +234,7 @@ test('code tidy installs like office and is not grandfathered', () => {
     assert.equal(builtinFeatureActive(installed, 'tidy'), true);
     assert.equal(featureDisallowedToolsFor(installed).includes('tidy'), false);
 
-    // Installed but switched off is inactive, exactly like office.
+    // Installed but switched off is inactive.
     const off = { ...installed, modules: { tidy: { enabled: false } } };
     assert.equal(builtinFeatureActive(off, 'tidy'), false);
     assert.ok(featureDisallowedToolsFor(off).includes('tidy'));
@@ -257,7 +255,7 @@ test('code tidy installs like office and is not grandfathered', () => {
   }
 });
 
-test('the tidy schema defers like office instead of loading eagerly', () => {
+test('the tidy schema defers instead of loading eagerly', () => {
   const previous = process.env.MIXDOG_FEATURE_TIDY;
   process.env.MIXDOG_FEATURE_TIDY = '1';
   try {
@@ -266,7 +264,7 @@ test('the tidy schema defers like office instead of loading eagerly', () => {
       model: 'gpt-5.6-sol',
       messages: [],
       disallowedTools: featureDisallowedToolsFor({ builtins: {} }),
-      tools: [...HEADLESS_MODEL_TOOL_NAMES, 'media'].map((name) => ({
+      tools: HEADLESS_MODEL_TOOL_NAMES.map((name) => ({
         name,
         inputSchema: { type: 'object', properties: {} },
       })),
@@ -278,15 +276,6 @@ test('the tidy schema defers like office instead of loading eagerly', () => {
       session.tools.some((tool) => tool.name === 'tidy'),
       false,
       'and must not load eagerly'
-    );
-    // Same treatment as the other feature tools it ships beside.
-    assert.equal(
-      session.tools.some((tool) => tool.name === 'office'),
-      false
-    );
-    assert.equal(
-      session.tools.some((tool) => tool.name === 'media'),
-      false
     );
   } finally {
     if (previous === undefined) delete process.env.MIXDOG_FEATURE_TIDY;
@@ -301,14 +290,14 @@ test('the code-tidy skill is offered only while the tidy feature is active', () 
     // Mirrors the shipped SKILL.md frontmatter: metadata.requires: tidy.
     const skills = [
       { name: 'code-tidy', source: 'builtin', requires: ['tidy'] },
-      { name: 'pptx', source: 'builtin', requires: ['office'] },
+      { name: 'git-guide', source: 'builtin', requires: ['git'] },
     ];
     const names = (config) => filterSkillsExcludingDisabled(skills, config).map((skill) => skill.name);
-    const installed = setBuiltinInstalledInConfig({ builtins: { office: { installed: true } } }, 'tidy', true);
+    const installed = setBuiltinInstalledInConfig({ builtins: { git: { installed: true } } }, 'tidy', true);
 
-    assert.deepEqual(names({ builtins: { office: { installed: true } } }), ['pptx']);
-    assert.deepEqual(names(installed), ['code-tidy', 'pptx']);
-    assert.deepEqual(names({ ...installed, modules: { tidy: { enabled: false } } }), ['pptx']);
+    assert.deepEqual(names({ builtins: { git: { installed: true } } }), ['git-guide']);
+    assert.deepEqual(names(installed), ['code-tidy', 'git-guide']);
+    assert.deepEqual(names({ ...installed, modules: { tidy: { enabled: false } } }), ['git-guide']);
   } finally {
     if (previous === undefined) delete process.env.MIXDOG_FEATURE_TIDY;
     else process.env.MIXDOG_FEATURE_TIDY = previous;
@@ -316,11 +305,11 @@ test('the code-tidy skill is offered only while the tidy feature is active', () 
 });
 
 test('install markers set and clear without disturbing sibling entries', () => {
-  let config = setBuiltinInstalledInConfig({}, 'office', true);
+  let config = setBuiltinInstalledInConfig({}, 'tidy', true);
   config = setBuiltinInstalledInConfig(config, 'memory', true);
-  assert.equal(builtinInstalled(config, 'office'), true);
+  assert.equal(builtinInstalled(config, 'tidy'), true);
   assert.equal(builtinInstalled(config, 'memory'), true);
-  config = setBuiltinInstalledInConfig(config, 'office', false);
-  assert.equal(builtinInstalled(config, 'office'), false);
+  config = setBuiltinInstalledInConfig(config, 'tidy', false);
+  assert.equal(builtinInstalled(config, 'tidy'), false);
   assert.equal(builtinInstalled(config, 'memory'), true);
 });

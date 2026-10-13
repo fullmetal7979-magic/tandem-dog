@@ -42,7 +42,6 @@ export interface UseAppWorkbenchNavigationHubOptions {
   bottomPanel: ReturnType<typeof useAppShellPanels>['bottomPanel'];
   editorCommandCapabilities: ReturnType<typeof useAppEditorState>['editorCommandCapabilities'];
   openTerminalTab: (leafId?: string) => void;
-  openStudioTab: (leafId?: string) => void;
   toolProjectPath: string;
   workbenchWorkspace: { workspace: { folders: Array<{ path: string }> } };
   quickAccessMode: WorkbenchQuickAccessMode | null;
@@ -72,7 +71,6 @@ export function useAppWorkbenchNavigationHub({
   bottomPanel,
   editorCommandCapabilities,
   openTerminalTab,
-  openStudioTab,
   toolProjectPath,
   workbenchWorkspace,
   quickAccessMode,
@@ -153,7 +151,6 @@ export function useAppWorkbenchNavigationHub({
     toggleDock,
     openTerminalTab,
     startTask,
-    openStudioTab,
     openSettings,
   });
 

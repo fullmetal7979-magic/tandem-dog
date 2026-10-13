@@ -121,16 +121,12 @@ test('Browser install and toggle are separate; voice installation uses the exist
   assert.equal(off.voice.enabled, false);
 });
 
-test('Git and Office installs bring in their system dependency before activating the feature', async () => {
+test('Git installs bring in the system dependency before activating the feature', async () => {
   const { api, run } = fixture();
   const calls = [];
   api.installGitCli = async () => {
     calls.push('installGitCli');
     return { installed: true, version: '2.51.0' };
-  };
-  api.installLibreOffice = async () => {
-    calls.push('installLibreOffice');
-    return { installed: true, version: '26.8.0.3' };
   };
   const invokeCapability = api.invokeCapability;
   api.invokeCapability = async (request) => {
@@ -144,18 +140,11 @@ test('Git and Office installs bring in their system dependency before activating
   const git = await run({ action: 'install_builtin', name: 'git' });
   assert.deepEqual(git.git, { installed: true, enabled: true });
   assert.equal(git.dependency.version, '2.51.0');
-  const office = await run({ action: 'install_builtin', name: 'office' });
-  assert.deepEqual(office.office, { installed: true, enabled: true });
-  assert.deepEqual(calls, [
-    'installGitCli',
-    ['setBuiltinToolEnabled', 'git', true],
-    'installLibreOffice',
-    ['installBuiltinFeature', 'office'],
-  ]);
+  assert.deepEqual(calls, ['installGitCli', ['setBuiltinToolEnabled', 'git', true]]);
 
-  api.installLibreOffice = async () => ({ installed: false });
-  await assert.rejects(run({ action: 'install_builtin', name: 'office' }), /LibreOffice installation did not complete/);
-  assert.equal(calls.length, 4, 'a missing dependency never activates the feature');
+  api.installGitCli = async () => ({ installed: false });
+  await assert.rejects(run({ action: 'install_builtin', name: 'git' }), /Git installation did not complete/);
+  assert.equal(calls.length, 2, 'a missing dependency never activates the feature');
 });
 
 test('appearance reports host scope and reload requirement without restarting the app', async () => {

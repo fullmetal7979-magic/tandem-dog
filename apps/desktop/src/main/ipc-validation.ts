@@ -73,8 +73,8 @@ const MODEL_SELECTION_KEYS = new Set(['provider', 'model', 'effort', 'fast', 'mo
 const MODEL_CATALOG_OPTION_KEYS = new Set(['force', 'refresh', 'quick']);
 const PROVIDER_SETUP_OPTION_KEYS = new Set(['force', 'refresh']);
 const TOOL_APPROVAL_KEYS = new Set(['approved', 'reason']);
-const TOGGLEABLE_BUILTIN_TOOLS = new Set(['git', 'office', 'localProvider', 'tidy', 'autoEffort']);
-const INSTALLABLE_BUILTIN_FEATURES = new Set(['git', 'memory', 'office', 'localProvider', 'tidy', 'autoEffort']);
+const TOGGLEABLE_BUILTIN_TOOLS = new Set(['git', 'localProvider', 'tidy', 'autoEffort']);
+const INSTALLABLE_BUILTIN_FEATURES = new Set(['git', 'memory', 'localProvider', 'tidy', 'autoEffort']);
 
 const CAPABILITY_ARITY = {
   prioritizeQueued: [1, 1],
@@ -221,20 +221,6 @@ const CAPABILITY_ARITY = {
   transcribeAudio: [1, 1],
   prepareTranscription: [0, 0],
   resizeImage: [1, 1],
-  listMediaLanes: [0, 0],
-  listMediaAssets: [0, 1],
-  readMediaAsset: [1, 2],
-  cacheMediaThumbnail: [2, 2],
-  resolveMediaFile: [1, 2],
-  getMediaJob: [1, 1],
-  getMediaDefault: [1, 1],
-  setMediaDefault: [1, 1],
-  startMediaJob: [1, 1],
-  cancelMediaJob: [1, 1],
-  deleteMediaAsset: [1, 1],
-  deleteMediaAssets: [1, 1],
-  openMediaAsset: [1, 1],
-  openMediaFolder: [0, 1],
 } as const satisfies Record<DesktopCapability, readonly [number, number]>;
 
 export function requiredString(value: unknown, name: string, maximum = 32_768): string {

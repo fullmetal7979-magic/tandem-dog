@@ -29,7 +29,6 @@ test('auxiliary sidebars omit duplicate lists while a visited Sessions surface k
     sessionsReady: true,
     selection: { kind: 'new' },
     onNewTask() {},
-    onNewStudio() {},
     onResumeSession() {},
     async onRenameSession() {},
     async onArchiveSession() {},
@@ -76,7 +75,7 @@ test('auxiliary sidebars omit duplicate lists while a visited Sessions surface k
   assert.equal(scroller.scrollTop, 47);
 });
 
-test('the fixed launcher rows lead the session list and open a task or a Studio tab', async () => {
+test('the fixed launcher row leads the session list and opens a task', async () => {
   const { dom, restore } = installDom();
 
   const { SessionSidebar } = await import('./session-sidebar.tsx');
@@ -106,9 +105,6 @@ test('the fixed launcher rows lead the session list and open a task or a Studio 
           onNewTask() {
             calls.push('task');
           },
-          onNewStudio() {
-            calls.push('studio');
-          },
           onResumeSession() {},
           async onRenameSession() {},
           async onArchiveSession() {},
@@ -130,16 +126,13 @@ test('the fixed launcher rows lead the session list and open a task or a Studio 
     assert.ok(scroller, 'the Recent list lives in the scroller');
     assert.equal(launchers.closest('.session-sidebar-scroll'), null, 'the launcher rows stay outside the scroller');
     assert.equal(launchers.parentElement, scroller.parentElement, 'launchers and scroller share the Sessions surface');
-    const [taskRow, studioRow] = launchers.querySelectorAll('button');
+    const [taskRow, extraRow] = launchers.querySelectorAll('button');
     assert.equal(taskRow?.textContent, 'New task');
-    assert.equal(studioRow?.textContent, 'New Studio');
+    assert.equal(extraRow, undefined);
     await act(async () => {
       taskRow.click();
     });
-    await act(async () => {
-      studioRow.click();
-    });
-    assert.deepEqual(calls, ['task', 'studio']);
+    assert.deepEqual(calls, ['task']);
   } finally {
     await act(async () => root.unmount());
     restore();

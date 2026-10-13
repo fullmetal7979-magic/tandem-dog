@@ -78,7 +78,7 @@ export function createDocumentPreviewOperations({
 }) {
   const runtime = async (): Promise<DocumentPreviewModule> => {
     if (!loadDocumentPreview) {
-      throw new Error('Document preview is unavailable in this build.');
+      throw new Error('이 파일 형식은 미리보기를 지원하지 않아요. 기본 앱으로 열어 주세요.');
     }
     return await loadDocumentPreview();
   };

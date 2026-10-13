@@ -1,7 +1,6 @@
 // Project list and lifecycle, workspace search, and the
-// shell hand-offs (open folder, media asset, external link) the renderer asks for.
+// shell hand-offs (open folder, external link) the renderer asks for.
 import type { Shell } from 'electron';
-import { isAbsolute as pathIsAbsolute } from 'node:path';
 import { DESKTOP_IPC } from '../shared/contract';
 import type { DesktopService } from './desktop-service-contract';
 import { openLocalFileLink } from './local-file-links';
@@ -23,7 +22,7 @@ interface ProjectIpcOptions {
   host: DesktopService;
   shell: Pick<Shell, 'openPath' | 'openExternal' | 'showItemInFolder'>;
   invokeDesktopOperation: <T>(method: string, args: unknown[]) => Promise<T>;
-  operations: Record<'githubStarStatus' | 'starGithub' | 'libreOfficeStatus' | 'installLibreOffice', ServiceOperation>;
+  operations: Record<'githubStarStatus' | 'starGithub', ServiceOperation>;
 }
 
 export function registerProjectIpc({
@@ -47,25 +46,6 @@ export function registerProjectIpc({
     const failure = await shell.openPath(directory);
     if (failure) throw new Error(`Unable to open project folder: ${failure}`);
   });
-  const resolvedMediaAssetPath = async (assetId: unknown): Promise<string> => {
-    const id = requiredString(assetId, 'assetId', 512);
-    const result = await host.invokeCapability<{ available?: unknown; path?: unknown }>('resolveMediaFile', [
-      id,
-      { variant: 'original' },
-    ]);
-    const file = result.value;
-    if (file?.available !== true || typeof file.path !== 'string' || !pathIsAbsolute(file.path)) {
-      throw new Error('Media asset is unavailable.');
-    }
-    return file.path;
-  };
-  handle(DESKTOP_IPC.openMediaAsset, async (_event, assetId) => {
-    const failure = await shell.openPath(await resolvedMediaAssetPath(assetId));
-    if (failure) throw new Error(`Unable to open media asset: ${failure}`);
-  });
-  handle(DESKTOP_IPC.openMediaFolder, async (_event, assetId) => {
-    shell.showItemInFolder(await resolvedMediaAssetPath(assetId));
-  });
   handle(DESKTOP_IPC.openExternal, (_event, url) => shell.openExternal(requiredExternalUrl(url)));
   handle(DESKTOP_IPC.submitFeedback, (_event, input) => submitFeedback(input));
   handle(DESKTOP_IPC.openLocalFileLink, (_event, projectPath, href, confirmedPath) =>
@@ -73,9 +53,6 @@ export function registerProjectIpc({
   );
   handle(DESKTOP_IPC.githubStarStatus, () => operations.githubStarStatus());
   handle(DESKTOP_IPC.starGithub, () => operations.starGithub());
-  // Extensions → Office: LibreOffice dependency probe + guided install.
-  handle(DESKTOP_IPC.libreOfficeStatus, () => operations.libreOfficeStatus());
-  handle(DESKTOP_IPC.installLibreOffice, () => operations.installLibreOffice());
   handle(DESKTOP_IPC.renameProject, (_event, projectPath, alias) =>
     host.renameProject(requiredString(projectPath, 'projectPath'), projectDisplayName(alias))
   );

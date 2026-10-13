@@ -17,8 +17,6 @@ import { envFlag } from '../../runtime/shared/env.mjs';
 import { TOOL_DEFS as BROWSER_BRIDGE_TOOL_DEFS } from '../../runtime/browser-bridge/tool-defs.mjs';
 import { TOOL_DEFS as COMPUTER_BRIDGE_TOOL_DEFS } from '../../runtime/computer-bridge/tool-defs.mjs';
 import { TOOL_DEFS as TERMINAL_BRIDGE_TOOL_DEFS } from '../../runtime/terminal-bridge/tool-defs.mjs';
-import { TOOL_DEFS as OFFICE_TOOL_DEFS } from '../../runtime/office/tool-defs.mjs';
-import { TOOL_DEFS as MEDIA_TOOL_DEFS } from '../../runtime/media/tool-defs.mjs';
 import { TOOL_DEFS as TIDY_TOOL_DEFS } from '../../runtime/tidy/tool-defs.mjs';
 import { SETUP_TOOL_DEFS } from '../setup-tool/tool-defs.mjs';
 import { createSetupToolExecutor } from '../setup-tool/executor.mjs';
@@ -151,8 +149,6 @@ function wireToolSurface(boot) {
     browserToolDefs: BROWSER_BRIDGE_TOOL_DEFS,
     computerToolDefs: COMPUTER_BRIDGE_TOOL_DEFS,
     terminalToolDefs: TERMINAL_BRIDGE_TOOL_DEFS,
-    officeToolDefs: OFFICE_TOOL_DEFS,
-    mediaToolDefs: MEDIA_TOOL_DEFS,
     tidyToolDefs: TIDY_TOOL_DEFS,
     setupToolDefs: SETUP_TOOL_DEFS,
     goalTools: goalRuntime.tools,
@@ -231,8 +227,6 @@ function wireInternalTools(boot) {
       setupTool,
       webSearchEnabled: boot.webSearchEnabled,
       memoryToolsEnabled: boot.memoryToolsEnabledFn,
-      officeToolsEnabled: boot.officeToolsEnabledFn,
-      mediaToolEnabled: boot.mediaToolEnabledFn,
       tidyToolEnabled: boot.tidyToolEnabledFn,
       getWebSearchModule: boot.getWebSearchModule,
       getMemoryModule: boot.getMemoryModule,

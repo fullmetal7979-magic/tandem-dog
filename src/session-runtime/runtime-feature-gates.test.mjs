@@ -25,7 +25,7 @@ function withoutFeatureOverrides(t) {
 }
 
 const installed = {
-  builtins: { git: { installed: true }, memory: { installed: true }, office: { installed: true } },
+  builtins: { git: { installed: true }, memory: { installed: true }, tidy: { installed: true } },
 };
 
 test('gates read the live config, so a toggle takes effect without rebuilding them', (t) => {
@@ -36,13 +36,13 @@ test('gates read the live config, so a toggle takes effect without rebuilding th
     getToolProfile: () => 'interactive',
   });
 
-  assert.equal(gates.officeToolsEnabledFn(), true);
-  assert.equal(gates.featureDisallowedTools().includes('office'), false);
+  assert.equal(gates.tidyToolEnabledFn(), true);
+  assert.equal(gates.featureDisallowedTools().includes('tidy'), false);
 
-  config = { ...config, modules: { office: { enabled: false } } };
+  config = { ...config, modules: { tidy: { enabled: false } } };
 
-  assert.equal(gates.officeToolsEnabledFn(), false);
-  assert.equal(gates.featureDisallowedTools().includes('office'), true);
+  assert.equal(gates.tidyToolEnabledFn(), false);
+  assert.equal(gates.featureDisallowedTools().includes('tidy'), true);
 });
 
 test('the git gate needs no install marker on any tool profile', (t) => {

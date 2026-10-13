@@ -24,7 +24,6 @@ const CATEGORY_NAMES = {
   Editor: () => t('Editor'),
   Terminal: () => t('Terminal'),
   Task: () => t('Task'),
-  Studio: () => t('Studio'),
   Preferences: () => t('Preferences'),
 };
 
@@ -57,7 +56,6 @@ export function buildAppWorkbenchCommands({
   toggleDock,
   openTerminalTab,
   startTask,
-  openStudioTab,
   openSettings,
 }: {
   quickAccessMode: WorkbenchQuickAccessMode | null;
@@ -77,7 +75,6 @@ export function buildAppWorkbenchCommands({
   toggleDock(): void;
   openTerminalTab(): void;
   startTask(): void;
-  openStudioTab(): void;
   openSettings(): void;
 }): WorkbenchCommand[] {
   if (quickAccessMode !== 'commands') return [];
@@ -394,12 +391,6 @@ export function buildAppWorkbenchCommands({
       label: 'New Task',
       shortcut: 'Ctrl+N',
       run: () => startTask(),
-    },
-    {
-      id: 'mixdog.action.newStudio',
-      category: 'Studio',
-      label: 'New Studio',
-      run: () => openStudioTab(),
     },
     {
       id: 'workbench.action.openSettings',

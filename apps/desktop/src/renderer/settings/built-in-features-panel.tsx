@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type {
   DesktopGitCliStatus,
-  DesktopLibreOfficeStatus,
   DesktopSettings,
   DesktopTidyEngineStatus,
   DesktopTidyInstallStatus,
@@ -67,13 +66,12 @@ function voiceProgress(snapshot: unknown): { text: string; percent: number | nul
   };
 }
 
-/** Desktop settings and the Git / LibreOffice dependency status the cards depend on. */
+/** Desktop settings and the Git dependency status the cards depend on. */
 function useDesktopFeatureStatus(api: PanelContext['api']) {
   const [settings, setSettings] = useState<DesktopSettings | null>(
     () => desktopSettingsCache.get(api as object) ?? null
   );
   const [gitStatus, setGitStatus] = useState<DesktopGitCliStatus | null>(null);
-  const [officeDependency, setOfficeDependency] = useState<DesktopLibreOfficeStatus | null>(null);
   useEffect(() => {
     let live = true;
     const read = () =>
@@ -99,17 +97,11 @@ function useDesktopFeatureStatus(api: PanelContext['api']) {
         if (live) setGitStatus(next);
       })
       .catch(() => {});
-    void api
-      .libreOfficeStatus?.()
-      .then((next) => {
-        if (live) setOfficeDependency(next);
-      })
-      .catch(() => {});
     return () => {
       live = false;
     };
   }, [api]);
-  return { settings, setSettings, gitStatus, setGitStatus, officeDependency, setOfficeDependency };
+  return { settings, setSettings, gitStatus, setGitStatus };
 }
 
 type FeatureState = {
@@ -207,14 +199,12 @@ function FeatureDetailDialog({
   localActions,
   api,
   gitStatus,
-  officeDependency,
   tidyStatus,
   tidyInstallStatus,
 }: {
   api: PanelContext['api'];
   state: FeatureState;
   gitStatus: DesktopGitCliStatus | null;
-  officeDependency: DesktopLibreOfficeStatus | null;
   tidyStatus: DesktopTidyEngineStatus | null;
   tidyInstallStatus: DesktopTidyInstallStatus | null;
   onInstall(): void;
@@ -273,7 +263,7 @@ function FeatureDetailDialog({
           </ExtensionItemList>
         </ExtensionSection>
       )}
-      <BuiltInFeatureInfo state={state} gitStatus={gitStatus} officeDependency={officeDependency} />
+      <BuiltInFeatureInfo state={state} gitStatus={gitStatus} />
     </ExtensionDetailDialog>
   );
 }
@@ -289,8 +279,7 @@ export function BuiltInFeaturesPanel({
   initialFeature?: BuiltInFeatureId | null;
 }) {
   const localActions = useLocalProviderActions(run, pending);
-  const { settings, setSettings, gitStatus, setGitStatus, officeDependency, setOfficeDependency } =
-    useDesktopFeatureStatus(api);
+  const { settings, setSettings, gitStatus, setGitStatus } = useDesktopFeatureStatus(api);
   const [action, setAction] = useState<FeatureAction | null>(null);
   // Optimistic toggle state: the switch flips immediately and rolls back if
   // the round trip fails, instead of sitting still until the daemon answers.
@@ -378,7 +367,7 @@ export function BuiltInFeaturesPanel({
       const result = record(await run('setMemoryToolsEnabled', [next], `built-in-${id}`));
       return record(result.memory).enabled === next;
     }
-    if (id === 'git' || id === 'office' || id === 'localProvider' || id === 'tidy' || id === 'autoEffort') {
+    if (id === 'git' || id === 'localProvider' || id === 'tidy' || id === 'autoEffort') {
       const result = record(await run('setBuiltinToolEnabled', [id, next], `built-in-${id}`));
       if (id === 'autoEffort') publishAutoEffort(result);
       return record(result[id]).enabled === next;
@@ -420,17 +409,7 @@ export function BuiltInFeaturesPanel({
         }
         setVoiceInstalled(true);
         window.dispatchEvent(new Event('mixdog:voice-runtime-changed'));
-      } else if (id === 'memory' || id === 'office' || id === 'tidy' || id === 'autoEffort') {
-        // Office leans on LibreOffice for rendering and recalculation, so its
-        // Install step brings the dependency in first (winget/brew) — the same
-        // guided pattern the Git card uses for system Git.
-        if (id === 'office' && officeDependency?.installed !== true && api.installLibreOffice) {
-          const dependency = await api.installLibreOffice();
-          if (!dependency?.installed) {
-            throw new Error(t('LibreOffice installation did not complete.'));
-          }
-          setOfficeDependency(dependency);
-        }
+      } else if (id === 'memory' || id === 'tidy' || id === 'autoEffort') {
         const result = record(await run('installBuiltinFeature', [id], `built-in-${id}`));
         const entry = record(result[id]);
         if (entry.installed !== true || entry.enabled !== true) {
@@ -528,7 +507,6 @@ export function BuiltInFeaturesPanel({
           api={api}
           localActions={localActions}
           gitStatus={gitStatus}
-          officeDependency={officeDependency}
           tidyStatus={tidy.status}
           tidyInstallStatus={tidy.installStatus}
           onInstall={() => install(open.id)}

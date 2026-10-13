@@ -8,7 +8,6 @@ export type NavigationSelection =
  * They still use the same tab/split/persistence model as task and file tabs. */
 export type WorkspaceSelection =
   | NavigationSelection
-  | { kind: 'studio'; id: string }
   | { kind: 'terminal'; id: string; cwd?: string }
   /** A user-only browser page. `id` is the browser page id (a
    *  MAIN_BROWSER_PAGE_PREFIX id on the shared sign-in partition); `url` and

@@ -1,17 +1,14 @@
-import { FileText, FolderOpen, Play, X } from 'lucide-react';
+import { FileText, Play, X } from 'lucide-react';
 import { useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ImageLightbox, lightboxItemsFor, useLightboxRegistration, type LightboxItem } from './image-lightbox';
 import { openProjectFileInDefaultApp, useLocalImagePreview } from './local-image-preview';
 import type { ResolvedLocalLink } from './local-link-resolver';
 import type { TranscriptItem } from './desktop-types';
-import { showDesktopToast } from './desktop-toasts';
-import { errorMessageText } from './ErrorNotice';
 import { t } from './i18n';
 import { verifyLocalLink } from './local-link-resolver';
 import { MarkdownLink, MarkdownProjectContext } from './MarkdownLink';
 import { MxIcon } from './MxIcon';
 import { parseLocalFileLocation } from '../shared/local-files';
-import { mediaUrl } from './studio-support';
 import { transcriptArtifacts, type TranscriptArtifact } from './transcript-artifacts';
 
 /** file:// href for a local artifact path; a Windows drive segment stays unencoded. */
@@ -173,55 +170,6 @@ function MediaFigure({
   );
 }
 
-function GeneratedMedia({ artifact, square }: { artifact: TranscriptArtifact; square: boolean }) {
-  const api = window.mixdogDesktop;
-  const id = artifact.assetId!;
-  const open = async (folder = false) => {
-    try {
-      const action = folder ? api?.openMediaFolder : api?.openMediaAsset;
-      if (!action) throw new Error(t('Local file links can only be opened in the desktop app.'));
-      await action(id);
-    } catch (error) {
-      showDesktopToast(t('Unable to open file: {{error}}', { error: errorMessageText(error) }), 'error');
-    }
-  };
-  return (
-    <MediaFigure
-      artifact={artifact}
-      original={mediaUrl(api, id, 'original')}
-      preview={mediaUrl(api, id, artifact.kind === 'video' ? 'thumb' : 'display')}
-      square={square}
-      openDefault={() => void open()}
-      actions={
-        <>
-          {/* Same icon-only action grammar as the response copy control: transparent
-            icon-button + tooltip, never a native grey text button. */}
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t('Open file')}
-            data-tooltip={t('Open file')}
-            onClick={() => void open()}
-          >
-            <MxIcon name="open-file" size={14} />
-          </button>
-          {api?.openMediaFolder && (
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={t('Open Folder')}
-              data-tooltip={t('Open Folder')}
-              onClick={() => void open(true)}
-            >
-              <FolderOpen size={14} aria-hidden="true" />
-            </button>
-          )}
-        </>
-      }
-    />
-  );
-}
-
 /** An image an edit wrote (SVG), shown like generated media through the file
  *  preview lane; `<img>` never runs the SVG's scripts. A file that cannot be
  *  previewed falls back to the document row, which also reports deletion. */
@@ -301,20 +249,16 @@ function DocumentArtifact({ artifact }: { artifact: TranscriptArtifact }) {
 export function TranscriptArtifacts({ items }: { items: readonly TranscriptItem[] }) {
   const artifacts = useMemo(() => transcriptArtifacts(items), [items]);
   if (!artifacts.length) return null;
-  const media = artifacts.filter((artifact) => artifact.assetId || artifact.kind === 'image');
+  const media = artifacts.filter((artifact) => artifact.kind === 'image');
   const files = artifacts.filter((artifact) => !media.includes(artifact));
   const square = media.length >= 4;
   return (
     <div className="transcript-artifacts">
       {media.length > 0 && (
         <div className={square ? 'transcript-artifact-grid' : 'transcript-artifact-row'}>
-          {media.map((artifact) =>
-            artifact.assetId ? (
-              <GeneratedMedia key={artifact.key} artifact={artifact} square={square} />
-            ) : (
-              <LocalImageArtifact key={artifact.key} artifact={artifact} square={square} />
-            )
-          )}
+          {media.map((artifact) => (
+            <LocalImageArtifact key={artifact.key} artifact={artifact} square={square} />
+          ))}
         </div>
       )}
       {files.length > 0 && (

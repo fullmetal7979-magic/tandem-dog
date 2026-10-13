@@ -38,8 +38,6 @@ export type CapabilityApi = Partial<
     | 'updateSetting'
     | 'gitCliStatus'
     | 'installGitCli'
-    | 'libreOfficeStatus'
-    | 'installLibreOffice'
   >
 >;
 

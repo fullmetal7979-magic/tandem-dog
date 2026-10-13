@@ -41,10 +41,6 @@ function parseWorkspaceSelection(value: unknown): WorkspaceSelection | null {
       const accessToken = text('accessToken');
       return { kind: 'file', project, rel, ...(accessToken ? { accessToken } : {}) };
     }
-    case 'studio': {
-      const id = text('id');
-      return id ? { kind: 'studio', id } : null;
-    }
     case 'terminal': {
       const id = text('id');
       if (!id) return null;

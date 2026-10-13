@@ -28,8 +28,6 @@ function harness(overrides = {}) {
     setupTool: { execute: record('setup') },
     webSearchEnabled: () => false,
     memoryToolsEnabled: () => false,
-    officeToolsEnabled: () => false,
-    mediaToolEnabled: () => false,
     tidyToolEnabled: () => false,
     getWebSearchModule: async () => null,
     getMemoryModule: async () => ({ handleToolCall: record('memory') }),
@@ -50,8 +48,6 @@ test('model-tool calls to disabled features are refused before any dispatch', as
   const source = { invocationSource: 'model-tool' };
   await assert.rejects(execute('web_search', { q: 'x' }, source), /web search is disabled/);
   await assert.rejects(execute('memory', {}, source), /memory tools are disabled/);
-  await assert.rejects(execute('office', {}, source), /office is disabled/);
-  await assert.rejects(execute('media', {}, source), /media is disabled/);
   await assert.rejects(execute('tidy', {}, source), /tidy is disabled/);
   const previous = process.env.MIXDOG_FEATURE_BROWSER;
   process.env.MIXDOG_FEATURE_BROWSER = '0';

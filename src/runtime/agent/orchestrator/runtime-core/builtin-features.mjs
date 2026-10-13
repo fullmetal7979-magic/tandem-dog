@@ -38,8 +38,8 @@ function bridgePresent(file) {
   }
 }
 
-export const INSTALLABLE_BUILTIN_IDS = Object.freeze(['git', 'memory', 'office', 'tidy', 'localProvider', 'autoEffort']);
-const GRANDFATHERED_BUILTIN_IDS = Object.freeze(['git', 'memory', 'office']);
+export const INSTALLABLE_BUILTIN_IDS = Object.freeze(['git', 'memory', 'tidy', 'localProvider', 'autoEffort']);
+const GRANDFATHERED_BUILTIN_IDS = Object.freeze(['git', 'memory']);
 
 /** Model-facing activation for one gated feature: an explicit MIXDOG_FEATURE_*
  *  env override (headless/bench) wins, otherwise the install marker and the
@@ -62,13 +62,7 @@ export function builtinFeatureActive(configLike, id) {
       (builtinInstalled(configLike, 'git') && moduleEnabled(configLike, 'git', true))
     );
   }
-  if (id === 'office') {
-    return (
-      featureEnvOverride('MIXDOG_FEATURE_OFFICE') ??
-      (builtinInstalled(configLike, 'office') && moduleEnabled(configLike, 'office', true))
-    );
-  }
-  // Code tidy installs like office: the tool ships with the runtime, but the
+  // Code tidy is install-gated: the tool ships with the runtime, but the
   // engines it drives are downloaded per project, so the user opts in once.
   // The `code-tidy` skill follows through `requires: tidy`.
   if (id === 'tidy') {
@@ -88,14 +82,6 @@ export function builtinFeatureActive(configLike, id) {
   if (id === 'autoEffort') {
     if (!onnxRuntimeSupported()) return false;
     return featureEnvOverride('MIXDOG_FEATURE_AUTO_EFFORT') ?? moduleEnabled(configLike, 'autoEffort', true);
-  }
-  // Media Studio is a hidden built-in like setup: no Settings card, no install
-  // step, always on. The lane catalog ships with the runtime and sign-in happens
-  // per provider; only the env override (headless) or a hand-edited module
-  // toggle gates it, and a signed-out catalog fails per call with the lanes it
-  // does have. The image/video skills follow through `requires: media`.
-  if (id === 'media') {
-    return featureEnvOverride('MIXDOG_FEATURE_MEDIA') ?? moduleEnabled(configLike, 'media', true);
   }
   // Bridge-gated features (skills that describe the `browser` / `computer`
   // tools use these ids in metadata.requires so they are offered only while
@@ -132,8 +118,6 @@ export function featureDisallowedToolsFor(
     ...(browser ? [] : ['browser', 'browser_devtools']),
     ...(computer ? [] : ['computer']),
     ...(terminal ? [] : ['terminal']),
-    ...(builtinFeatureActive(configLike, 'office') ? [] : ['office']),
-    ...(builtinFeatureActive(configLike, 'media') ? [] : ['media']),
     ...(builtinFeatureActive(configLike, 'tidy') ? [] : ['tidy']),
   ];
   // Headless exec uses the Lead surface and excludes Skill/MCP tools. When

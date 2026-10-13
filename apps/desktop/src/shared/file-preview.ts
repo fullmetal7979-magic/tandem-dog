@@ -35,10 +35,9 @@ const FILE_PREVIEW_TYPES: Readonly<Record<string, DesktopFilePreviewType>> = Obj
   mov: { kind: 'video', mime: 'video/quicktime' },
 });
 
-// Documents with no browser-native viewer at all. They reach a preview through
-// a LibreOffice conversion in the runtime, which owns the authoritative list
-// and refuses anything else; this copy only decides whether the editor offers
-// the attempt instead of the binary-file notice.
+// Documents with no browser-native viewer at all. They still open as editor
+// tabs; a build that ships a document converter renders their pages, and
+// COSMOS (which ships none) answers with the binary-file notice instead.
 const DOCUMENT_PREVIEW_FORMATS: ReadonlySet<string> = new Set([
   'docx',
   'doc',

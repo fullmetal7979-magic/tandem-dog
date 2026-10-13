@@ -19,9 +19,7 @@ export function createRuntimeFeatureGates({ getConfig, getToolProfile }) {
     memoryToolsEnabledFn: () => builtinFeatureActive(getConfig(), 'memory'),
     webSearchEnabled: () => builtinFeatureActive(getConfig(), 'webSearch'),
     gitToolsEnabledFn: () => localGitToolsActive(getConfig()),
-    officeToolsEnabledFn: () => builtinFeatureActive(getConfig(), 'office'),
     localProviderEnabledFn: () => builtinFeatureActive(getConfig(), 'localProvider'),
-    mediaToolEnabledFn: () => builtinFeatureActive(getConfig(), 'media'),
     tidyToolEnabledFn: () => builtinFeatureActive(getConfig(), 'tidy'),
     // Browser/Computer activate on live desktop-bridge presence, so the probe
     // runs per call instead of being captured at boot.

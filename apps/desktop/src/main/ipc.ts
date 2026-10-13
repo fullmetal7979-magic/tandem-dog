@@ -36,8 +36,6 @@ const SERVICE_OPERATION_NAMES = [
   'starGithub',
   'gitCliStatus',
   'installGitCli',
-  'libreOfficeStatus',
-  'installLibreOffice',
   'githubCliStatus',
   'installGithubCli',
   'githubCliLoginStart',

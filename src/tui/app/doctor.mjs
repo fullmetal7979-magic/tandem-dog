@@ -280,7 +280,7 @@ function reportLocalProvider(local, row) {
 
 function reportBuiltins(settings, row) {
   const groups = { enabled: [], disabled: [], 'not installed': [] };
-  for (const id of ['git', 'office', 'tidy']) {
+  for (const id of ['git', 'tidy']) {
     const entry = settings[id];
     if (!entry || typeof entry.installed !== 'boolean') {
       row('warn', 'status unavailable');

@@ -59,7 +59,6 @@ import type {
   DesktopGithubCliAccount,
   DesktopGithubCliLoginFlow,
   DesktopGithubCliStatus,
-  DesktopLibreOfficeStatus,
   DesktopPullRequestCategory,
   DesktopPullRequestCreateInput,
   DesktopPullRequestDetail,
@@ -131,8 +130,6 @@ export interface DesktopApi extends DesktopTandemApi {
   /** Register a folder without entering it (Projects page add dialog). */
   addProject(projectPath: string): Promise<void>;
   openProjectInExplorer(projectPath: string): Promise<void>;
-  openMediaAsset?(assetId: string): Promise<void>;
-  openMediaFolder?(assetId: string): Promise<void>;
   openExternal(url: string): Promise<void>;
   submitFeedback?(input: DesktopFeedbackInput): Promise<DesktopFeedbackReceipt>;
   /** Desktop-only chat link opener, confined to the conversation's Project:
@@ -155,9 +152,6 @@ export interface DesktopApi extends DesktopTandemApi {
    *  login/logout. Desktop-only; the remote shim omits the whole family. */
   gitCliStatus?(): Promise<DesktopGitCliStatus>;
   installGitCli?(): Promise<DesktopGitCliStatus>;
-  /** Extensions → Office: LibreOffice dependency probe + guided install. */
-  libreOfficeStatus?(): Promise<DesktopLibreOfficeStatus>;
-  installLibreOffice?(): Promise<DesktopLibreOfficeStatus>;
   githubCliStatus?(): Promise<DesktopGithubCliStatus>;
   installGithubCli?(): Promise<DesktopGithubCliStatus>;
   githubCliLoginStart?(): Promise<DesktopGithubCliLoginFlow>;
@@ -558,9 +552,5 @@ export interface DesktopApi extends DesktopTandemApi {
   setTitleBarDim(dim: { color: string; symbolColor: string } | null): Promise<void>;
   invokeCapability<T = unknown>(request: DesktopCapabilityRequest): Promise<DesktopCapabilityResult<T>>;
   readCapabilities(requests: DesktopCapabilityReadRequest[]): Promise<DesktopCapabilityReadResult[]>;
-  /** Direct URL for one media asset/rendition, or '' when this host has no
-   *  media transport. Gallery bytes ride THIS url (cacheable, range-able),
-   *  never the RPC lane. */
-  mediaUrl?(assetId: string, variant?: string): string;
   quit(): Promise<void>;
 }

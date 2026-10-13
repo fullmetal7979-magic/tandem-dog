@@ -61,7 +61,6 @@ function context({ run, snapshot = null, voice = {}, api = {}, toolModules = {} 
         webSearch: { enabled: true },
         memory: { enabled: true, installed: true },
         git: { enabled: true, installed: true },
-        office: { enabled: true, installed: true },
         tidy: { enabled: true, installed: true },
         ...toolModules,
       },
@@ -306,110 +305,6 @@ test('system Git alone does not bypass the Mixdog install marker', async () => {
   }
 });
 
-test('missing LibreOffice dependency installs inline before the Office feature', async () => {
-  const host = document.createElement('main');
-  document.body.append(host);
-  const root = createRoot(host);
-  const dependency = deferred();
-  const calls = [];
-  const apiCalls = [];
-  // Each render builds a fresh api object, which re-runs the status effect —
-  // so the probe answers from the current dependency state instead of
-  // rewinding a just-finished install.
-  let dependencyState = { installed: false };
-  const run = async (capability, args) => {
-    calls.push([capability, args]);
-    return { office: { enabled: true, installed: true } };
-  };
-  const render = (toolModules) =>
-    act(async () => {
-      root.render(
-        React.createElement(CategoryPanel, {
-          category: 'builtins',
-          context: context({
-            run,
-            toolModules,
-            api: {
-              libreOfficeStatus: async () => dependencyState,
-              installLibreOffice: async () => {
-                apiCalls.push('installLibreOffice');
-                return dependency.promise;
-              },
-            },
-          }),
-        })
-      );
-    });
-
-  try {
-    await render({ office: { enabled: false, installed: false } });
-    await openFeature('office');
-    const install = document.querySelector('[data-feature-id="office"] button[aria-label="Install Office"]');
-    assert.ok(install);
-    await act(async () => install.click());
-    // The dependency phase reports no percent: the slot bar runs indeterminate,
-    // and the feature install itself waits for LibreOffice to land.
-    assert.ok(
-      document.querySelector(
-        '[data-feature-id="office"] [role="progressbar"] .built-in-feature-progress-bar.is-indeterminate'
-      )
-    );
-    assert.deepEqual(calls, []);
-
-    dependencyState = { installed: true, version: '25.2.1.2' };
-    await act(async () => dependency.resolve(dependencyState));
-    assert.deepEqual(apiCalls, ['installLibreOffice']);
-    assert.deepEqual(calls, [['installBuiltinFeature', ['office']]]);
-    // The capability result refreshes toolModules; the card then shows the
-    // toggle without exposing dependency version metadata.
-    await render({ office: { enabled: true, installed: true } });
-    assert.ok(document.querySelector('[data-feature-id="office"] input[aria-label="Office"]'));
-  } finally {
-    await act(async () => root.unmount());
-    host.remove();
-  }
-});
-
-test('a present LibreOffice skips the dependency step of the Office install', async () => {
-  const host = document.createElement('main');
-  document.body.append(host);
-  const root = createRoot(host);
-  const calls = [];
-  const apiCalls = [];
-  const run = async (capability, args) => {
-    calls.push([capability, args]);
-    return { office: { enabled: true, installed: true } };
-  };
-
-  try {
-    await act(async () => {
-      root.render(
-        React.createElement(CategoryPanel, {
-          category: 'builtins',
-          context: context({
-            run,
-            toolModules: { office: { enabled: false, installed: false } },
-            api: {
-              libreOfficeStatus: async () => ({ installed: true, version: '25.2.1.2' }),
-              installLibreOffice: async () => {
-                apiCalls.push('installLibreOffice');
-                return { installed: true };
-              },
-            },
-          }),
-        })
-      );
-    });
-    await openFeature('office');
-    await act(async () => document.querySelector('[data-feature-id="office"] button').click());
-    assert.deepEqual(apiCalls, []);
-    assert.deepEqual(calls, [['installBuiltinFeature', ['office']]]);
-  } finally {
-    await act(async () => root.unmount());
-    host.remove();
-  }
-});
-
 test('an uninstalled built-in installs through the shared capability', async () => {
   const host = document.createElement('main');
   document.body.append(host);
@@ -598,14 +493,11 @@ test('built-in feature switches route to their existing authoritative settings',
     });
     await openFeature('memory');
     await act(async () => document.querySelector('[data-feature-id="memory"] input').click());
-    await openFeature('office');
-    await act(async () => document.querySelector('[data-feature-id="office"] input').click());
     await openFeature('tidy');
     await act(async () => document.querySelector('[data-feature-id="tidy"] input').click());
     assert.equal(document.querySelector('input[aria-label="Observation only"]'), null);
     assert.deepEqual(calls, [
       ['setMemoryToolsEnabled', [false]],
-      ['setBuiltinToolEnabled', ['office', false]],
       ['setBuiltinToolEnabled', ['tidy', false]],
     ]);
   } finally {
@@ -755,13 +647,11 @@ test('runtime-backed Built-ins stay installed through OFF and ON', async () => {
   let toolModules = {
     memory: { enabled: true, installed: true },
     git: { enabled: true, installed: true },
-    office: { enabled: true, installed: true },
     tidy: { enabled: true, installed: true },
   };
   let voice = { enabled: true, installed: true };
   const api = {
     gitCliStatus: async () => ({ installed: true }),
-    libreOfficeStatus: async () => ({ installed: true }),
   };
   const run = async (capability, args) => {
     calls.push([capability, args]);
@@ -793,7 +683,7 @@ test('runtime-backed Built-ins stay installed through OFF and ON', async () => {
   try {
     await render();
     const featureLabels = { voice: 'Voice transcription', git: 'Git & GitHub', tidy: 'Code Tidy' };
-    for (const id of ['memory', 'git', 'office', 'tidy', 'voice']) {
+    for (const id of ['memory', 'git', 'tidy', 'voice']) {
       const label = featureLabels[id] ?? id[0].toUpperCase() + id.slice(1);
       await openFeature(id);
       let toggle = labelled(id, 'input', label);
@@ -811,13 +701,11 @@ test('runtime-backed Built-ins stay installed through OFF and ON', async () => {
       toggle = labelled(id, 'input', label);
       assert.equal(toggle.checked, true, `${id} turns back on`);
     }
-    assert.deepEqual(calls.slice(-10), [
+    assert.deepEqual(calls.slice(-8), [
       ['setMemoryToolsEnabled', [false]],
       ['setMemoryToolsEnabled', [true]],
       ['setBuiltinToolEnabled', ['git', false]],
       ['setBuiltinToolEnabled', ['git', true]],
-      ['setBuiltinToolEnabled', ['office', false]],
-      ['setBuiltinToolEnabled', ['office', true]],
       ['setBuiltinToolEnabled', ['tidy', false]],
       ['setBuiltinToolEnabled', ['tidy', true]],
       ['toggleVoice', [false]],

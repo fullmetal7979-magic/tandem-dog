@@ -38,7 +38,6 @@ export function useAppSidebarSurface({
   onExtensionsSectionChange,
   closeSidebarForNavigation,
   startTask,
-  openStudio,
   openSession,
   refreshProjects,
   renameProject,
@@ -64,7 +63,6 @@ export function useAppSidebarSurface({
   closeSidebarForNavigation(): void;
   startTask(): unknown;
   /** Opens a Studio workspace tab in the focused pane. */
-  openStudio(): unknown;
   openSession(sessionId: string): unknown;
   refreshProjects(): Promise<DesktopProjectSummary[]>;
   renameProject(path: string, alias: string): unknown;
@@ -191,13 +189,6 @@ export function useAppSidebarSurface({
     closeSidebarForNavigation();
     startTask();
   });
-  // The Sessions panel's second fixed launcher row: Studio opens as a
-  // workspace tab exactly like New Task (user: 세션 위에 새 작업·새 스튜디오
-  // 고정), so the phone drawer closes the same way before the tab lands.
-  const sidebarNewStudio = useStableEvent(() => {
-    closeSidebarForNavigation();
-    openStudio();
-  });
   const sidebarResumeSession = useStableEvent((sessionId: string) => {
     closeSidebarForNavigation();
     openSession(sessionId);
@@ -279,7 +270,6 @@ export function useAppSidebarSurface({
   return {
     presentedSidebarPanel,
     sidebarNewTask,
-    sidebarNewStudio,
     sidebarPanel,
     sidebarPanelTitle,
     sidebarResumeSession,

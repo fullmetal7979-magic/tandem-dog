@@ -11,7 +11,6 @@ import { REPO_SLUG } from '../shared/fork-identity';
 import { createGithubService } from './github-service';
 import { LanguageServerManager } from './language-server-manager';
 import * as localFiles from './local-files';
-import * as libreoffice from './libreoffice';
 import * as projectFiles from './project-files';
 import { listShellProfiles, resolveShellProfileSpawn } from './shell-profiles';
 import { DesktopSettingsStore, settingsConfigModuleUrl } from './settings-store';
@@ -223,7 +222,6 @@ const STATIC_OPERATIONS = {
   installGitCli: github.installGitCli,
   installGithubCli: github.installGithubCli,
   setGitGlobalConfig: github.setGitGlobalConfig,
-  libreOfficeStatus: libreoffice.libreOfficeStatus,
   gitAbortOperation: git.gitAbortOperation,
   gitAmend: git.gitAmend,
   gitApplyPatch: git.gitApplyPatch,
@@ -356,9 +354,6 @@ export function createDesktopOperations({
     if (name === 'updateZoom') return settingsStore.updateZoom(Number(args[0]));
     if (name === 'githubStarStatus') return githubStarStatus();
     if (name === 'starGithub') return starGithub();
-    if (name === 'installLibreOffice') {
-      return libreoffice.installLibreOffice({ packaged, resourcesPath, appPath });
-    }
     if (name === 'lspDocument') {
       return languageServers.document(
         String(args[0] || ''),

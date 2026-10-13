@@ -4,7 +4,6 @@
 // provider-readiness state between them.
 import { performance } from 'node:perf_hooks';
 import { ensureStandaloneEnvironment } from './services/seeds.mjs';
-import { listOfficeJournals } from '../runtime/office/core/journal.mjs';
 import { bootProfile, profiledImport } from './boot-profile.mjs';
 import {
   RUNTIME,
@@ -24,12 +23,6 @@ export function prepareStandaloneEnvironment() {
     rootDir: STANDALONE_ROOT,
     dataDir: STANDALONE_DATA_DIR,
   });
-  // Office journals exist only for cross-process crash recovery, so startup just
-  // prunes expired ones in the background. Surfacing them as session context made
-  // every new session (agents included) re-announce unrelated leftovers for the
-  // full 30-day retention window; recovery stays reachable on demand through
-  // office action=transactions / action=recover.
-  listOfficeJournals(STANDALONE_DATA_DIR).catch(() => {});
   bootProfile('standalone-env:ready', { ms: (performance.now() - startedAt).toFixed(1) });
 }
 

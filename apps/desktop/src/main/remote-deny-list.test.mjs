@@ -67,13 +67,6 @@ test('custom provider administration stays desktop-local', () => {
   }
 });
 
-test('the media resolver stays desktop-local for its own documented reason', () => {
-  // Not secret-bearing: a phone reaches media through the media HTTP route and
-  // never needs host filesystem paths.
-  assert.equal(REMOTE_BLOCKED_CAPABILITIES.has('resolveMediaFile'), true);
-  assert.throws(() => assertRemoteCapability('resolveMediaFile'), /is not available over remote access/);
-});
-
 test('every deny-list entry still names a real capability', () => {
   const known = new Set(DESKTOP_CAPABILITIES);
   for (const capability of REMOTE_BLOCKED_CAPABILITIES) {

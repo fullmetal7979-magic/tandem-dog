@@ -45,7 +45,6 @@ function fixture({
     webSearchEnabled: () => true,
     memoryToolsEnabledFn: () => true,
     gitToolsEnabledFn: () => moduleEnabled(config, 'git', true),
-    officeToolsEnabledFn: () => moduleEnabled(config, 'office', true),
     localProviderEnabledFn: () =>
       config.builtins?.localProvider?.installed === true && moduleEnabled(config, 'localProvider', true),
     getLocalProviderStatus: () => ({
@@ -88,10 +87,9 @@ function fixture({
   };
 }
 
-test('built-in Git and Office settings persist and refresh empty-session tools', async () => {
+test('built-in Git settings persist and refresh empty-session tools', async () => {
   const state = fixture();
   assert.deepEqual(state.api.getToolModuleSettings().git, { enabled: true, installed: false });
-  assert.deepEqual(state.api.getToolModuleSettings().office, { enabled: true, installed: false });
 
   const result = await state.api.setBuiltinToolEnabled('git', false);
   assert.deepEqual(result.git, { enabled: false, installed: false });
@@ -101,19 +99,19 @@ test('built-in Git and Office settings persist and refresh empty-session tools',
 
 test('enabling a built-in tool marks it installed; install runs the adapter', async () => {
   const state = fixture();
-  const enabled = await state.api.setBuiltinToolEnabled('office', true);
-  assert.deepEqual(enabled.office, { enabled: true, installed: true });
-  assert.equal(state.config().builtins.office.installed, true);
+  const enabled = await state.api.setBuiltinToolEnabled('tidy', true);
+  assert.deepEqual(enabled.tidy, { enabled: true, installed: true });
+  assert.equal(state.config().builtins.tidy.installed, true);
 
   const installed = await state.api.installBuiltinFeature('git');
   assert.deepEqual(installed.git, { enabled: true, installed: true });
   assert.equal(state.config().modules.git.enabled, true);
   await assert.rejects(
     state.api.installBuiltinFeature('shell'),
-    /git, memory, office, tidy, localProvider, or autoEffort/
+    /git, memory, tidy, localProvider, or autoEffort/
   );
 
-  // Code tidy installs and toggles through the same path as office.
+  // Code tidy installs and toggles through the same install-gated path.
   const tidy = await state.api.installBuiltinFeature('tidy');
   assert.deepEqual(tidy.tidy, { enabled: true, installed: true });
   assert.equal(state.config().builtins.tidy.installed, true);
@@ -205,7 +203,7 @@ test('built-in tool setting rejects names outside the first-party registry', asy
   const state = fixture();
   await assert.rejects(
     state.api.setBuiltinToolEnabled('shell', false),
-    /git, office, tidy, localProvider, or autoEffort/
+    /git, tidy, localProvider, or autoEffort/
   );
   assert.deepEqual(state.config(), {});
 });
@@ -254,17 +252,17 @@ test('disabling installed runtime built-ins preserves every install marker', asy
   const state = fixture();
   await state.api.installBuiltinFeature('git');
   await state.api.installBuiltinFeature('memory');
-  await state.api.installBuiltinFeature('office');
+  await state.api.installBuiltinFeature('tidy');
 
   const gitOff = await state.api.setBuiltinToolEnabled('git', false);
-  const officeOff = await state.api.setBuiltinToolEnabled('office', false);
+  const tidyOff = await state.api.setBuiltinToolEnabled('tidy', false);
   await state.api.setMemoryToolsEnabled(false);
 
   assert.deepEqual(gitOff.git, { enabled: false, installed: true });
-  assert.deepEqual(officeOff.office, { enabled: false, installed: true });
+  assert.deepEqual(tidyOff.tidy, { enabled: false, installed: true });
   assert.equal(state.config().builtins.git.installed, true);
   assert.equal(state.config().builtins.memory.installed, true);
-  assert.equal(state.config().builtins.office.installed, true);
+  assert.equal(state.config().builtins.tidy.installed, true);
 });
 
 test('local runtime activation preserves settings changed while preparation was pending', async () => {
@@ -284,7 +282,6 @@ test('local runtime activation preserves settings changed while preparation was 
     webSearchEnabled: () => true,
     memoryToolsEnabledFn: () => true,
     gitToolsEnabledFn: () => true,
-    officeToolsEnabledFn: () => true,
   });
   const activating = api.setBuiltinToolEnabled('localProvider', true);
   config = { ...config, profile: { title: 'updated during preparation' } };

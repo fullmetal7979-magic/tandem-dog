@@ -157,8 +157,6 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-      - name: Install fonts and LibreOffice for the Office suites
-        uses: ./.github/actions/office-runtime
       # The tool-contract and shell-hardening suites drive the debug native
       # spawn binary; the build reuses the runner's preinstalled Rust toolchain.
       - name: Cache the native spawn test build
@@ -203,8 +201,6 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-      - name: Install fonts and LibreOffice for the Office suites
-        uses: ./.github/actions/office-runtime
       - name: Cache the native spawn test build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -249,8 +245,6 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-      - name: Install fonts and LibreOffice for the Office suites
-        uses: ./.github/actions/office-runtime
       - name: Cache the native spawn test build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -298,7 +292,7 @@ jobs:
       - name: Install an X11 session with accessibility
         if: runner.os == 'Linux'
         run: |
-          # Bounded and retried like the office-runtime action: a stuck mirror
+          # Bounded and retried: a stuck mirror
           # must fail over, not hold the job.
           apt_retry() {
             local limit="$1" attempt

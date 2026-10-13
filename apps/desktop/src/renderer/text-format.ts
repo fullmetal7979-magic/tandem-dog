@@ -27,7 +27,6 @@ export function navigationKey(selection: WorkspaceSelection) {
       ? `file-access:${selection.accessToken}`
       : `file:${selection.project}:${selection.rel}`;
   }
-  if (selection.kind === 'studio') return `studio:${selection.id}`;
   if (selection.kind === 'terminal') return `terminal:${selection.id}`;
   if (selection.kind === 'browser') return `browser:${selection.id}`;
   if (selection.kind === 'pull-request') {
@@ -47,10 +46,6 @@ export function newDraftSelection(): NavigationSelection {
 
 function workspaceInstanceId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-export function newStudioSelection(): Extract<WorkspaceSelection, { kind: 'studio' }> {
-  return { kind: 'studio', id: workspaceInstanceId() };
 }
 
 export function newBrowserSelection(url: string, title?: string): Extract<WorkspaceSelection, { kind: 'browser' }> {

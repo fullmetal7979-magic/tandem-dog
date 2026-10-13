@@ -52,7 +52,6 @@ function panelContext(overrides = {}) {
       toolModules: {
         git: { enabled: true, installed: true },
         memory: { enabled: true, installed: true },
-        office: { enabled: true, installed: true },
         tidy: { enabled: true, installed: true },
       },
       voice: { enabled: false, installed: false },
@@ -221,7 +220,6 @@ test('Plugin combines built-in features and installed plugins', async () => {
 test('built-in details show their engines and supplied model metadata instead of duplicate activation facts', async () => {
   const context = panelContext();
   context.api.gitCliStatus = async () => ({ installed: true, version: 'git 2.50.1' });
-  context.api.libreOfficeStatus = async () => ({ installed: true, version: '25.2.1' });
   context.data.voice.info = {
     engine: 'whisper.cpp',
     runtimeVersion: '1.9.2',
@@ -245,7 +243,6 @@ test('built-in details show their engines and supplied model metadata instead of
   };
   const expected = {
     git: ['git 2.50.1'],
-    office: ['25.2.1', 'Word', 'PDF'],
     voice: ['whisper.cpp · 1.9.2', 'ggml-large-v3-turbo-q8_0.bin', '0.9 GB', 'vulkan', '6.1.1'],
     memory: ['custom/embedding', 'q4', '1024', 'cuda', 'ONNX Runtime'],
     localProvider: ['llama.cpp', 'b-test', 'CUDA 12.4', 'Custom Q4_K_M', '8192'],
@@ -285,12 +282,12 @@ test('bundled skills have inert required-tool buttons and inherit parent activat
   const context = panelContext();
   context.data.skills.skills = [
     {
-      name: 'office-guide',
-      description: 'Document instructions',
-      owner: { kind: 'builtin', feature: 'office' },
+      name: 'tidy-guide',
+      description: 'Formatting instructions',
+      owner: { kind: 'builtin', feature: 'tidy' },
     },
   ];
-  context.data.disabledSkills.disabled = ['office-guide'];
+  context.data.disabledSkills.disabled = ['tidy-guide'];
   const calls = [];
   const rendered = await renderPanel('plugins', {
     ...context,
@@ -299,8 +296,8 @@ test('bundled skills have inert required-tool buttons and inherit parent activat
     },
   });
   try {
-    await act(async () => document.querySelector('[data-built-in-feature="office"]').click());
-    let dialog = document.querySelector('[data-feature-id="office"]');
+    await act(async () => document.querySelector('[data-built-in-feature="tidy"]').click());
+    let dialog = document.querySelector('[data-feature-id="tidy"]');
     assert.equal(dialog.querySelectorAll('input[type="checkbox"]').length, 1);
     const button = [...dialog.querySelectorAll('button')].find((node) => node.textContent === 'Required tools');
     assert.equal(button.disabled, true);
@@ -313,7 +310,7 @@ test('bundled skills have inert required-tool buttons and inherit parent activat
       { installed: true, enabled: false },
       { installed: false, enabled: true },
     ]) {
-      context.data = { ...context.data, toolModules: { ...context.data.toolModules, office: entry } };
+      context.data = { ...context.data, toolModules: { ...context.data.toolModules, tidy: entry } };
       await act(async () =>
         rendered.root.render(
           React.createElement(CategoryPanel, {
@@ -322,7 +319,7 @@ test('bundled skills have inert required-tool buttons and inherit parent activat
           })
         )
       );
-      dialog = document.querySelector('[data-feature-id="office"]');
+      dialog = document.querySelector('[data-feature-id="tidy"]');
       if (entry.installed) assert.equal(dialog.querySelector('input[type="checkbox"]').checked, false);
       assert.equal(dialog.querySelectorAll('input').length, entry.installed ? 1 : 0);
     }

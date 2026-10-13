@@ -20,7 +20,6 @@ export function createDesktopRuntime({ getLocalSessionBridge }) {
     loadSessionSearch: () => import('../runtime/session-search/session-search-db.mjs'),
     loadStatuslineSegments: () => import('../runtime/shared/statusline/statusline-segments.mjs'),
     loadConfig: () => import('../runtime/shared/config.mjs'),
-    loadDocumentPreview: () => import('../runtime/office/pdf/document-preview.mjs'),
     async executeCodeGraphTool(name, args, cwd) {
       const graph = await import('../runtime/agent/orchestrator/tools/code-graph/dispatch.mjs');
       return graph.executeCodeGraphTool(name, args, cwd);

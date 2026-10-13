@@ -313,13 +313,13 @@ test('mutations go through the runtime facade with validated input', async () =>
   await run(executor, { action: 'set_agent_route', agent: 'worker', route: { provider: '' } });
   assert.deepEqual(calls[1], ['setAgentRoute', 'worker', { provider: '' }]);
 
-  await run(executor, { action: 'set_builtin_enabled', name: 'office', enabled: false });
-  assert.deepEqual(calls[2], ['setBuiltinToolEnabled', 'office', false]);
+  await run(executor, { action: 'set_builtin_enabled', name: 'git', enabled: false });
+  assert.deepEqual(calls[2], ['setBuiltinToolEnabled', 'git', false]);
   await run(executor, { action: 'set_builtin_enabled', name: 'localProvider', enabled: true });
   assert.deepEqual(calls[3], ['setBuiltinToolEnabled', 'localProvider', true]);
   await assert.rejects(
     run(executor, { action: 'set_builtin_enabled', name: 'memory', enabled: true }),
-    /name must be one of git, office, tidy, localProvider/
+    /name must be one of git, tidy, localProvider/
   );
   await assert.rejects(
     run(executor, { action: 'set_builtin_enabled', name: 'git', enabled: 'yes' }),
@@ -336,7 +336,7 @@ test('mutations go through the runtime facade with validated input', async () =>
   await assert.rejects(run(executor, { action: 'set_agent_route', route: { model: 'x' } }), /agent is required/);
 
   // Code tidy installs and toggles through the same two settings-api methods
-  // office uses, so the setup tool can activate it without the desktop UI.
+  // every runtime built-in uses, so the setup tool can activate it without the desktop UI.
   const installed = await run(executor, { action: 'install_builtin', name: 'tidy' });
   assert.deepEqual(calls.at(-1), ['installBuiltinFeature', 'tidy']);
   assert.deepEqual(installed.tidy, { enabled: true, installed: true });
@@ -345,7 +345,7 @@ test('mutations go through the runtime facade with validated input', async () =>
   assert.deepEqual(calls.at(-1), ['setBuiltinToolEnabled', 'tidy', false]);
   await assert.rejects(
     run(executor, { action: 'install_builtin', name: 'shell' }),
-    /name must be one of git, memory, office, tidy, localProvider/
+    /name must be one of git, memory, tidy, localProvider/
   );
   assert.ok(SETUP_BUILTIN_TOGGLE_FEATURES.includes('tidy'));
 });

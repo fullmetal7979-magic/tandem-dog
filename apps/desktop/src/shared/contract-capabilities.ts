@@ -150,20 +150,6 @@ export const DESKTOP_CAPABILITIES = [
   'deleteWebhook',
   'setWebhookEnabled',
   // Media studio (image/video generation).
-  'listMediaLanes',
-  'listMediaAssets',
-  'readMediaAsset',
-  'cacheMediaThumbnail',
-  'resolveMediaFile',
-  'getMediaJob',
-  'getMediaDefault',
-  'setMediaDefault',
-  'startMediaJob',
-  'cancelMediaJob',
-  'deleteMediaAsset',
-  'deleteMediaAssets',
-  'openMediaAsset',
-  'openMediaFolder',
   'clear',
 ] as const;
 
@@ -218,12 +204,6 @@ export const DESKTOP_READ_CAPABILITIES = [
   'getOnboardingStatus',
   'getOAuthProviderLoginStatus',
   'getChannelSetup',
-  'listMediaLanes',
-  'listMediaAssets',
-  'readMediaAsset',
-  'resolveMediaFile',
-  'getMediaJob',
-  'getMediaDefault',
 ] as const satisfies ReadonlyArray<DesktopCapability>;
 
 export type DesktopReadCapability = (typeof DESKTOP_READ_CAPABILITIES)[number];

@@ -1,4 +1,4 @@
-import { Plus, Search, Sparkles, SquarePen } from 'lucide-react';
+import { Plus, Search, SquarePen } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DesktopSessionSummary } from '../shared/contract';
 import { t } from './i18n';
@@ -91,8 +91,6 @@ interface SessionSidebarProps {
   unreadSessionIds?: ReadonlySet<string>;
   selection: NavigationSelection;
   onNewTask(): void;
-  /** Second fixed launcher row: opens a Studio workspace tab. */
-  onNewStudio(): void;
   onPrefetchSession?(sessionId: string): Promise<boolean>;
   onResumeSession(sessionId: string): void;
   onRenameSession(sessionId: string, title: string): Promise<void>;
@@ -115,7 +113,6 @@ export const SessionSidebar = React.memo(function SessionSidebar({
   unreadSessionIds,
   selection,
   onNewTask,
-  onNewStudio,
   onPrefetchSession,
   onResumeSession,
   onRenameSession,
@@ -554,10 +551,6 @@ export const SessionSidebar = React.memo(function SessionSidebar({
             <button type="button" className="task-link session-launcher-row" onClick={onNewTask}>
               <SquarePen className="session-launcher-icon" size={16} aria-hidden="true" />
               <span className="session-launcher-label">{t('New task')}</span>
-            </button>
-            <button type="button" className="task-link session-launcher-row" onClick={onNewStudio}>
-              <Sparkles className="session-launcher-icon" size={16} aria-hidden="true" />
-              <span className="session-launcher-label">{t('New Studio')}</span>
             </button>
           </nav>
           <div className="session-sidebar-scroll" ref={recentScrollerRef} onScroll={handleRecentScroll}>

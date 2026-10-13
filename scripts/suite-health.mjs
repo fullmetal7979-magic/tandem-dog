@@ -18,7 +18,6 @@ export const WORKSPACES = [
       'smoke:loop': 'long-running local endurance harness',
       'smoke:loop:final': 'endurance-harness gate, needs hours of loop data',
       'smoke:loop:report': 'report reader, not a suite',
-      'test:office:live': 'drives real Office COM on a desktop machine',
       'test:embedding-runtime:warmup': 'downloads the embedding runtime',
       'test:spec-advisory': 'advisory by design (MIXDOG_TEST_ADVISORY)',
     },

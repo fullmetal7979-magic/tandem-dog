@@ -112,7 +112,6 @@ export const SETUP_ACTIONS = Object.freeze(Object.keys(SETUP_ACTION_FIELDS));
 
 export const SETUP_BUILTIN_TOGGLE_FEATURES = Object.freeze([
   'git',
-  'office',
   'tidy',
   'localProvider',
   'autoEffort',

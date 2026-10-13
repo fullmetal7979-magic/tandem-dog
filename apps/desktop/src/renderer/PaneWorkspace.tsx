@@ -50,8 +50,6 @@ function selectionLabel(selection: WorkspaceSelection | null): string {
       return selection.id;
     case 'file':
       return selection.rel.split('/').at(-1) || selection.rel;
-    case 'studio':
-      return t('Studio');
     case 'terminal':
       return t('Terminal');
     case 'browser':

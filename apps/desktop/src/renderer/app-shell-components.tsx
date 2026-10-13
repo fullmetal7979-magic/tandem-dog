@@ -5,7 +5,6 @@ import { GitDiffPane } from './GitDiffPane';
 import { EditorPane, TerminalPane } from './lazy-widgets';
 import { PaneSurfaceGate } from './PaneSurfaceGate';
 import { editorLoadKey, ensureEditorLoad } from './renderer-load-metrics';
-import { loadStudioViewModule } from './studio-loader';
 import { t } from './i18n';
 import { navigationKey } from './text-format';
 import { desktopFeatureEnabled } from './desktop-feature-config';
@@ -132,8 +131,6 @@ export const createWorkflowsPane = () =>
 export const createExtensionsPane = () =>
   lazy(() => loadSidebarPanelModule.extensions().then((module) => ({ default: module.ExtensionsPane })));
 
-const StudioPane = lazy(() => loadStudioViewModule().then((module) => ({ default: module.StudioPane })));
-
 const EDITOR_COVER_MAX_MS = 900;
 const TERMINAL_COVER_MAX_MS = 2_000;
 export const EDITOR_STARTUP_DELAY_MS = 32;
@@ -169,40 +166,6 @@ export function ReadyEditorPane(props: React.ComponentProps<typeof EditorPane>) 
           onReady={() => {
             setReadyKey(metricKey);
             reportBootSurfaceStage('editor', metricKey, 'dom', 'shell');
-          }}
-        />
-      </Suspense>
-    </PaneSurfaceGate>
-  );
-}
-
-// Studio readiness includes the lane catalog, which is a provider network
-// read. A slow, rate-limited or offline provider must not hold an opaque cover
-// over a gallery and composer that are already interactive — the pane surfaces
-// a catalog error and a Retry of its own.
-const STUDIO_COVER_MAX_MS = 1_500;
-
-export function ReadyStudioPane(props: React.ComponentProps<typeof StudioPane>) {
-  const metricKey = 'studio';
-  beginBootSurface('studio', metricKey);
-  reportBootSurfaceStage('studio', metricKey, 'boundary');
-  useEffect(() => {
-    reportBootSurfaceReady('studio', metricKey, 'shell');
-  }, []);
-  const [ready, setReady] = useState(false);
-  const [expired, setExpired] = useState(false);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setExpired(true), STUDIO_COVER_MAX_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
-  return (
-    <PaneSurfaceGate ready={ready || expired} transitionKey={metricKey} label={t('Preparing Studio…')}>
-      <Suspense fallback={null}>
-        <StudioPane
-          {...props}
-          onReady={() => {
-            setReady(true);
-            reportBootSurfaceStage('studio', metricKey, 'dom', 'shell');
           }}
         />
       </Suspense>

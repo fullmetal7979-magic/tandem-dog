@@ -12,7 +12,7 @@ const SESSION_INHERIT_REQUEST_TIMEOUT_MS = 10 * 60_000;
 // up to 20 minutes (LibreOffice is ~350 MB) and the voice model alone has a
 // 20-minute download window. The request must outlive the longest of them.
 const DEPENDENCY_INSTALL_REQUEST_TIMEOUT_MS = 30 * 60_000 + TRANSPORT_COMPLETION_GRACE_MS;
-const DEPENDENCY_INSTALL_OPERATIONS = new Set(['installGitCli', 'installGithubCli', 'installLibreOffice']);
+const DEPENDENCY_INSTALL_OPERATIONS = new Set(['installGitCli', 'installGithubCli']);
 
 /** Deadline for the few calls that legitimately outlive an interactive
  *  request. Everything else keeps the ordinary request timeout. */

@@ -21,7 +21,6 @@ test('local installation workflow inspects before install, returns installed mod
     webSearchEnabled: () => true,
     memoryToolsEnabledFn: () => true,
     gitToolsEnabledFn: () => true,
-    officeToolsEnabledFn: () => true,
     localProviderEnabledFn: () => config.providers?.['mixdog-local']?.enabled === true,
     getLocalProviderStatus: () => ({
       available: true,

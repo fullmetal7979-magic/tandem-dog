@@ -6,7 +6,6 @@ type LoadMetric = {
   stages: Set<string>;
 };
 
-let studioMetric: LoadMetric | null = null;
 const editorMetrics = new Map<string, LoadMetric>();
 let nextMetricToken = 0;
 
@@ -78,29 +77,3 @@ export function reportEditorLoadStage(
   }
 }
 
-export function beginStudioLoad(): number {
-  beginBootSurface('studio', 'studio');
-  studioMetric = { token: ++nextMetricToken, startedAt: now(), stages: new Set() };
-  return studioMetric.token;
-}
-
-export function ensureStudioLoad(): number {
-  beginBootSurface('studio', 'studio');
-  studioMetric ||= { token: ++nextMetricToken, startedAt: now(), stages: new Set() };
-  return studioMetric.token;
-}
-
-export function reportStudioLoadStage(stage: string, details = '', complete = false, token?: number): void {
-  const metric = studioMetric;
-  if (!metric || (token !== undefined && metric.token !== token) || metric.stages.has(stage)) return;
-  metric.stages.add(stage);
-  reportBootSurfaceStage('studio', 'studio', stage, details);
-  const suffix = details ? ` ${details}` : '';
-  perfLog(
-    `studio-load stage=${cleanField(stage)} total=${Math.max(0, now() - metric.startedAt).toFixed(1)}ms${suffix}`
-  );
-  if (complete) {
-    reportBootSurfaceReady('studio', 'studio', details);
-    studioMetric = null;
-  }
-}

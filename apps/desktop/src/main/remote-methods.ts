@@ -89,7 +89,6 @@ export const REMOTE_BLOCKED_CAPABILITIES: ReadonlySet<string> = new Set([
   'setDeveloperOption',
   // Media files reach a phone through the media HTTP route, which needs no
   // filesystem paths on the client. Keep the resolver host-side.
-  'resolveMediaFile',
 ]);
 
 export function assertRemoteCapability(capability: string): void {
@@ -384,8 +383,6 @@ function developerToolingRemoteMethods(invokeDesktopOperation: InvokeDesktopOper
     starGithub: () => invokeDesktopOperation('starGithub', []),
     gitCliStatus: () => invokeDesktopOperation('gitCliStatus', []),
     installGitCli: () => invokeDesktopOperation('installGitCli', []),
-    libreOfficeStatus: () => invokeDesktopOperation('libreOfficeStatus', []),
-    installLibreOffice: () => invokeDesktopOperation('installLibreOffice', []),
     githubCliStatus: () => invokeDesktopOperation('githubCliStatus', []),
     githubRequest: ([cwd, input]) =>
       invokeDesktopOperation('githubRequest', [requiredRepositoryCwd(cwd), validateGithubRequest(input)]),

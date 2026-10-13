@@ -20,7 +20,6 @@ export const createRemoteApi = (ctx: RemoteShimContext): DesktopApi => {
     viewSync,
     viewSyncSessionIds,
     sessionSetKey,
-    currentToken,
     connect,
     laneSubscription,
     call,
@@ -225,8 +224,6 @@ export const createRemoteApi = (ctx: RemoteShimContext): DesktopApi => {
     starGithub: () => call('starGithub'),
     gitCliStatus: () => call('gitCliStatus'),
     installGitCli: () => call('installGitCli'),
-    libreOfficeStatus: () => call('libreOfficeStatus'),
-    installLibreOffice: () => call('installLibreOffice'),
     githubCliStatus: () => call('githubCliStatus'),
     githubRequest: (cwd, input) => call('githubRequest', [cwd, input]),
     installGithubCli: () => call('installGithubCli'),
@@ -284,14 +281,5 @@ export const createRemoteApi = (ctx: RemoteShimContext): DesktopApi => {
     invokeCapability: <T = unknown>(request: DesktopCapabilityRequest) =>
       call<DesktopCapabilityResult<T>>('invokeCapability', [request]),
     readCapabilities: (requests) => call('readCapabilities', [requests]),
-    // Gallery bytes ride HTTP, not this socket: the browser caches tiles and
-    // asks for byte ranges when a clip seeks. A host that does not serve the
-    // lane answers 404 and the caller falls back to the RPC payload.
-    mediaUrl: (assetId, variant) => {
-      const base = ctx.serverBase || location.origin;
-      const auth = currentToken();
-      const query = `variant=${encodeURIComponent(variant || 'original')}${auth ? `&token=${encodeURIComponent(auth)}` : ''}`;
-      return `${base}/media/${encodeURIComponent(assetId)}?${query}`;
-    },
   };
 };

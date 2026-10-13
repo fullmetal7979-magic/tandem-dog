@@ -95,16 +95,14 @@ async function builtinAction(
     }
     return saved({ voice: result });
   }
-  // Git and Office install like their Built-in card: the system dependency
-  // first (a present one answers at once), then the runtime activation.
-  if (action === 'install_builtin' && (name === 'git' || name === 'office')) {
-    const dependency = await mutate(() => (name === 'git' ? api.installGitCli!() : api.installLibreOffice!()));
+  // Git installs like its Built-in card: the system dependency first (a
+  // present one answers at once), then the runtime activation.
+  if (action === 'install_builtin' && name === 'git') {
+    const dependency = await mutate(() => api.installGitCli!());
     if (!dependency?.installed) {
-      throw new Error(`${name === 'git' ? 'Git' : 'LibreOffice'} installation did not complete`);
+      throw new Error('Git installation did not complete');
     }
-    const result = await mutate(() =>
-      name === 'git' ? invoke('setBuiltinToolEnabled', ['git', true]) : invoke('installBuiltinFeature', ['office'])
-    );
+    const result = await mutate(() => invoke('setBuiltinToolEnabled', ['git', true]));
     const feature = record(result[name]);
     if (feature.installed !== true || feature.enabled !== true) {
       throw new Error(`${name} did not reach the installed and enabled state`);

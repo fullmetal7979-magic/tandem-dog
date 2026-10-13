@@ -1,4 +1,4 @@
-import type { DesktopGitCliStatus, DesktopLibreOfficeStatus } from '../../shared/contract';
+import type { DesktopGitCliStatus } from '../../shared/contract';
 import { t } from '../i18n';
 import { record } from '../record-utils';
 import type { RecordValue } from './capability-data';
@@ -8,7 +8,6 @@ import { localProviderFileSize as fileSize } from './local-provider-status';
 
 export function featureRequirement(id: BuiltInFeatureId): string {
   if (id === 'git') return 'Git CLI · GitHub CLI';
-  if (id === 'office') return 'LibreOffice';
   if (id === 'localProvider')
     return navigator.userAgent.includes('Mac') ? 'Apple Silicon · Metal' : t('NVIDIA RTX GPU · 24 GB VRAM');
   return '';
@@ -75,7 +74,6 @@ function dependencyStateLabel(dependency: { installed: boolean; version?: string
 export function BuiltInFeatureInfo({
   state,
   gitStatus,
-  officeDependency,
 }: {
   state: {
     feature: BuiltInFeatureDefinition;
@@ -87,13 +85,10 @@ export function BuiltInFeatureInfo({
     info?: RecordValue;
   };
   gitStatus: DesktopGitCliStatus | null;
-  officeDependency: DesktopLibreOfficeStatus | null;
 }) {
   const { feature } = state;
   const info = record(state.info);
-  let dependency: DesktopGitCliStatus | DesktopLibreOfficeStatus | null = null;
-  if (feature.id === 'git') dependency = gitStatus;
-  else if (feature.id === 'office') dependency = officeDependency;
+  const dependency: DesktopGitCliStatus | null = feature.id === 'git' ? gitStatus : null;
   const facts: Array<readonly [string, string]> = [];
   if (feature.id === 'voice')
     facts.push(
@@ -119,10 +114,7 @@ export function BuiltInFeatureInfo({
     );
   if (feature.id === 'computer')
     facts.push(...computerPlatformFacts(), ['Input', t('Mouse, keyboard, and accessibility controls')]);
-  if (feature.id === 'office') facts.push(['Supported formats', 'Word · Excel · PowerPoint · PDF · CSV · TSV']);
-  if (feature.id === 'git' || feature.id === 'office') {
-    facts.push([feature.id === 'git' ? 'Git CLI' : 'LibreOffice', dependencyStateLabel(dependency)]);
-  }
+  if (feature.id === 'git') facts.push(['Git CLI', dependencyStateLabel(dependency)]);
   if (feature.id === 'tidy') {
     facts.push([
       'Core engines',

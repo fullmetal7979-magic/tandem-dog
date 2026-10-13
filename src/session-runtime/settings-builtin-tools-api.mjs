@@ -1,5 +1,5 @@
 // Built-in tool modules: the enable/install toggles (web search, memory, git,
-// office, tidy, local provider, auto effort), the recap switch and the Code
+// tidy, local provider, auto effort), the recap switch and the Code
 // Tidy card.
 import {
   INSTALLABLE_BUILTIN_IDS,
@@ -19,7 +19,7 @@ import {
   shutdownEffortJudge,
 } from '../runtime/effort-judge/judge-client.mjs';
 
-const TOGGLEABLE_BUILTINS = ['git', 'office', 'tidy', 'localProvider', 'autoEffort'];
+const TOGGLEABLE_BUILTINS = ['git', 'tidy', 'localProvider', 'autoEffort'];
 
 function setLocalProviderEnabledInConfig(configLike, enabled) {
   const next = { ...(configLike || {}) };
@@ -47,7 +47,6 @@ export function createBuiltinToolSettings(
     recapEnabledFn,
     memoryToolsEnabledFn,
     gitToolsEnabledFn,
-    officeToolsEnabledFn,
     tidyToolEnabledFn,
     localProviderEnabledFn,
     webSearchEnabled,
@@ -87,7 +86,6 @@ export function createBuiltinToolSettings(
           semanticSearchSupported: onnxRuntimeSupported(),
         },
         git: { enabled: gitToolsEnabledFn(), installed: builtinInstalled(config, 'git') },
-        office: { enabled: officeToolsEnabledFn(), installed: builtinInstalled(config, 'office') },
         tidy: {
           enabled: tidyToolEnabledFn ? tidyToolEnabledFn() : builtinFeatureActive(config, 'tidy'),
           installed: builtinInstalled(config, 'tidy'),
@@ -137,7 +135,7 @@ export function createBuiltinToolSettings(
     },
     async setBuiltinToolEnabled(name, enabled) {
       if (!TOGGLEABLE_BUILTINS.includes(name)) {
-        throw new TypeError('Built-in tool must be git, office, tidy, localProvider, or autoEffort.');
+        throw new TypeError('Built-in tool must be git, tidy, localProvider, or autoEffort.');
       }
       if (name === 'autoEffort' && enabled !== false && !onnxRuntimeSupported()) {
         throw new Error(EFFORT_JUDGE_UNSUPPORTED);
@@ -170,7 +168,7 @@ export function createBuiltinToolSettings(
      *  and enabled in one step. New sessions pick up the tool surface. */
     async installBuiltinFeature(name) {
       if (!INSTALLABLE_BUILTIN_IDS.includes(name)) {
-        throw new TypeError('Built-in feature must be git, memory, office, tidy, localProvider, or autoEffort.');
+        throw new TypeError('Built-in feature must be git, memory, tidy, localProvider, or autoEffort.');
       }
       if (name === 'autoEffort' && !onnxRuntimeSupported()) throw new Error(EFFORT_JUDGE_UNSUPPORTED);
       await prepareBuiltinFeature?.(name);

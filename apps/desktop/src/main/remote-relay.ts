@@ -42,7 +42,6 @@ import {
   revokeDeviceOverSocket,
   validatedRelayUrl,
 } from './remote-relay-device';
-import { createRelayMediaLane } from './remote-relay-media';
 import { createRelaySessionStateFanout } from './remote-relay-session-state';
 import { createRelaySessionWiring } from './remote-relay-session-wiring';
 // @ts-expect-error Relay framing is shared with the plain-ESM VPS server.
@@ -427,14 +426,6 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
     maxPayload: MAX_WS_PAYLOAD_BYTES,
     closed: () => closed,
   });
-  const mediaLane = createRelayMediaLane({
-    host: options.host,
-    sendEnvelope,
-    socketBacklog: () => socket?.bufferedAmount ?? 0,
-  });
-  // Retained for a future encrypted byte lane. The active relay protocol
-  // rejects media requests before this plaintext implementation can run.
-  void mediaLane.serve;
   const dispatchClientCall = createRelayClientCallDispatch({
     host: options.host,
     methods,
@@ -621,7 +612,6 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
       heartbeat.stop();
       clients.clear();
       resetTransportDeltas();
-      mediaLane.destroyAll();
       if (socket === ws) socket = null;
       if (closed) return;
       control.rejectAll('Relay disconnected.');

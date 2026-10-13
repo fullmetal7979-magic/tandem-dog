@@ -276,11 +276,10 @@ test('built-in dependency installs outlive the ordinary desktop request deadline
     await assert.rejects(client.invokeCapability('toggleVoice', [false]), /request timed out/);
 
     for (const [label, call] of [
-      ['installLibreOffice', () => client.invokeDesktopOperation('installLibreOffice', [])],
       ['installGitCli', () => client.invokeDesktopOperation('installGitCli', [])],
       ['toggleVoice on', () => client.invokeCapability('toggleVoice', [true])],
       ['memory install', () => client.invokeCapability('installBuiltinFeature', ['memory'])],
-      ['office install', () => client.invokeCapability('installBuiltinFeature', ['office'])],
+      ['tidy install', () => client.invokeCapability('installBuiltinFeature', ['tidy'])],
     ]) {
       const pending = call();
       let settled = false;

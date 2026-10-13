@@ -312,14 +312,13 @@ function mcpServerInput(args) {
 }
 
 const DESKTOP_HOSTED_FEATURES = ['browser', 'computer', 'voice'];
-// Git and Office installs bring their system dependency (Git, LibreOffice) in
+// Git installs bring their system dependency in
 // through the Desktop's guided installers, the same steps as the Built-in card.
 // A request no Desktop window takes keeps the runtime-only install.
-const DESKTOP_PREPARED_FEATURES = ['git', 'office'];
+const DESKTOP_PREPARED_FEATURES = ['git'];
 const SETUP_INSTALLABLE_FEATURES = [
   'git',
   'memory',
-  'office',
   'tidy',
   'localProvider',
   'autoEffort',

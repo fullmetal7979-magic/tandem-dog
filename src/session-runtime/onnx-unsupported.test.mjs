@@ -35,7 +35,6 @@ function settings() {
       recapEnabledFn: () => true,
       memoryToolsEnabledFn: () => true,
       gitToolsEnabledFn: () => true,
-      officeToolsEnabledFn: () => true,
       localProviderEnabledFn: () => false,
       webSearchEnabled: () => true,
       invalidateContextStatusCache() {},
