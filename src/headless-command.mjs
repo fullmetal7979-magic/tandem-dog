@@ -14,6 +14,12 @@ const FLAG_OPTIONS = new Set([
 ]);
 const EXEC_UNSUPPORTED_FLAGS = new Set(['--readonly', '--remote', '--onboarding', '--memory']);
 const HEADLESS_WORKFLOW_ERROR = 'option --workflow is not supported for mixdog exec';
+// Relay verbs owned by src/runtime/galaxy/cosmos-cli.mjs (kept literal here so
+// classifying argv never imports the Galaxy stack).
+const COSMOS_RELAY_WORDS = new Set([
+  '해', 'sun', 'start', 'sit', '달', 'moon', 'finish', 'leave', '교대', 'request', 'handover',
+  '은하수', 'status', 'galaxy', '연결', 'connect', '별', 'star', '도움말',
+]);
 
 function roleKey(value) {
   return String(value || '')
@@ -103,6 +109,10 @@ export function classifyCliInvocation(argv = []) {
   // options) and never starts the TUI or touches the host data tree.
   if (roleKey(argv[0]) === 'tandem') {
     return { kind: 'tandem', tandem: { args: argv.slice(1).map(String) }, options: {}, skipHostPrelude: true };
+  }
+  // `cosmos 해|달|교대|은하수|연결|별 ...`: the relay verbs, same rules as tandem.
+  if (COSMOS_RELAY_WORDS.has(String(argv[0] ?? '').trim())) {
+    return { kind: 'cosmos', cosmos: { args: argv.map(String) }, options: {}, skipHostPrelude: true };
   }
   const hasHelp = argv.includes('--help') || argv.includes('-h');
   const hasPlain = argv.includes('--plain');

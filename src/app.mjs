@@ -117,6 +117,11 @@ export async function run(argv = [], classifiedInvocation = null) {
     const { runTandemCli } = await import('./runtime/tandem/tandem-cli.mjs');
     return await runTandemCli(invocation.tandem.args, { cwd: process.cwd() });
   }
+  // `cosmos 해|달|교대|은하수|연결|별`: the COSMOS relay (src/runtime/galaxy).
+  if (invocation.kind === 'cosmos') {
+    const { runCosmosCli } = await import('./runtime/galaxy/cosmos-cli.mjs');
+    return await runCosmosCli(invocation.cosmos.args, { cwd: process.cwd() });
+  }
   const opts = invocation.options;
 
   // `--help` / `-h`: keep this path tiny; do not import the REPL/runtime stack.
