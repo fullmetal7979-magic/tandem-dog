@@ -25,9 +25,10 @@ function asUiLanguage(value: unknown): UiLanguage | null {
 
 export function getUiLanguagePreference(): UiLanguagePreference {
   try {
+    // Korean is the only user-facing language; a stored choice from an older
+    // multi-language build (English included) resolves as the system default.
     const stored = window.localStorage.getItem(UI_LANGUAGE_STORAGE_KEY);
-    const language = asUiLanguage(stored);
-    if (language) return language;
+    if (stored === 'ko') return 'ko';
   } catch {
     /* storage-less hosts (tests, remote shells) resolve as system */
   }
@@ -67,22 +68,10 @@ export function resolveUiLanguage(preference: UiLanguagePreference = getUiLangua
   return selectUiLanguage(preference, systemLocales);
 }
 
-// Catalogs load per language: eleven static imports put ~750KB of JSON — a
-// quarter of the first-paint bundle — in front of every visitor, ten
-// languages of which they will never see. English needs no network catalog:
-// its keys are source text, with only a small local singular/plural map.
+// The one shipped catalog (Korean) loads on demand. English needs no network
+// catalog: its keys are source text, with only a small local singular/plural map.
 const CATALOGS: Record<Exclude<UiLanguage, 'en'>, () => Promise<{ default: Record<string, string> }>> = {
-  de: () => import('./locales/de.json'),
-  es: () => import('./locales/es.json'),
-  fr: () => import('./locales/fr.json'),
-  it: () => import('./locales/it.json'),
-  ja: () => import('./locales/ja.json'),
   ko: () => import('./locales/ko.json'),
-  'pt-BR': () => import('./locales/pt-BR.json'),
-  ru: () => import('./locales/ru.json'),
-  vi: () => import('./locales/vi.json'),
-  'zh-CN': () => import('./locales/zh-CN.json'),
-  'zh-TW': () => import('./locales/zh-TW.json'),
 };
 
 // Synchronous English init (initImmediate: false): t() stays usable from the

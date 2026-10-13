@@ -6,14 +6,7 @@ import {
   setDesktopThemePreference,
   type DesktopThemePreference,
 } from '../desktop-theme';
-import {
-  getUiLanguagePreference,
-  resolveUiLanguage,
-  setUiLanguagePreference,
-  SUPPORTED_UI_LANGUAGES,
-  t,
-  type UiLanguagePreference,
-} from '../i18n';
+import { t } from '../i18n';
 import { getLinkPreview, setLinkPreview, subscribeLinkPreview } from '../link-preview-preference';
 import { record } from '../record-utils';
 import {
@@ -50,33 +43,6 @@ function ThemeChoices({ data, pending }: Pick<PanelContext, 'data' | 'pending'>)
         options={desktopThemeOptions().map((option) => ({ ...option, label: t(option.label) }))}
         onChange={choose}
       />
-    </Group>
-  );
-}
-
-function UiLanguageChoices({ pending }: Pick<PanelContext, 'pending'>) {
-  const [preference, setPreference] = useState<UiLanguagePreference>(() => getUiLanguagePreference());
-  const [error, setError] = useState('');
-  return (
-    <Group title={t('Display language')}>
-      <SelectRow
-        title={t('Display language')}
-        value={preference}
-        disabled={Boolean(pending)}
-        options={[{ value: 'system', label: t('System default') }, ...SUPPORTED_UI_LANGUAGES]}
-        onChange={(next) => {
-          const selected = next as UiLanguagePreference;
-          const previous = resolveUiLanguage();
-          if (!setUiLanguagePreference(selected)) {
-            setError(t('Display language could not be saved. Allow browser storage and try again.'));
-            return;
-          }
-          setError('');
-          setPreference(selected);
-          if (resolveUiLanguage(selected) !== previous) window.location.reload();
-        }}
-      />
-      {error && <p role="alert">{error}</p>}
     </Group>
   );
 }
@@ -167,7 +133,6 @@ export function GeneralPanel({ data, pending, run, api }: PanelContext) {
       </Group>
       <PushNotificationToggle api={api} />
       <DesktopNotificationToggle />
-      <UiLanguageChoices pending={pending} />
       <ThemeChoices data={data} pending={pending} />
       <SidePanelChoices pending={pending} />
     </>

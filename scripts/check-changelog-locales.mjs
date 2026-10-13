@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** Non-English UI languages (the keys of CATALOGS in the desktop i18n.ts). */
-export const LOCALES = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt-BR', 'ru', 'vi', 'zh-CN', 'zh-TW'];
+export const LOCALES = ['ko'];
 
 const RELEASE_HEADING = /^v\d\S*(?:\s+-\s+\S+)?$/;
 

@@ -13,7 +13,7 @@ const source = readFileSync(new URL('./public/boot.js', import.meta.url), 'utf8'
 test('inlined recovery catalogs cannot break out of their script element', async () => {
   const payload = '</script><script>window.translationInjected = true</script>';
   const state = {
-    catalogs: new Map([['en', { Recovery: payload }]]),
+    catalogs: new Map([['ko', { Recovery: payload }]]),
     nativeKeys: [],
     bootKeys: ['Recovery'],
   };
@@ -58,7 +58,8 @@ function harness(installed = false, { language, systemLanguages } = {}) {
     Object.defineProperty(dom.window.navigator, 'userAgent', { value: 'iPhone' });
     Object.defineProperty(dom.window.navigator, 'standalone', { value: true });
   }
-  if (language) dom.window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, language);
+  // English is the source text the assertions read; Korean is the product default.
+  dom.window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, language ?? 'en');
   if (systemLanguages) {
     Object.defineProperty(dom.window.navigator, 'languages', { value: systemLanguages });
     Object.defineProperty(dom.window.navigator, 'language', { value: systemLanguages[0] });
@@ -217,15 +218,11 @@ test('recovery works in every selected language before application modules load'
   }
 });
 
-test('boot ignores invalid saved preferences and honors explicit Chinese scripts', () => {
-  for (const [systemLanguages, language] of [
-    [['xx-ZZ', 'ja-JP'], 'ja'],
-    [['zh-Hans-HK'], 'zh-CN'],
-    [['zh-Hant-CN'], 'zh-TW'],
-  ]) {
+test('boot resolves invalid saved preferences and every system locale to Korean', () => {
+  for (const systemLanguages of [['xx-ZZ', 'ja-JP'], ['zh-Hans-HK'], ['en-US']]) {
     const h = harness(false, { language: 'invalid', systemLanguages });
     try {
-      assert.equal(h.document.documentElement.lang, language);
+      assert.equal(h.document.documentElement.lang, 'ko');
     } finally {
       h.dom.window.close();
     }

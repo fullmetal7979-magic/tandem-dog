@@ -1,12 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { DesktopApi } from '../shared/contract';
 import { getDesktopThemePreference, setDesktopThemePreference, desktopThemeOptions } from './desktop-theme';
-import {
-  getUiLanguagePreference,
-  setUiLanguagePreference,
-  SUPPORTED_UI_LANGUAGES,
-  type UiLanguagePreference,
-} from './i18n';
+import { getUiLanguagePreference, setUiLanguagePreference, type UiLanguagePreference } from './i18n';
 import { getSidePanelMode, setSidePanelMode, type SidePanelMode } from './side-panel-preferences';
 import { executeSetupDesktopAction, type SetupPreferences } from './setup-desktop-actions';
 import type { SetupLaneSource } from './app-shell-ui-open-request';
@@ -16,7 +11,11 @@ async function readDesktopAppearance() {
     theme: getDesktopThemePreference(),
     themes: desktopThemeOptions(),
     displayLanguage: getUiLanguagePreference(),
-    languages: [{ value: 'system', label: 'System' }, ...SUPPORTED_UI_LANGUAGES],
+    // COSMOS ships Korean only; English stays a developer escape hatch.
+    languages: [
+      { value: 'system', label: 'System' },
+      { value: 'ko', label: '한국어' },
+    ],
     sidePanels: getSidePanelMode(),
   };
 }

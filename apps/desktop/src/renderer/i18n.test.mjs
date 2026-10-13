@@ -135,21 +135,17 @@ test('the bundled workflow description is translated in every supported UI langu
   }
 });
 
-test('selected language and regional aliases also resolve for native UI', async () => {
+test('Korean resolves for the renderer and native UI; English stays the source fallback', async () => {
   const close = browser();
   try {
-    setUiLanguagePreference('ja');
+    setUiLanguagePreference('ko');
     await initUiLanguage();
-    assert.equal(document.documentElement.lang, 'ja');
-    assert.equal(t('Sort by Status'), '状態で並べ替え');
-    assert.equal(translateNativeUi('ja', 'Browser Use approval'), 'Browser Use の承認');
-    assert.equal(uiLanguageForLocale('zh-Hant-HK'), 'zh-TW');
-    assert.equal(uiLanguageForLocale('pt-PT'), 'pt-BR');
+    assert.equal(document.documentElement.lang, 'ko');
+    assert.equal(t('Sort by Status'), '상태순 정렬');
+    assert.equal(translateNativeUi('ko', 'Browser Use approval'), '브라우저 유즈 승인');
+    assert.equal(uiLanguageForLocale('ko-KR'), 'ko');
+    assert.equal(uiLanguageForLocale('ja-JP'), null);
     assert.equal(translateNativeUi('en', 'Allow this action once?'), 'Allow this action once?');
-    setUiLanguagePreference('en');
-    await initUiLanguage();
-    assert.equal(document.documentElement.lang, 'en');
-    assert.equal(t('History'), 'History');
   } finally {
     close();
   }
@@ -168,19 +164,17 @@ test('destructive-action warnings preserve paths, Git modes, and target identifi
   assert.ok(reset.includes(t('Move HEAD and DISCARD every change made after this commit.')));
 });
 
-test('locale selection honors scripts, preference validity and the ordered system languages', () => {
+test('COSMOS resolves every system locale and stale preference to Korean', () => {
   for (const [locale, expected] of [
-    ['zh-Hans-HK', 'zh-CN'],
-    ['zh_Hant_CN', 'zh-TW'],
-    ['zh-MO', 'zh-TW'],
-    ['  pt_PT  ', 'pt-BR'],
-    ['de-CH', 'de'],
+    ['ko_KR', 'ko'],
+    ['en-US', 'en'],
+    ['zh-Hans-HK', null],
     ['unsupported', null],
   ])
     assert.equal(uiLanguageForLocale(locale), expected, locale);
-  assert.equal(selectUiLanguage('ja', ['ko-KR']), 'ja');
-  assert.equal(selectUiLanguage('broken', ['xx-ZZ', 'fr-CA', 'ko']), 'fr');
-  assert.equal(selectUiLanguage('system', ['xx']), 'en');
+  assert.equal(selectUiLanguage('ja', ['ja-JP']), 'ko');
+  assert.equal(selectUiLanguage('system', ['en-US', 'fr-CA']), 'ko');
+  assert.equal(selectUiLanguage('en', []), 'en', 'English stays an explicit developer escape hatch');
 });
 
 test('a failed catalog load resets a previous language and publishes the actual English fallback', async (context) => {
@@ -191,7 +185,7 @@ test('a failed catalog load resets a previous language and publishes the actual 
   context.mock.method(console, 'warn', () => {});
   try {
     await i18n.changeLanguage('ko');
-    setUiLanguagePreference('de');
+    setUiLanguagePreference('ko');
     await initUiLanguage(async () => {
       throw new Error('offline catalog');
     });
@@ -199,7 +193,7 @@ test('a failed catalog load resets a previous language and publishes the actual 
     assert.equal(document.documentElement.lang, 'en');
     assert.equal(uiFormatLocale(), 'en');
     assert.equal(await (await caches.peek(APP_STATE_CACHE_NAME).match(UI_LANGUAGE_ENTRY)).text(), 'en');
-    assert.equal(getUiLanguagePreference(), 'de', 'the saved choice survives a transient network failure');
+    assert.equal(getUiLanguagePreference(), 'ko', 'the saved choice survives a transient network failure');
   } finally {
     if (previousCaches) Object.defineProperty(globalThis, 'caches', previousCaches);
     else delete globalThis.caches;
@@ -210,12 +204,12 @@ test('a failed catalog load resets a previous language and publishes the actual 
 test('blocked preference storage reports failure rather than pretending a reload will retain the choice', () => {
   const close = browser();
   try {
-    window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, 'ja');
+    window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, 'ko');
     window.Storage.prototype.setItem = () => {
       throw new Error('storage denied');
     };
     assert.equal(setUiLanguagePreference('ko'), false);
-    assert.equal(getUiLanguagePreference(), 'ja');
+    assert.equal(getUiLanguagePreference(), 'ko');
   } finally {
     close();
   }

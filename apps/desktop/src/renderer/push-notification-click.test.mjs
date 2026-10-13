@@ -152,11 +152,11 @@ test('a turn with no text speaks the language the app published', async () => {
   assert.equal(worker.shown[0].options.body, '작업을 마쳤습니다.');
 });
 
-test('a phone that never launched the app falls back to its own language', async () => {
+test('a phone that never launched the app still speaks Korean', async () => {
   const worker = loadWorker({ caches: memoryCacheStorage(), systemLanguage: 'ja-JP' });
   await push(worker, { title: 'Refactor', body: '', data: { sessionId: 'session-42' } });
 
-  assert.equal(worker.shown[0].options.body, '作業が完了しました。');
+  assert.equal(worker.shown[0].options.body, '작업을 마쳤습니다.');
 });
 
 test('what the session actually said is never translated', async () => {
@@ -183,5 +183,5 @@ test('push fallback uses each supported preference and ignores invalid preferenc
   await publishUiLanguage('invalid', { caches });
   const worker = loadWorker({ caches, systemLanguage: 'ja-JP' });
   await push(worker, { title: 'History', body: '', data: { sessionId: 'session-i18n' } });
-  assert.equal(worker.shown[0].options.body, '作業が完了しました。');
+  assert.equal(worker.shown[0].options.body, '작업을 마쳤습니다.');
 });
