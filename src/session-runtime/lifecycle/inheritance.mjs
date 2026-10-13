@@ -188,5 +188,59 @@ export function createInheritance(deps, { compactConversation, saveSession }) {
     };
   }
 
-  return { inheritancePreflight, inheritFrom };
+  /**
+   * COSMOS relay (해): carry a conversation exported by another star — a
+   * document from src/runtime/galaxy/conversations.mjs, never a session file —
+   * into THIS freshly created session. Same rules as inheritFrom(): the target
+   * must be empty, the carry is fitted to the heir's own window, and the
+   * replay is converted from the provider that produced it, so any account
+   * this PC is signed in to can continue it.
+   */
+  async function inheritFromExport(doc) {
+    const exported = doc && typeof doc === 'object' ? doc : null;
+    if (!exported || !Array.isArray(exported.messages)) {
+      throw new TypeError('inheritFromExport: a conversation export with messages is required');
+    }
+    if (!getSession()?.id && clean(getReservedSessionId?.()) && typeof createCurrentSession === 'function') {
+      await createCurrentSession('inherit');
+    }
+    const target = getSession();
+    if (!target?.id) throw new Error('inheritFromExport: no session is open');
+    if (hasUserConversationMessage(target.messages) || hasUserConversationMessage(target.liveTurnMessages)) {
+      throw new Error('inheritFromExport: this session already holds a conversation');
+    }
+    const source = {
+      id: clean(exported.id) || `cosmos-export-${Date.now()}`,
+      provider: clean(exported.provider),
+      model: clean(exported.model),
+      title: clean(exported.title),
+      messages: structuredClone(exported.messages),
+    };
+    let carried = inheritableMessages(source.messages);
+    if (!hasUserConversationMessage(carried)) {
+      throw new Error('inheritFromExport: the export has no conversation to carry');
+    }
+    const fit = inheritanceFit(carried, target);
+    if (fit.known && !fit.fits) carried = await fitConversationForHeir(source, target, carried, fit);
+    target.messages.push(
+      ...stripEffortConfiguration(inheritedCompatReplayMessages(structuredClone(carried), source.provider))
+    );
+    invalidateContextStatusCache();
+    target.inheritedFromSessionId = source.id;
+    target.updatedAt = Date.now();
+    recordInheritanceBoundary(target, source);
+    if (!clean(target.title) && source.title) target.title = source.title;
+    saveSession(target, { immediate: true });
+    invalidateContextStatusCache();
+    return {
+      sessionId: target.id,
+      sourceSessionId: source.id,
+      messages: carried.length,
+      provider: target.provider,
+      model: target.model,
+      fromStar: exported.star || null,
+    };
+  }
+
+  return { inheritancePreflight, inheritFrom, inheritFromExport };
 }

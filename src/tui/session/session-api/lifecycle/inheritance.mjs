@@ -12,8 +12,8 @@ export function createInheritanceActions(bag, { restoreTranscriptItems }) {
    * daemon resolves actions on THIS surface, so `inheritFrom` has to live here
    * and not only on the runtime beneath it.
    */
-  const inheritFrom = async (sourceSessionId) => {
-    const result = await runtime.inheritFrom(sourceSessionId);
+  const carryInto = async (carry) => {
+    const result = await carry();
     const sessionId = String(result?.sessionId || runtime.sessionId || getState().sessionId || '');
     // Only model messages travel with the conversation. Rebuild the visible
     // transcript from them right here so the heir opens showing the carried
@@ -36,6 +36,9 @@ export function createInheritanceActions(bag, { restoreTranscriptItems }) {
     flushEmitImmediate();
     return result;
   };
+  const inheritFrom = (sourceSessionId) => carryInto(() => runtime.inheritFrom(sourceSessionId));
+  // COSMOS relay: the same carry, from a conversation another star exported.
+  const inheritFromExport = (doc) => carryInto(() => runtime.inheritFromExport(doc));
 
   return {
     /**
@@ -44,6 +47,7 @@ export function createInheritanceActions(bag, { restoreTranscriptItems }) {
      * two transcripts share a prefix and then diverge.
      */
     inheritFrom,
+    inheritFromExport,
     /** Read-only verdict for the heir this session would open, on the route it
      *  would open with. Every surface asks this before offering the carry. */
     inheritancePreflight: (sourceSessionId = null, selection = null) =>

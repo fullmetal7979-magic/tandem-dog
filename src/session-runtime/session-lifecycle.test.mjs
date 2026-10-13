@@ -371,3 +371,45 @@ test('the inheritance preflight is the same verdict the carry itself reaches', a
   await accepted.api.inheritFrom(source.id);
   assert.equal(accepted.target.messages.length, accepted.fit.messages);
 });
+
+test('a COSMOS conversation export continues in a fresh session on this PC route', async () => {
+  const route = { provider: 'anthropic-oauth', model: 'claude-opus-5', selectedContextWindow: 500_000 };
+  const target = { id: 'heir', messages: [], ...inheritanceRouteTarget(route) };
+  let saved = 0;
+  const api = createLifecycleApi({
+    getSession: () => target,
+    getRoute: () => route,
+    mgr: { getSession: () => null },
+    invalidateContextStatusCache() {},
+    saveSession() {
+      saved += 1;
+    },
+  });
+  const doc = {
+    v: 1,
+    id: 'sess_desktop_from_home',
+    title: '로그인 만들기',
+    provider: 'openai-oauth',
+    model: 'gpt-6-astra',
+    star: { id: 's1', name: '집 맥북', kind: 'mac' },
+    messages: CONVERSATION,
+  };
+  const result = await api.inheritFromExport(doc);
+  assert.equal(result.sourceSessionId, 'sess_desktop_from_home');
+  assert.equal(result.fromStar.name, '집 맥북');
+  assert.equal(target.messages.length, CONVERSATION.filter((message) => message.role !== 'system').length);
+  assert.equal(target.title, '로그인 만들기');
+  assert.equal(target.inheritedFromSessionId, 'sess_desktop_from_home');
+  assert.ok(saved >= 1);
+  // The heir must be empty, and the export must carry a conversation.
+  await assert.rejects(api.inheritFromExport(doc), /already holds a conversation/);
+  const fresh = { id: 'fresh', messages: [], ...inheritanceRouteTarget(route) };
+  const other = createLifecycleApi({
+    getSession: () => fresh,
+    getRoute: () => route,
+    mgr: { getSession: () => null },
+    invalidateContextStatusCache() {},
+    saveSession() {},
+  });
+  await assert.rejects(other.inheritFromExport({ messages: [] }), /no conversation to carry/);
+});

@@ -94,6 +94,7 @@ export const SESSION_CONFIGURE_ACTIONS = Object.freeze([
   'forgetProviderAuth',
   'goalControl',
   'inheritFrom',
+  'inheritFromExport',
   'loginOAuthProvider',
   'memoryControl',
   'pushNotice',
