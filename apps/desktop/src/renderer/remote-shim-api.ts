@@ -26,6 +26,15 @@ export const createRemoteApi = (ctx: RemoteShimContext): DesktopApi => {
     readCatalog,
     fire,
   } = ctx;
+  // 폰의 차례: this browser is its own star (a guest the PC acts for). The id
+  // is the browser id the relay already routes by, so a phone stays the same
+  // star on every PC it pairs with.
+  let guest: Promise<{ id: string; name: string }> | null = null;
+  const cosmosGuest = () =>
+    (guest ??= browserProfile()
+      .then((profile) => profile.name)
+      .catch(() => '')
+      .then((name) => ({ id: ctx.browserId, name: name && name !== 'Unknown device' ? name : '내 폰' })));
   return {
     // Desktop-only OS integrations become inert or degrade to browser
     // equivalents (remote-browser-fallbacks.ts); everything below forwards over
@@ -46,6 +55,14 @@ export const createRemoteApi = (ctx: RemoteShimContext): DesktopApi => {
       ]);
     },
     removePushSubscription: (endpoint) => call<boolean>('removePushSubscription', [endpoint]),
+    // The seat verbs run on the PC on this phone's behalf; Galaxy setup and the
+    // star identity stay on the desktop (no method → the screens hide them).
+    cosmosOverview: async (cwd, options) => call('cosmosOverview', [cwd, options ?? null, await cosmosGuest()]),
+    cosmosSun: async (cwd, request) => call('cosmosSun', [cwd, request ?? null, await cosmosGuest()]),
+    cosmosMoon: async (cwd, request) => call('cosmosMoon', [cwd, request ?? null, await cosmosGuest()]),
+    cosmosRequest: async (cwd, request) => call('cosmosRequest', [cwd, request ?? null, await cosmosGuest()]),
+    cosmosHeartbeat: (planets) => call('cosmosHeartbeat', [planets]),
+    cosmosContinueConversation: (cwd, conversationId) => call('cosmosContinueConversation', [cwd, conversationId ?? null]),
     startProject: (projectPath) => call('startProject', [projectPath]),
     startProjectTask: (projectPath) => call('startProjectTask', [projectPath]),
     startTask: () => call('startTask'),

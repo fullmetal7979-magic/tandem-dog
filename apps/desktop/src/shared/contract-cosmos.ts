@@ -3,7 +3,8 @@
 // runs those verbs and hands the renderer plain JSON.
 
 export type CosmosStarKind = 'pc' | 'mac' | 'phone';
-export type CosmosSeatState = 'empty' | 'mine' | 'occupied' | 'stale' | 'no_remote' | 'no_galaxy';
+/** 'remote': a phone sits in the seat through THIS PC (the PC is locked, 되찾기 available). */
+export type CosmosSeatState = 'empty' | 'mine' | 'occupied' | 'stale' | 'remote' | 'no_remote' | 'no_galaxy';
 
 export interface CosmosStar {
   id: string;
@@ -84,6 +85,8 @@ export interface CosmosOverview {
   seat: CosmosSeat | null;
   state: CosmosSeatState | null;
   holderLastSeen?: number;
+  /** The holder is on this same machine (this PC ⇄ the phone driving it): take the seat directly. */
+  here?: boolean;
   conversations: CosmosConversationSummary[];
   project?: CosmosProjectState | null;
   /** Relay server address shared through the Galaxy (phone turns). */
@@ -103,6 +106,8 @@ export interface CosmosSunResult {
   planet: CosmosPlanet;
   seat: CosmosSeat;
   took: CosmosSeatPerson | null;
+  /** Taken over from the same machine (this PC ⇄ the phone driving it). */
+  passed?: CosmosSeatPerson | null;
   rescue: { branch: string; commits: number; dirty: number } | null;
   environment: CosmosEnvironmentSummary | null;
   project: (CosmosProjectState & { ok: boolean; pulled?: number; error?: string; skipped?: string }) | null;

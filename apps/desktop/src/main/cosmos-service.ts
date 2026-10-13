@@ -178,14 +178,33 @@ export async function cosmosSetPreference(key: unknown, value: unknown): Promise
   throw new TypeError('Unknown COSMOS preference.');
 }
 
+// ------------------------------------------------------------------ phone (guest)
+
+/** A phone driving this PC over the relay; it acts as its own star. */
+export interface CosmosGuest {
+  id: string;
+  name: string | null;
+}
+
+/** Only the relay leg passes a guest; local IPC never does. */
+export function cosmosGuest(value: unknown): CosmosGuest | null {
+  if (value == null) return null;
+  const body = record(value);
+  const id = typeof body.id === 'string' ? body.id.trim() : '';
+  if (!/^[\w-]{6,128}$/.test(id)) throw new TypeError('guest id is invalid.');
+  const name = typeof body.name === 'string' ? oneLine(body.name).slice(0, 40) || null : null;
+  return { id, name };
+}
+
 // ------------------------------------------------------------------ overview
 
 const FETCH_INTERVAL_MS = 20_000;
 let lastFetchAt = 0;
 const overviewFlights = new Map<string, Promise<CosmosOverview>>();
 
-export async function cosmosOverview(cwd: unknown, options?: unknown): Promise<CosmosOverview> {
+export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput?: unknown): Promise<CosmosOverview> {
   const opts = record(options);
+  const guest = cosmosGuest(guestInput);
   const force = opts.force === true;
   const fetch = opts.fetch !== false && (force || Date.now() - lastFetchAt >= FETCH_INTERVAL_MS);
   let root: string | null = null;
@@ -196,11 +215,11 @@ export async function cosmosOverview(cwd: unknown, options?: unknown): Promise<C
       root = null;
     }
   }
-  const key = `${root ?? ''}\0${fetch}`;
+  const key = `${root ?? ''}\0${fetch}\0${guest?.id ?? ''}`;
   const pending = overviewFlights.get(key);
   if (pending) return pending;
   const run = (async () => {
-    const view = (await (await cosmosCore()).overview({ root, fetch })) as CosmosOverview;
+    const view = (await (await cosmosCore()).overview({ root, fetch, guest })) as CosmosOverview;
     if (fetch && view.ready && !view.offline) lastFetchAt = Date.now();
     return { ...view, ...(await sharedPreferences()) };
   })();
@@ -218,12 +237,13 @@ function invalidateOverview(): void {
 
 // ------------------------------------------------------------------ verbs
 
-export async function cosmosSun(cwd: unknown, request?: unknown): Promise<CosmosOutcome<CosmosSunResult>> {
+export async function cosmosSun(cwd: unknown, request?: unknown, guestInput?: unknown): Promise<CosmosOutcome<CosmosSunResult>> {
   const force = record(request).force === true;
+  const guest = cosmosGuest(guestInput);
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
-      const result = await (await cosmosCore()).sun({ root, force });
+      const result = await (await cosmosCore()).sun({ root, force, guest });
       invalidateOverview();
       const conversation = result.conversation
         ? {
@@ -238,6 +258,7 @@ export async function cosmosSun(cwd: unknown, request?: unknown): Promise<Cosmos
         planet: result.planet,
         seat: result.seat,
         took: result.took,
+        passed: result.passed ?? null,
         rescue: result.rescue,
         environment: result.environment,
         project: result.project,
@@ -260,8 +281,9 @@ async function sessionToCarry(root: string, sessionId: string | null): Promise<u
   return (await cliModule()).latestSessionFor(root);
 }
 
-export async function cosmosMoon(cwd: unknown, request?: unknown): Promise<CosmosOutcome<CosmosMoonResult>> {
+export async function cosmosMoon(cwd: unknown, request?: unknown, guestInput?: unknown): Promise<CosmosOutcome<CosmosMoonResult>> {
   const body = record(request);
+  const guest = cosmosGuest(guestInput);
   const note = text(body.note, NOTE_LIMIT);
   const handoffTo = typeof body.handoffTo === 'string' && body.handoffTo ? body.handoffTo : null;
   const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
@@ -269,19 +291,20 @@ export async function cosmosMoon(cwd: unknown, request?: unknown): Promise<Cosmo
   return serialized(root, () =>
     outcome(async () => {
       const session = await sessionToCarry(root, sessionId);
-      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session });
+      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session, guest });
       invalidateOverview();
       return result as CosmosMoonResult;
     })
   );
 }
 
-export async function cosmosRequest(cwd: unknown, request?: unknown): Promise<CosmosOutcome<{ seat: CosmosSeat }>> {
+export async function cosmosRequest(cwd: unknown, request?: unknown, guestInput?: unknown): Promise<CosmosOutcome<{ seat: CosmosSeat }>> {
   const body = record(request);
+  const guest = cosmosGuest(guestInput);
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
-      const result = await (await cosmosCore()).requestTurn({ root, note: text(body.note, NOTE_LIMIT), withdraw: body.withdraw === true });
+      const result = await (await cosmosCore()).requestTurn({ root, note: text(body.note, NOTE_LIMIT), withdraw: body.withdraw === true, guest });
       invalidateOverview();
       return { seat: result.seat as CosmosSeat };
     })
@@ -291,6 +314,29 @@ export async function cosmosRequest(cwd: unknown, request?: unknown): Promise<Co
 export async function cosmosHeartbeat(planets: unknown): Promise<void> {
   const list = Array.isArray(planets) ? planets.filter((value): value is string => typeof value === 'string').slice(0, 20) : [];
   await (await cosmosCore()).heartbeat({ planets: list }).catch(() => null);
+}
+
+/**
+ * May a paired phone change this project right now? Only while a phone holds
+ * the planet's seat through this PC ('remote'). Without a Galaxy, or for a
+ * folder that is no shared planet, the relay works as before. Returns the
+ * refusal text, or null when the write may go ahead. Reads the last pull
+ * only: the windows poll keeps it fresh, and a write must not wait on git.
+ */
+export async function cosmosRemoteWriteRefusal(cwd: string | null): Promise<string | null> {
+  if (!cwd) return null;
+  let root: string;
+  try {
+    root = await resolveRoot(cwd);
+  } catch {
+    return null;
+  }
+  const view = (await (await cosmosCore()).overview({ root, fetch: false })) as CosmosOverview;
+  if (!view.ready || !view.planet?.id || view.state === 'remote') return null;
+  const holder = view.seat?.holder;
+  if (view.state === 'mine') return `🔒 이 PC(${holder?.name ?? '이 기기'})가 조종 중이에요. 폰에서 ☀️ 앉기를 누르면 이어서 할 수 있어요.`;
+  if (holder) return `🔒 ${holder.name}이(가) 조종 중이에요. 폰에서 🔁 교대 요청을 보내 주세요.`;
+  return '☄️ 조종석이 비어 있어요. 폰에서 먼저 ☀️ 앉기를 눌러 주세요.';
 }
 
 const STAR_KIND_SET = new Set<CosmosStarKind>(['pc', 'mac', 'phone']);

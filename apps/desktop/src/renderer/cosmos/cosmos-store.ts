@@ -120,11 +120,16 @@ function onFocus(): void {
   }
 }
 
-/** Planets this star is seated at, across every watched project. */
+/**
+ * Planets this star is seated at, across every watched project — including a
+ * seat a phone holds through this PC ('remote'): the phone's seat lives on this
+ * machine's beat.
+ */
 function seatedPlanets(): string[] {
   const planets = new Set<string>();
   for (const entry of entries.values()) {
-    if (entry.view?.state === 'mine' && entry.view.planet?.id) planets.add(entry.view.planet.id);
+    const state = entry.view?.state;
+    if ((state === 'mine' || state === 'remote') && entry.view?.planet?.id) planets.add(entry.view.planet.id);
   }
   return [...planets];
 }

@@ -56,6 +56,7 @@ import {
 } from './ipc-validation';
 import { absoluteLocalPath } from './local-files';
 import { MAX_SELECTED_FILE_GRANTS, owningProject, sameGrantedPath, selectedFileGrantKey } from './selected-file-grants';
+import { gateRemoteWrites, type SeatGate } from './remote-seat-gate';
 import {
   requiredCommitHash,
   requiredGitIgnoreScope,
@@ -128,6 +129,8 @@ export interface RemoteMethodDependencies {
     resize(id: string, cols: number, rows: number): void;
   };
   browserRemote?: (method: 'stream' | 'control' | 'release', args: unknown[]) => Promise<unknown>;
+  /** 조종석 gate: the relay leg refuses writes unless the phone holds the seat. */
+  seatGate?: SeatGate;
 }
 
 type RemoteMethod = (params: unknown[]) => unknown;
@@ -605,6 +608,7 @@ export function createRemoteMethods({
   terminals,
   push,
   browserRemote,
+  seatGate,
 }: RemoteMethodDependencies): Record<string, RemoteMethod> {
   const invokeDesktopOperation = (name: string, args: unknown[]): Promise<unknown> =>
     host.invokeDesktopOperation(name, args);
@@ -792,6 +796,7 @@ export function createRemoteMethods({
     // ── Project entries and the editor ─────────────────────────────────────
     ...projectEntryRemoteMethods(host),
     ...editorRemoteMethods({ host, userDataPath, invokeDesktopOperation, grants }),
+    ...cosmosRemoteMethods(host, invokeDesktopOperation),
   };
   if (settingsStore) {
     methods.readSettings = () => settingsStore.read();
@@ -821,7 +826,50 @@ export function createRemoteMethods({
     // browser's dispose call answered "unknown method" and the shell lingered.
     methods.termDispose = ([id]) => invokeDesktopOperation('termDispose', [requiredString(id, 'terminal id', 128)]);
   }
+  if (seatGate) {
+    gateRemoteWrites(methods, {
+      gate: seatGate,
+      projectDirectory: async (projectPath) =>
+        typeof projectPath === 'string' && projectPath ? host.projectDirectory(projectPath).catch(() => null) : null,
+      sessionCwd: async (sessionId) => {
+        if (typeof sessionId !== 'string' || !sessionId) return null;
+        const sessions = await host.listSessions().catch(() => []);
+        const session = sessions.find((row) => row.id === sessionId);
+        return session?.projectPath || session?.cwd || null;
+      },
+    });
+  }
   return methods;
+}
+
+/**
+ * The phone's turn (폰의 차례). A phone acts as its own star (the guest,
+ * named by its browser id) while this PC does the work: 해 sits it down, 달
+ * saves, pushes and uploads from here. Galaxy setup, the star identity and
+ * shared preferences stay desktop-local.
+ */
+function cosmosRemoteMethods(host: DesktopService, invokeDesktopOperation: InvokeDesktopOperation): Record<string, RemoteMethod> {
+  const guestOf = (value: unknown) => {
+    if (!value || typeof value !== 'object') throw new TypeError('guest is required.');
+    return value;
+  };
+  const cwdOf = (value: unknown) => (typeof value === 'string' && value ? value : null);
+  return {
+    cosmosOverview: ([cwd, options, guest]) => invokeDesktopOperation('cosmosOverview', [cwdOf(cwd), options ?? null, guestOf(guest)]),
+    cosmosSun: ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosSun', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
+    cosmosMoon: ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosMoon', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
+    cosmosRequest: ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosRequest', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
+    // The phone has no beat of its own; its seat lives on this PC's beat.
+    cosmosHeartbeat: ([planets]) => invokeDesktopOperation('cosmosHeartbeat', [Array.isArray(planets) ? planets : []]),
+    cosmosContinueConversation: ([cwd, conversationId]) =>
+      host.continueGalaxyConversation(
+        requiredString(cwd, 'cwd', 4_096),
+        typeof conversationId === 'string' && conversationId ? conversationId : null
+      ),
+  };
 }
 
 export interface RemoteFrameResponse {

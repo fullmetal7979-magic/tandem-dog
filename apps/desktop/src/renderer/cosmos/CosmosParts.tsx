@@ -87,6 +87,13 @@ export function runCosmosAction(action: CosmosAction, { projectPath, entry, sess
     void cosmosLeave(projectPath, { note, handoffTo, sessionId: sessionId ?? null });
   } else if (action === 'request') void cosmosAskTurn(projectPath, note);
   else if (action === 'withdraw') void cosmosWithdraw(projectPath);
+  else if (action === 'carry') void cosmosSit(projectPath);
+  else if (action === 'reclaim') {
+    const holder = view?.seat?.holder?.name || '폰';
+    if (window.confirm(`${josa(holder, '이가')} 조종 중이에요. 이 PC로 되찾을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 PC에 그대로 있어요.`)) {
+      void cosmosSit(projectPath);
+    }
+  }
 }
 
 const NOTE_PROMPT: Partial<Record<Exclude<CosmosAction, null>, { label: string; placeholder: string; submit: string }>> = {
@@ -146,7 +153,7 @@ export function VerdictHero({
   const busy = Boolean(context.entry.busy);
   const [composing, setComposing] = useState<CosmosAction>(null);
   const tone = (action: CosmosAction) =>
-    action === 'sun' ? 'sun' : action === 'moon' || action === 'handoff' ? 'moon' : action === 'force' ? 'danger' : 'plain';
+    action === 'sun' || action === 'carry' ? 'sun' : action === 'moon' || action === 'handoff' ? 'moon' : action === 'force' ? 'danger' : 'plain';
   return (
     <section className={`cosmos-hero cosmos-hero--${verdict.level}${compact ? ' cosmos-hero--compact' : ''}`} aria-live="polite">
       <span className="cosmos-hero-icon" aria-hidden="true">

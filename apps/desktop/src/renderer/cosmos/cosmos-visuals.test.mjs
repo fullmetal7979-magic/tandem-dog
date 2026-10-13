@@ -82,3 +82,43 @@ test('the seat lock covers an occupied planet and offers a hand-over request', a
   assert.ok([...card.querySelectorAll('button')].some((button) => /교대 요청/.test(button.textContent)));
   store.resetCosmosStore();
 });
+
+test('a phone driving this PC locks it with a reclaim button', async (t) => {
+  const { root, document, window } = installTestDom(t, { rootId: 'root' });
+  const remote = view({
+    state: 'remote',
+    seat: { ...view().seat, holder: { star: 'phone-1', name: '내 폰', kind: 'phone', since: NOW - 5 * 60_000, via: 'relay', host: 'me' }, requests: [] },
+  });
+  window.mixdogDesktop = { cosmosOverview: async () => remote };
+  const store = await import('./cosmos-store.ts');
+  store.resetCosmosStore();
+  const { SeatLock } = await import('./SeatLock.tsx');
+  await act(async () => root.render(React.createElement(SeatLock, { projectPath: '/work/app' })));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  const card = document.querySelector('.cosmos-lock');
+  assert.match(card.textContent, /내 폰이 이 PC를 원격으로 조종 중이에요/);
+  assert.ok([...card.querySelectorAll('button')].some((button) => /이 PC로 되찾기/.test(button.textContent)));
+  store.resetCosmosStore();
+});
+
+test('seen from the phone, the PC it drives can be continued without a hand-over', async (t) => {
+  const { root, document, window } = installTestDom(t, { rootId: 'root' });
+  const phone = { id: 'phone-1', name: '내 폰', kind: 'phone', color: '#22d3ee', me: true, beat: null };
+  const here = view({
+    star: phone,
+    stars: [phone, { ...me, me: false }],
+    state: 'occupied',
+    here: true,
+    seat: { ...view().seat, requests: [] },
+  });
+  window.mixdogDesktop = { cosmosOverview: async () => here };
+  const store = await import('./cosmos-store.ts');
+  store.resetCosmosStore();
+  const { SeatLock } = await import('./SeatLock.tsx');
+  await act(async () => root.render(React.createElement(SeatLock, { projectPath: '/work/app' })));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  const buttons = [...document.querySelectorAll('.cosmos-lock button')].map((button) => button.textContent);
+  assert.ok(buttons.some((label) => /폰으로 이어하기/.test(label)));
+  assert.ok(!buttons.some((label) => /교대 요청/.test(label)));
+  store.resetCosmosStore();
+});

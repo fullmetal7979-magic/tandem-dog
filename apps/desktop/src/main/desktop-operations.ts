@@ -206,6 +206,7 @@ const STATIC_OPERATIONS = {
   cosmosSetupGalaxy: cosmos.cosmosSetupGalaxy,
   cosmosHeartbeat: cosmos.cosmosHeartbeat,
   cosmosSetPreference: cosmos.cosmosSetPreference,
+  cosmosRemoteWriteRefusal: cosmos.cosmosRemoteWriteRefusal,
   tandemOverview: tandem.tandemOverview,
   tandemLeave: tandem.tandemLeave,
   tandemResume: tandem.tandemResume,

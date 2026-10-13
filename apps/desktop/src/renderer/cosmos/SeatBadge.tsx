@@ -21,6 +21,9 @@ export function SeatBadge({ projectPath }: { projectPath: string | null }) {
     if (view.state === 'mine') {
       label = view.seat.requests.length ? `🔁 ${view.seat.requests[0].name} 교대 요청` : `🕹️ 조종 중 · ${since(holder?.since)}`;
       tone = view.seat.requests.length ? 'warn' : 'ok';
+    } else if (view.state === 'remote') {
+      label = `📱 ${holder?.name} 원격 조종 중`;
+      tone = 'warn';
     } else if (view.state === 'occupied') {
       label = `🔒 ${holder?.name} 조종 중`;
       tone = 'warn';

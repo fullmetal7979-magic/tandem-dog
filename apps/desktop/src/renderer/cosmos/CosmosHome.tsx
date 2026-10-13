@@ -26,6 +26,16 @@ function focusComposer(): void {
   field?.focus();
 }
 
+/** The first big button changes with the seat; one face per action. */
+type SunFace = { tone: string; icon: string; title: string; sub: string };
+const SUN_FACE: Record<'sun' | 'request' | 'force' | 'reclaim' | 'carry', SunFace> = {
+  sun: { tone: 'sun', icon: '☀️', title: '앉기', sub: '최신 작업·환경·교신을 받아 시작' },
+  request: { tone: 'plain', icon: '🔁', title: '교대 요청', sub: '' },
+  force: { tone: 'danger', icon: '⚠️', title: '넘겨받기', sub: '응답 없는 기기 대신 앉기' },
+  reclaim: { tone: 'plain', icon: '↩️', title: '되찾기', sub: '폰이 조종 중 · 이 PC로 가져오기' },
+  carry: { tone: 'sun', icon: '📱', title: '폰으로 이어하기', sub: '연결된 PC의 조종석을 그대로 이어받기' },
+};
+
 export function CosmosHome({ projectPath, projectLabel }: { projectPath: string; projectLabel?: string }) {
   const entry = useCosmos(projectPath);
   const view = entry.view;
@@ -33,7 +43,17 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
   const state = view?.state ?? null;
   const context = { projectPath, entry, onOpenGalaxy: openCosmosGalaxy };
   const relayReady = Boolean(view?.ready && view.planet?.id);
-  const sunAction: CosmosAction = state === 'occupied' ? 'request' : state === 'stale' ? 'force' : 'sun';
+  const sunAction: CosmosAction =
+    state === 'remote'
+      ? 'reclaim'
+      : view?.here && (state === 'occupied' || state === 'stale')
+        ? 'carry'
+        : state === 'occupied'
+          ? 'request'
+          : state === 'stale'
+            ? 'force'
+            : 'sun';
+  const face: SunFace = SUN_FACE[sunAction as keyof typeof SUN_FACE] ?? SUN_FACE.sun;
   const busy = Boolean(entry.busy);
   const press = (action: CosmosAction) => {
     if (!relayReady) {
@@ -74,22 +94,20 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
       <div className="cosmos-big-buttons" role="group" aria-label="이어달리기">
         <button
           type="button"
-          className={`cosmos-big cosmos-big--${sunAction === 'sun' ? 'sun' : sunAction === 'force' ? 'danger' : 'plain'}`}
+          className={`cosmos-big cosmos-big--${face.tone}`}
           disabled={busy || !projectPath || state === 'mine'}
           onClick={() => press(sunAction)}
         >
           <span className="cosmos-big-icon" aria-hidden="true">
-            {sunAction === 'sun' ? '☀️' : sunAction === 'force' ? '⚠️' : '🔁'}
+            {face.icon}
           </span>
-          <span className="cosmos-big-title">{sunAction === 'sun' ? '앉기' : sunAction === 'force' ? '넘겨받기' : '교대 요청'}</span>
+          <span className="cosmos-big-title">{face.title}</span>
           <span className="cosmos-big-sub">
             {state === 'mine'
               ? `이미 앉아 있어요 · ${since(holder?.since)}`
               : sunAction === 'request'
                 ? `${holder?.name || '다른 기기'}에게 부탁하기`
-                : sunAction === 'force'
-                  ? '응답 없는 기기 대신 앉기'
-                  : '최신 작업·환경·교신을 받아 시작'}
+                : face.sub}
           </span>
         </button>
         <button

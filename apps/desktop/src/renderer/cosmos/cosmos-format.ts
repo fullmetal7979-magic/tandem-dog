@@ -4,7 +4,8 @@
 import type { CosmosOverview, CosmosSeatPerson, CosmosStar, CosmosStarKind } from '../../shared/contract-cosmos';
 
 export type CosmosLevel = 'ok' | 'warn' | 'bad' | 'info';
-export type CosmosAction = 'setup' | 'sun' | 'moon' | 'handoff' | 'request' | 'withdraw' | 'force' | null;
+/** reclaim: this PC takes the seat back from its own phone · carry: the phone takes over from the PC it drives. */
+export type CosmosAction = 'setup' | 'sun' | 'moon' | 'handoff' | 'request' | 'withdraw' | 'force' | 'reclaim' | 'carry' | null;
 
 export interface CosmosVerdict {
   level: CosmosLevel;
@@ -156,6 +157,24 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       action: 'moon',
     };
   }
+  if (view.state === 'remote') {
+    return {
+      level: 'warn',
+      icon: '📱',
+      title: `${josa(who(seat?.holder), '이가')} 이 PC를 원격으로 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
+      detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 🌙 달을 누르거나, 지금 이 PC로 되찾을 수 있어요.',
+      action: 'reclaim',
+    };
+  }
+  if (view.here && (view.state === 'occupied' || view.state === 'stale')) {
+    return {
+      level: 'info',
+      icon: '💻',
+      title: `${josa(who(seat?.holder), '이가')} 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
+      detail: '지금 연결된 바로 그 PC라서 교대 없이 폰으로 이어갈 수 있어요. 그 PC는 잠겨요.',
+      action: 'carry',
+    };
+  }
   if (view.state === 'occupied') {
     const asked = seat?.requests.some((request) => request.star === me);
     return {
@@ -185,4 +204,6 @@ export const ACTION_LABEL: Record<Exclude<CosmosAction, null>, string> = {
   request: '🔁 교대 요청',
   withdraw: '요청 취소',
   force: '⚠️ 강제로 넘겨받기',
+  reclaim: '↩️ 이 PC로 되찾기',
+  carry: '📱 폰으로 이어하기',
 };

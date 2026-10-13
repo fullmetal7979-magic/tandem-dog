@@ -129,3 +129,56 @@ test('the whole relay: sit, lock out, request, hand over, continue with the same
     ['집 맥북', '회사 PC']
   );
 });
+
+test('the phone turn: a phone sits through the PC it drives, the PC is locked, others still have to ask', async (t) => {
+  const w = world(t);
+  const phone = { id: 'browser-1234', name: '내 폰' };
+  await as(w.a, async () => {
+    await updateStar({ name: '집 맥북', kind: 'mac' }, w.a.home);
+    await connectGalaxy({ dir: w.a.dir, remoteUrl: w.galaxyRemote });
+  });
+  await as(w.b, async () => {
+    await updateStar({ name: '회사 PC', kind: 'pc' }, w.b.home);
+    await connectGalaxy({ dir: w.b.dir, remoteUrl: w.galaxyRemote });
+  });
+  const opts = (s, extra = {}) => ({ root: s.project, dir: s.dir, home: s.home, ...extra });
+
+  // 집 맥북 sits, then its user walks away and picks up the phone: the phone
+  // takes the baton through the same machine without a 달.
+  await as(w.a, () => sun(opts(w.a)));
+  const phoneSat = await as(w.a, () => sun(opts(w.a, { guest: phone })));
+  assert.equal(phoneSat.seat.holder.kind, 'phone');
+  assert.equal(phoneSat.seat.holder.via, 'relay');
+  assert.equal(phoneSat.passed.name, '집 맥북');
+  assert.equal(phoneSat.rescue, null);
+
+  // The PC it drives sees 'remote'; the phone sees 'mine'; 회사 PC is locked out.
+  assert.equal((await as(w.a, () => overview(opts(w.a)))).state, 'remote');
+  const fromPhone = await as(w.a, () => overview(opts(w.a, { guest: phone })));
+  assert.equal(fromPhone.state, 'mine');
+  assert.equal(fromPhone.star.kind, 'phone');
+  await as(w.b, () => assert.rejects(sun(opts(w.b)), (error) => error.code === 'seat_occupied'));
+
+  // The phone finishes (🌙 runs on the PC) and leaves the seat for 회사 PC.
+  writeFileSync(join(w.a.project, 'phone.txt'), 'from the phone\n');
+  await as(w.b, () => requestTurn(opts(w.b)));
+  const left = await as(w.a, () => moon(opts(w.a, { guest: phone, note: '폰에서 마무리' })));
+  assert.equal(left.project.pushed, true);
+  assert.equal(left.seat.holder, null);
+  const next = await as(w.b, () => sun(opts(w.b)));
+  assert.equal(next.seat.holder.name, '회사 PC');
+  assert.equal(readFileSync(join(w.b.project, 'phone.txt'), 'utf8'), 'from the phone\n');
+  const memoRow = next.seat.history.find((row) => row.kind === 'phone');
+  assert.equal(memoRow.memo, '폰에서 마무리');
+});
+
+test('the PC reclaims its seat from its own phone at any time (되찾기)', async (t) => {
+  const w = world(t);
+  const phone = { id: 'browser-9', name: '내 폰' };
+  await as(w.a, () => connectGalaxy({ dir: w.a.dir, remoteUrl: w.galaxyRemote }));
+  await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home, guest: phone }));
+  const back = await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
+  assert.equal(back.seat.holder.via, 'local');
+  assert.equal(back.passed.kind, 'phone');
+  assert.equal(back.seat.history.at(-2).memo, '이 PC로 되찾음');
+});

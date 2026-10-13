@@ -4,7 +4,7 @@
 // stable random id, a user-chosen name and a colour. The record lives outside
 // the Galaxy repository (~/.mixdog/star.json) because it describes THIS
 // machine; the Galaxy keeps a published copy under stars/<id>.json.
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { hostname, platform } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -94,5 +94,26 @@ export function publicStar(star, extra = {}) {
     host: star.host,
     seenAt: Date.now(),
     ...extra,
+  };
+}
+
+/**
+ * The star of a phone driving this PC over the relay. Phones have no
+ * ~/.mixdog of their own: the id is derived from the phone's browser id, so
+ * the same phone is the same star on every PC it pairs with.
+ */
+export function guestStar(guest, hostStar = null) {
+  const browserId = String(guest?.id ?? '').trim();
+  if (!browserId) throw new TypeError('guest id is required.');
+  const digest = createHash('sha256').update(`cosmos-phone:${browserId}`).digest('hex');
+  return {
+    v: 1,
+    id: `phone-${digest.slice(0, 16)}`,
+    name: cleanName(guest?.name) || '내 폰',
+    color: STAR_COLORS[parseInt(digest.slice(0, 2), 16) % STAR_COLORS.length],
+    kind: 'phone',
+    os: 'phone',
+    host: hostStar?.name || null,
+    createdAt: 0,
   };
 }

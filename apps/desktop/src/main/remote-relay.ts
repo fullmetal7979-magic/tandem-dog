@@ -168,7 +168,13 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
   // Web Push belongs to the relay leg: this is the only surface where a client
   // can be absent from the socket and still want to hear that a turn finished.
   const pushStore = createPushSubscriptionStore(options.userDataPath);
-  const methods = createRemoteMethods({ ...options, push: pushStore });
+  const methods = createRemoteMethods({
+    ...options,
+    push: pushStore,
+    // 조종석: a phone writes only while it holds the planet's seat here.
+    seatGate: (cwd) =>
+      options.host.invokeDesktopOperation('cosmosRemoteWriteRefusal', [cwd]).then((value) => (typeof value === 'string' ? value : null)),
+  });
   let socket: WebSocket | null = null;
   let closed = false;
   let relayBinaryFrames = false;

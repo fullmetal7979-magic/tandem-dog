@@ -40,30 +40,53 @@ const memo = (value) =>
     .trim()
     .slice(0, MEMO_LIMIT);
 
-/** Last sign of life of the holder: its beat when newer, else when it sat down. */
+/**
+ * Last sign of life of the holder: its beat when newer, else when it sat down.
+ * A phone has no beat of its own; it lives as long as the PC it drives (host).
+ */
 export function holderLastSeen(seat, beats = {}) {
   if (!seat?.holder) return 0;
   const beat = beats[seat.holder.star];
-  return Math.max(Number(seat.holder.since) || 0, Number(beat?.at) || 0);
+  const hostBeat = seat.holder.host ? beats[seat.holder.host] : null;
+  return Math.max(Number(seat.holder.since) || 0, Number(beat?.at) || 0, Number(hostBeat?.at) || 0);
 }
 
-/** 'empty' | 'mine' | 'occupied' | 'stale' for `starId`. */
+/**
+ * 'empty' | 'mine' | 'occupied' | 'stale' | 'remote' for `starId`.
+ * 'remote': a phone sits in the seat through THIS star (the PC it drives).
+ */
 export function seatState(seat, starId, { beats = {}, now = Date.now(), staleMs = SEAT_STALE_MS } = {}) {
   if (!seat?.holder) return 'empty';
   if (seat.holder.star === starId) return 'mine';
+  if (seat.holder.host && seat.holder.host === starId) return 'remote';
   return now - holderLastSeen(seat, beats) > staleMs ? 'stale' : 'occupied';
+}
+
+/**
+ * A PC and the phone driving it share one working copy, so the baton passes
+ * between them directly (폰으로 이어하기 / 되찾기) without a 달. Anyone else
+ * still has to ask.
+ */
+export function sameMachine(holder, star, host = null) {
+  if (!holder) return false;
+  if (holder.host && holder.host === star.id) return true;
+  return Boolean(host && (holder.star === host || holder.host === host));
 }
 
 // ------------------------------------------------------------------ pure transitions
 
-/** Sit down. Refuses an occupied seat unless `force` and the holder is stale. */
+/**
+ * Sit down. Refuses an occupied seat unless `force` and the holder is stale,
+ * or the holder is on this same machine (a PC and the phone driving it).
+ */
 export function sitTransition(seat, star, { beats, now = Date.now(), force = false, via = 'local', host = null } = {}) {
   const state = seatState(seat, star.id, { beats, now });
   if (state === 'mine') return { seat, changed: false, state };
-  if (state === 'occupied') {
+  const sibling = sameMachine(seat.holder, star, host);
+  if (state === 'occupied' && !sibling) {
     return { seat, changed: false, state, refused: 'occupied' };
   }
-  if (state === 'stale' && !force) return { seat, changed: false, state, refused: 'stale' };
+  if (state === 'stale' && !force && !sibling) return { seat, changed: false, state, refused: 'stale' };
   if (seat.handoffTo && seat.handoffTo !== star.id && state === 'empty' && !force) {
     // A seat left FOR someone else waits for them a while before anyone may sit.
     const left = seat.history.at(-1)?.to || 0;
@@ -72,9 +95,13 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
   const history = [...seat.history];
   if (seat.holder) {
     const open = history.findLastIndex((entry) => entry.star === seat.holder.star && !entry.to);
-    if (open >= 0) history[open] = { ...history[open], to: now, memo: history[open].memo || '응답이 없어 넘겨받음', forced: true };
+    if (open >= 0) {
+      history[open] = sibling
+        ? { ...history[open], to: now, memo: history[open].memo || (star.kind === 'phone' ? '폰으로 이어감' : '이 PC로 되찾음') }
+        : { ...history[open], to: now, memo: history[open].memo || '응답이 없어 넘겨받음', forced: true };
+    }
   }
-  history.push({ ...who(star), from: now, to: null, via });
+  history.push({ ...who(star), from: now, to: null, via, ...(host ? { host } : {}) });
   return {
     seat: {
       ...seat,
@@ -85,7 +112,8 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
     },
     changed: true,
     state,
-    took: state === 'stale' ? seat.holder : null,
+    took: state === 'stale' && !sibling ? seat.holder : null,
+    passed: sibling ? seat.holder : null,
   };
 }
 
