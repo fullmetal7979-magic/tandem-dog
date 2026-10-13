@@ -3,6 +3,7 @@
   "--argument",
   "-{{value0}}",
   "/{{value0}}",
+  "AI 계정은 관제실에서 로그인해요 →",
   "Anthropic Messages",
   "Antigravity",
   "API",
@@ -25,6 +26,7 @@
   "gh",
   "Git",
   "Git & GitHub",
+  "git 사용 가능",
   "GitHub",
   "GitHub CLI",
   "github-issues",
@@ -77,5 +79,10 @@
   "· {{value0}}",
   "— {{value0}}",
   "•••••••• {{value0}}",
-  "→ {{value0}}"
+  "→ {{value0}}",
+  "✨ 내 GitHub에 은하수 만들기 / 찾기",
+  "내 GitHub에 비공개 저장소",
+  "를 하나 두고, 설정·스킬·기억·교신을 모든 기기가 함께 써요. 비밀번호와 API 키는 절대 올라가지 않아요.",
+  "예) 로그인 화면 완성, API 연결은 다음에",
+  "🖥️ PC"
 ]
