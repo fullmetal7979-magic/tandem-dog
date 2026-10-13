@@ -7,6 +7,7 @@ import type { PullRequestOpenHandler } from './PullRequestsPane';
 import { SearchPane } from './SearchPane';
 import { SourceControlDock, type SourceControlDiffRequest } from './SourceControlDock';
 import { GalaxyPane } from './cosmos/GalaxyPane';
+import { RunPane } from './cosmos/RunPane';
 import { SurfaceActiveContext } from './surface-activity';
 import { beginBootSurface, reportBootSurfaceReady, reportBootSurfaceStage } from './boot-metrics';
 import type { Snapshot } from './desktop-types';
@@ -58,6 +59,7 @@ function UtilityDockViewSection({ active, children }: { active: boolean; childre
 function utilityDockLoadingLabel(tab: UtilityDockTab): string {
   if (tab === 'search') return t('Preparing Search…');
   if (tab === 'tandem') return t('Preparing Galaxy…');
+  if (tab === 'run') return t('Preparing Run…');
   if (tab === 'source-control') return t('Preparing Source Control…');
   if (tab === 'pull-requests') return t('Preparing Pull Requests…');
   return t('Preparing Agents…');
@@ -67,6 +69,7 @@ function utilityDockTabTitle(tab: UtilityDockTab): string {
   if (tab === 'agents') return t('Agents');
   if (tab === 'search') return t('Search');
   if (tab === 'tandem') return t('Galaxy');
+  if (tab === 'run') return t('Run');
   if (tab === 'pull-requests') return t('Pull Requests');
   return t('Source Control');
 }
@@ -269,6 +272,18 @@ export const UtilityDock = memo(function UtilityDock({
                 onRenameEntry={onRenameProjectEntry}
                 headerActionSlot={showTitle && paneActive('search') ? headerActionSlot : null}
               />
+            </DockPane>
+          </UtilityDockViewSection>
+        )}
+        {desktopUtilityDockTabEnabled('run') && paneMounted('run') && (
+          <UtilityDockViewSection active={paneActive('run')}>
+            <DockPane tab="run" active={paneActive('run')}>
+              {dockProjectOptions.length > 0 && (
+                <div className="utility-dock-project-row" title={dockProjectPath || t('Select project')}>
+                  {projectSelectControl}
+                </div>
+              )}
+              <RunPane projectPath={dockProjectPath} active={paneActive('run')} />
             </DockPane>
           </UtilityDockViewSection>
         )}

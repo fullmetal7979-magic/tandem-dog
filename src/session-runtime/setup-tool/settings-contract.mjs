@@ -45,6 +45,7 @@ export const SETUP_ACTIVITY_RAIL_PIN_IDS = Object.freeze([
   'extensions',
   'source-control',
   'search',
+  'run',
   'tandem',
   'webhooks',
 ]);

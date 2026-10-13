@@ -171,8 +171,14 @@ export function buildAppWorkbenchCommands({
     {
       id: 'workbench.action.showTandem',
       category: 'View',
-      label: 'Open Tandem',
+      label: 'Open Galaxy',
       run: () => openDockTab('tandem'),
+    },
+    {
+      id: 'workbench.action.showRun',
+      category: 'View',
+      label: 'Run Project Scripts',
+      run: () => openDockTab('run'),
     },
     {
       id: 'workbench.action.showSourceControl',

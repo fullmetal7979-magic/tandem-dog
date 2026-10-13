@@ -969,3 +969,144 @@
   gap: 14px;
   max-width: 720px;
 }
+
+/* ───────────── ▶ 실행 (Run) ───────────── */
+.cosmos-run {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  padding: 12px 14px 14px;
+  overflow: auto;
+}
+.cosmos-run-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.cosmos-run-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.cosmos-run-source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mx-text-muted);
+  font-size: 12px;
+}
+.cosmos-run-locked,
+.cosmos-run-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--cosmos-warn-plate, var(--mx-bg-layer-2));
+  font-size: 13px;
+}
+.cosmos-run-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.cosmos-run-task {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icon name'
+    'icon detail';
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--mx-bg-layer-2);
+  box-shadow: var(--mx-button);
+  color: var(--mx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
+}
+.cosmos-run-task:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--cosmos-sun);
+}
+.cosmos-run-task:focus-visible {
+  outline: 2px solid var(--cosmos-sun);
+  outline-offset: 2px;
+}
+.cosmos-run-task:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cosmos-run-task.is-last {
+  border-color: var(--cosmos-sun);
+}
+.cosmos-run-icon {
+  grid-area: icon;
+  font-size: 22px;
+  line-height: 1;
+}
+.cosmos-run-name {
+  grid-area: name;
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cosmos-run-detail {
+  grid-area: detail;
+  color: var(--mx-text-muted);
+  font-family: var(--mx-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cosmos-run-more {
+  align-self: flex-start;
+}
+.cosmos-run-terminal {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 260px;
+  min-height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--mx-bg-layer-1, var(--mx-bg));
+  box-shadow: var(--mx-button);
+}
+.cosmos-run-terminal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  font-size: 12px;
+  color: var(--mx-text-muted);
+}
+.cosmos-run-terminal-bar code {
+  color: var(--mx-text);
+}
+.cosmos-run-terminal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+[data-ui-mode='simple'] .cosmos-run-task {
+  min-height: 72px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cosmos-run-task {
+    transition: none;
+  }
+}
