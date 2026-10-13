@@ -1,3 +1,5 @@
+import { CURRENT_UI_MODE } from '../cosmos/ui-mode';
+
 type SettingsItemKind = 'toggle' | 'cycle' | 'open' | 'static';
 
 interface SettingsItem {
@@ -67,6 +69,7 @@ type SettingsItemValue = (typeof SETTINGS_ITEMS)[number]['value'];
 
 export type SettingsCategory =
   | 'general'
+  | 'cosmos'
   | 'context'
   | 'output-style'
   | 'providers'
@@ -93,6 +96,13 @@ export const SETTINGS_CATEGORIES = [
     label: 'General',
     group: 'COSMOS',
     items: ['profile', 'theme', 'web-search-enabled', 'link-preview', 'memory-enabled', 'voice'],
+  },
+  // COSMOS: the Galaxy, the relay address and the 심플/고급 mode.
+  {
+    value: 'cosmos',
+    label: 'Galaxy',
+    group: 'COSMOS',
+    items: [],
   },
   // Context owns session lifecycle. The Memory master itself lives once in
   // General; curated memories are managed with their project.
@@ -190,6 +200,10 @@ export function settingsCategoryForSurface(category: SettingsCategory, remote: b
   return remote && REMOTE_HIDDEN_SETTINGS_CATEGORIES.has(category) ? 'general' : category;
 }
 
+// 심플 모드 관제실: only what everyday relay work needs.
+const SIMPLE_SETTINGS_CATEGORIES = new Set<SettingsCategory>(['general', 'cosmos', 'providers', 'connection', 'about']);
+
 export function settingsCategoriesForSurface(remote: boolean): ReadonlyArray<SettingsCategoryItem> {
-  return remote ? REMOTE_SETTINGS_CATEGORIES : LOCAL_SETTINGS_CATEGORIES;
+  const categories = remote ? REMOTE_SETTINGS_CATEGORIES : LOCAL_SETTINGS_CATEGORIES;
+  return CURRENT_UI_MODE === 'simple' ? categories.filter((category) => SIMPLE_SETTINGS_CATEGORIES.has(category.value)) : categories;
 }

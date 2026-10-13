@@ -7,6 +7,7 @@ import {
   GitBranch,
   Heart,
   Keyboard,
+  Orbit,
   PenLine,
   Plug,
   type Settings,
@@ -57,6 +58,7 @@ interface SettingsViewProps {
 
 const CATEGORY_ICONS = {
   general: SlidersHorizontal,
+  cosmos: Orbit,
   context: Brain,
   'output-style': PenLine,
   providers: Cable,

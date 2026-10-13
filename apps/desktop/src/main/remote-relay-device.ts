@@ -35,11 +35,16 @@ export function validatedRelayUrl(raw: string): string {
   return url.toString();
 }
 
-export function resolveRelayUrl(env: NodeJS.ProcessEnv): string | null {
+/**
+ * The relay this device dials: MIXDOG_RELAY_URL wins (0/false/off disables),
+ * then the address saved in 관제실 → 은하수 (config cosmos.relayUrl, shared to
+ * every star through the Galaxy), then the empty default (disabled).
+ */
+export function resolveRelayUrl(env: NodeJS.ProcessEnv, configured: string | null = null): string | null {
   const raw = (env.MIXDOG_RELAY_URL || '').trim();
   const flag = raw.toLowerCase();
   if (flag === '0' || flag === 'false' || flag === 'off') return null;
-  const target = raw || DEFAULT_RELAY_URL;
+  const target = raw || (configured || '').trim() || DEFAULT_RELAY_URL;
   if (!target) return null;
   return validatedRelayUrl(target);
 }

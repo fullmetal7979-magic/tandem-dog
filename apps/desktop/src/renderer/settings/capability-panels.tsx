@@ -1,3 +1,4 @@
+import { CosmosSettingsPanel } from '../cosmos/CosmosSettingsPanel';
 import { useEffect, useState } from 'react';
 import { ErrorNotice } from '../ErrorNotice';
 
@@ -44,6 +45,7 @@ export function CategoryPanel({ category, context }: { category: CapabilityCateg
   if (category === 'connection') return <ConnectionPanel api={context.api} />;
   if (category === 'developer') return <DeveloperPanel {...context} />;
   if (category === 'about') return <AboutPanel />;
+  if (category === 'cosmos') return <CosmosSettingsPanel />;
   return <GeneralPanel {...context} />;
 }
 

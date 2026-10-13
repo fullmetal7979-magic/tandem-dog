@@ -1,4 +1,5 @@
 [
+  ")를 넣어 주세요. 대화는 종단간 암호화되어 서버도 읽을 수 없어요. PC·맥끼리 교대할 때는 필요 없어요.",
   "+{{value0}}",
   "--argument",
   "-{{value0}}",
@@ -62,6 +63,7 @@
   "URL",
   "VARIABLE_NAME",
   "Word",
+  "wss://relay.내도메인.com",
   "{{value0}}",
   "{{value0}} ({{value1}})",
   "{{value0}} / {{value1}}",

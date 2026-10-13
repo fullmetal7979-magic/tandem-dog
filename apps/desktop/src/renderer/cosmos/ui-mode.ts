@@ -39,7 +39,9 @@ export function switchUiMode(mode: CosmosUiMode, { reload = true } = {}): void {
   } catch {
     /* storage-less host: the switch only lasts this window */
   }
-  void window.mixdogDesktop?.cosmosSetPreference?.('uiMode', mode).catch?.(() => undefined);
+  const desktop = (window as unknown as { mixdogDesktop?: { cosmosSetPreference?(key: 'uiMode', value: string): Promise<void> } })
+    .mixdogDesktop;
+  void desktop?.cosmosSetPreference?.('uiMode', mode).catch(() => undefined);
   if (reload && mode !== CURRENT_UI_MODE) window.location.reload();
 }
 

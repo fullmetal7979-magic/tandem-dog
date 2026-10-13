@@ -2,7 +2,9 @@
 // with clickable progress bars, per-step hero titles, and Ctrl+Enter to
 // advance. The capability wiring (completeOnboarding / skipOnboarding and the
 // provider/model reads) is shared with Settings and stays authoritative.
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Github, Star, UserRound, X } from 'lucide-react';
+import { GalaxySetup, RelayOutcome, StarIdentity } from '../cosmos/CosmosParts';
+import { useCosmos } from '../cosmos/cosmos-store';
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Github, UserRound, X } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -15,7 +17,6 @@ import type {
   DesktopGithubCliLoginFlow,
   DesktopGithubCliStatus,
 } from '../../shared/contract';
-import { REPO_NAME, REPO_URL } from '../../shared/fork-identity';
 import { t } from '../i18n';
 import { ErrorNotice } from '../ErrorNotice';
 import { OpenSelect } from '../OpenSelect';
@@ -28,7 +29,6 @@ import { OAuthControl } from './CapabilitySettings';
 import { FOCUSABLE_SELECTOR, inertBackground, portaledMenuOpen, trapTab } from './dialog-modality';
 import { getCachedGitPanelInfo, patchCachedGitPanelInfo, preloadGitPanelInfo } from './git-panel-info';
 import { useGithubLoginPolling } from './github-login-polling';
-import { probeGithubStarred, readGithubStarred, rememberGithubStarred } from './github-star-storage';
 import '../desktop/21-onboarding.css';
 
 type RecordValue = Record<string, unknown>;
@@ -63,10 +63,10 @@ const STEPS = [
     subtitle: () => t('Connect the GitHub CLI and you are set — commits and pull requests just work.'),
   },
   {
-    id: 'star',
-    label: () => t('Star'),
-    title: () => t('One last thing'),
-    subtitle: () => t('COSMOS is free and open source — a GitHub star genuinely helps it grow.'),
+    id: 'galaxy',
+    label: () => '은하수',
+    title: () => '이 기기를 별로, 은하수에 연결',
+    subtitle: () => '어느 기기·어느 계정에서든 같은 환경과 같은 세션으로 이어 쓰도록 연결해요.',
   },
 ] as const;
 
@@ -127,11 +127,10 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
   // The wizard's fullscreen scrim cannot cover the NATIVE caption controls —
   // hold the titlebar dim claim while the wizard is mounted.
   useEffect(() => acquireTitleBarDim(), []);
-  // Warm the Git and Star steps while the first steps are on screen, so
-  // entering them paints the finished card instead of popping in.
+  // Warm the Git step while the first steps are on screen, so entering it
+  // paints the finished card instead of popping in.
   useEffect(() => {
     void preloadGitPanelInfo(api);
-    if (!readGithubStarred()) void probeGithubStarred(api).catch(() => undefined);
   }, [api]);
 
   // Resume: remember the furthest UI position; the marker clears on close.
@@ -404,7 +403,7 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
                   />
                 )}
                 {meta.id === 'git' && <GitStep api={api} />}
-                {meta.id === 'star' && <StarStep api={api} />}
+                {meta.id === 'galaxy' && <GalaxyStep />}
               </div>
               {error && <ErrorNotice error={error} />}
             </div>
@@ -915,84 +914,40 @@ function githubPill(loading: boolean, installed: boolean, authenticated: boolean
   return authenticated ? ['ok', t('Connected')] : ['warn', t('Not connected')];
 }
 
-function starLabel(starred: boolean, busy: boolean): string {
-  if (starred) return t('Starred');
-  return busy ? t('Starring…') : t('Star');
-}
-
-// Final step: the About panel's star action (gh CLI when signed in, repo page
-// otherwise) framed as the closing ask before Finish.
-function StarStep({ api }: { api: DesktopApi }) {
-  const [ghReady, setGhReady] = useState(false);
-  // A remembered star paints at once (the About panel's rule) and skips the
-  // probe; otherwise the probe fills in gh availability.
-  const [starred, setStarred] = useState(readGithubStarred);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (readGithubStarred()) return undefined;
-    let live = true;
-    void probeGithubStarred(api)
-      .then((status) => {
-        if (!live || !status) return;
-        setGhReady(status.available);
-        setStarred(status.starred);
-      })
-      .catch(() => {
-        /* the button stays a plain repo link */
-      });
-    return () => {
-      live = false;
-    };
-  }, [api]);
-  const open = (url: string) => void api.openExternal?.(url).catch(() => undefined);
-  const star = () => {
-    if (starred || !ghReady || !api.starGithub) {
-      open(REPO_URL);
-      return;
-    }
-    setBusy(true);
-    void api
-      .starGithub()
-      .then((result) => setStarred(rememberGithubStarred(result?.starred === true)))
-      .catch(() => open(REPO_URL))
-      .finally(() => setBusy(false));
-  };
-  // A GitHub-repo-card composition (familiar, concrete) instead of a glowing
-  // poster tile (user: AI slop 같다).
+// Final step: name this device (별) and connect the Galaxy (은하수) — the
+// whole point of COSMOS. Both can be done later from the Galaxy screen.
+function GalaxyStep() {
+  const entry = useCosmos('');
+  const view = entry.view;
   return (
-    <div className="onboarding-card">
-      <div className="onboarding-card-head">
-        <span className="onboarding-card-icon" aria-hidden="true">
-          <Github size={20} />
-        </span>
-        <div className="onboarding-card-heading">
-          <b className="onboarding-card-title">{REPO_NAME}</b>
-          <span className="onboarding-pill neutral">{t('Public')}</span>
-        </div>
-      </div>
-      <p className="onboarding-card-text">
-        {t('Standalone coding agent — multi-provider agent workflows across CLI, desktop, and phone.')}{' '}
-        {starred
-          ? t('Thank you for the star — it genuinely helps COSMOS grow!')
-          : t('Built in the open; a star helps other developers find it.')}
-      </p>
-      <div className="onboarding-repo-meta">
-        <span>
-          <i aria-hidden="true" /> {t('Free & open source')}
-        </span>
-        <span>{t('Runs on your machine')}</span>
-        <span>{t('No sign-up')}</span>
-      </div>
-      <div className="onboarding-card-actions">
-        <button type="button" className="ghost" disabled={busy} onClick={() => open(REPO_URL)}>
-          <ExternalLink size={14} /> {t('Open on GitHub')}
-        </button>
-        {/* Star sits at the card's bottom-right — the easiest spot to hit. */}
-        <button type="button" className={starred ? 'starred' : undefined} disabled={busy || starred} onClick={star}>
-          <Star size={14} fill={starred ? 'currentColor' : 'none'} />
-          {starLabel(starred, busy)}
-        </button>
-      </div>
+    <div className="onboarding-galaxy">
+      <ol className="onboarding-relay-howto">
+        <li>
+          <b>☀️ 해 · 앉기</b>
+          <span>작업을 시작할 때 누르면 최신 코드·설정·교신을 받아 이 기기에서 이어 해요.</span>
+        </li>
+        <li>
+          <b>🌙 달 · 내리기</b>
+          <span>자리를 뜰 때 누르면 저장·커밋·푸시하고 교신을 은하수에 올려요.</span>
+        </li>
+        <li>
+          <b>🕹️ 조종석</b>
+          <span>한 번에 한 기기만 앉아요. 다른 기기는 🔁 교대를 요청해 넘겨받아요.</span>
+        </li>
+      </ol>
+      {view ? (
+        <>
+          <StarIdentity projectPath={null} view={view} entry={entry} />
+          {view.ready ? (
+            <p className="onboarding-galaxy-ready">✅ 은하수 연결됨 · {view.remote || '이 기기에만 있음'}</p>
+          ) : (
+            <GalaxySetup projectPath={null} entry={entry} />
+          )}
+          <RelayOutcome projectPath="" entry={entry} />
+        </>
+      ) : (
+        <p className="cosmos-empty-note">✨ 은하수를 살펴보는 중이에요…</p>
+      )}
     </div>
   );
 }

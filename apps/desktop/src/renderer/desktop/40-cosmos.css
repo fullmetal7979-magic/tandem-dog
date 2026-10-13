@@ -962,3 +962,10 @@
   color: var(--mx-text-muted);
   font-size: 15px;
 }
+
+/* 관제실 → 은하수 */
+.cosmos-settings {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+}

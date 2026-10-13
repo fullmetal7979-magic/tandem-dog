@@ -23,7 +23,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 const { createRoot } = await import('react-dom/client');
 const { OnboardingWizard } = await import('./OnboardingWizard.tsx');
-const { readGithubStarred } = await import('./github-star-storage.ts');
 
 test.after(() => dom.window.close());
 
@@ -162,25 +161,15 @@ test('Ctrl+Enter commits the focused profile title before leaving the step', asy
   assert.equal(document.querySelector('input[name="title"]').value, 'After');
 });
 
-test('the wizard is profile, providers, Git, and star, and Finish marks onboarding done', async (t) => {
+test('the wizard is profile, providers, Git, and the Galaxy, and Finish marks onboarding done', async (t) => {
   const { calls, completed } = await mount(t);
   assert.equal(document.querySelectorAll('.onboarding-progress-bar').length, 4);
   await go(3);
-  assert.match(document.querySelector('h1').textContent, /One last thing/);
+  assert.match(document.querySelector('h1').textContent, /은하수에 연결/);
+  assert.match(document.body.textContent, /☀️ 해 · 앉기/);
   await click(button('Finish'));
   assert.deepEqual(calls.at(-1), { capability: 'skipOnboarding', args: [] });
   assert.equal(completed(), 1);
-});
-
-test('a star given from the wizard is remembered like the About panel does', async (t) => {
-  await mount(t, {
-    step: 3,
-    githubStarStatus: async () => ({ available: true, starred: false }),
-    starGithub: async () => ({ starred: true }),
-  });
-  const actions = document.querySelectorAll('.onboarding-card-actions button');
-  await click(actions[actions.length - 1]);
-  assert.equal(readGithubStarred(), true);
 });
 
 test('providers explain the supported local-model installation path', async (t) => {
@@ -296,20 +285,6 @@ for (const [name, github, git, installs] of [
     );
   });
 }
-
-test('a star confirmed while earlier steps are open shows Starred at once on the last step', async (t) => {
-  let probes = 0;
-  await mount(t, {
-    githubStarStatus: async () => {
-      probes += 1;
-      return { available: true, starred: true };
-    },
-  });
-  await settle();
-  await go(3);
-  assert.ok(button('Starred').disabled);
-  assert.equal(probes, 1);
-});
 
 test('API provider detail from the backend is shown literally even when it matches a catalog key', async (t) => {
   const { default: i18next } = await import('../i18n.ts');

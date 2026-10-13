@@ -785,3 +785,34 @@
     width: 100%;
   }
 }
+
+/* COSMOS: the Galaxy step (별 · 은하수). */
+.onboarding-galaxy {
+  display: grid;
+  gap: 14px;
+}
+.onboarding-relay-howto {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.onboarding-relay-howto li {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--mx-bg-layer-1);
+}
+.onboarding-relay-howto span {
+  color: var(--mx-text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.onboarding-galaxy-ready {
+  margin: 0;
+  font-weight: 650;
+}

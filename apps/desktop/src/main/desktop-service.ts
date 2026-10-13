@@ -365,12 +365,21 @@ export async function createDesktopService({
     }, relayRetryMs);
     relayRetryTimer.unref?.();
   };
+  const configuredRelayUrl = async (): Promise<string | null> => {
+    try {
+      const config = (await runtime.loadConfig()).readConfig?.() as Record<string, unknown> | undefined;
+      const cosmos = config?.cosmos as Record<string, unknown> | undefined;
+      return typeof cosmos?.relayUrl === 'string' ? cosmos.relayUrl : null;
+    } catch {
+      return null;
+    }
+  };
   const startRemoteServices = async (): Promise<void> => {
     if (remoteServicesPromise) return remoteServicesPromise;
     remoteServicesPromise = (async () => {
       if (remoteRelay) return;
       try {
-        const relayUrl = resolveRelayUrl(process.env);
+        const relayUrl = resolveRelayUrl(process.env, await configuredRelayUrl());
         if (!relayUrl) return;
         remoteRelay = await startRemoteRelay({ ...remoteOptions, relayUrl });
         if (relayRetryTimer) {
