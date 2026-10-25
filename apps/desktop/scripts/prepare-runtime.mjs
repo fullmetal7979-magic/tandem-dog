@@ -47,14 +47,9 @@ const runtimePackageDir = join(stagingDir, 'node_modules', 'mixdog');
 const runtimeArchive = join(runtimeDir, 'runtime.asar');
 const runtimeSidecar = `${runtimeArchive}.unpacked`;
 const builderNativeModulesDir = join(runtimeDir, 'native-modules');
-const externalProcessArchivePaths = [
-  'node_modules/mixdog/src/runtime/office/com/office-com-host.ps1',
-  'node_modules/mixdog/src/runtime/office/com/office-com-session-host.ps1',
-  'node_modules/mixdog/src/runtime/office/com/office-com-cleanup.ps1',
-  'node_modules/mixdog/src/runtime/office/com/office-word-formatting.ps1',
-  'node_modules/mixdog/src/runtime/office/design/library/templates/mixdog-executive.pptx',
-  'node_modules/mixdog/src/runtime/office/design/library/templates/mixdog-executive.pptx.mixdog.json',
-];
+// COSMOS removed the Office/PDF runtime, which owned every external-process
+// asset (PowerShell COM hosts, deck templates); nothing is left to unpack.
+const externalProcessArchivePaths = [];
 const externalProcessArchiveEntries = externalProcessArchivePaths.map((path) => `/${path}`);
 const desktopPtyPackageDir = join(desktopDir, 'node_modules', '@homebridge', 'node-pty-prebuilt-multiarch');
 const builderDesktopPtyDir = join(runtimeDir, 'desktop-node-pty');
@@ -689,8 +684,6 @@ async function prepareRuntime(manifest, fingerprint) {
       '/package.json',
       '/node_modules/mixdog/package.json',
       '/node_modules/mixdog/src/tui/session.mjs',
-      '/node_modules/mixdog/src/runtime/office/core/journal.mjs',
-      '/node_modules/mixdog/src/runtime/office/quality/visual-diff.mjs',
       '/node_modules/mixdog/src/runtime/local-provider/data/manifest.json',
       ...externalProcessArchiveEntries,
       '/node_modules/@huggingface/transformers/package.json',
