@@ -77,9 +77,6 @@ win:
   target:
     - nsis
 nsis:
-  # Start menu and desktop shortcuts read 코스모스 (the Windows build handled
-  # the Korean name fine; only macOS bundle names must stay ASCII).
-  shortcutName: 코스모스
   installerIcon: build/mixdog.ico
   installerHeaderIcon: build/mixdog.ico
   # One-click, per-user installation avoids elevation and machine-wide state.
