@@ -1,146 +1,116 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/tribgames/mixdog/main/apps/desktop/build/mixdog.png" width="80" alt="Mixdog">
+  <img src="apps/desktop/public/mixdog.svg" width="88" alt="COSMOS">
 </p>
 
-<h1 align="center">Mixdog</h1>
+<h1 align="center">COSMOS · 코스모스</h1>
 
 <p align="center">
-  The open-source coding agent that uses 63% fewer tokens.
-</p>
-
-<p align="center">
-  <a href="https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-win-x64.exe"><img src="https://raw.githubusercontent.com/tribgames/mixdog/main/docs/assets/download-windows.svg" alt="Download for Windows" height="48"></a>
-  &nbsp;
-  <a href="https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-mac-arm64.dmg"><img src="https://raw.githubusercontent.com/tribgames/mixdog/main/docs/assets/download-macos.svg" alt="Download for macOS" height="48"></a>
-  <br>
-  <sub>macOS button is for Apple Silicon (M1 and later). Intel Mac? <a href="https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-mac-x64.dmg">Download for Intel Mac</a></sub>
+  <b>어느 컴퓨터에서, 어떤 계정으로 접속하든 — 같은 환경, 같은 세션으로 이어서.</b><br>
+  PC·맥·폰이 한 세션을 <b>이어달리기</b>처럼 번갈아 쓰는 AI 코딩 도구
 </p>
 
 <p align="center">
-  <a href="https://github.com/tribgames/mixdog/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/tribgames/mixdog?style=flat-square"></a>
-  <a href="https://www.npmjs.com/package/mixdog"><img alt="npm" src="https://img.shields.io/npm/v/mixdog?style=flat-square"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
+  <a href="docs/cosmos/DESIGN.md"><b>설계</b></a> ·
+  <a href="docs/cosmos/RELAY.md"><b>폰 연결(릴레이)</b></a> ·
+  <a href="#명령줄"><b>명령줄</b></a> ·
+  <a href="NOTICE.md"><b>라이선스·출처</b></a>
 </p>
 
-<p align="center">
-  <a href="https://aiscroll.io/mixdog/"><b>Website</b></a> ·
-  <a href="benchmarks/terminal-bench-2.1/"><b>Benchmarks</b></a> ·
-  <a href="#documentation"><b>Docs</b></a>
-</p>
+---
 
-https://github.com/user-attachments/assets/af515dc9-b0fb-4b6a-aaa1-1d82db792ed0
+## 한눈에
 
-## Highlights
+| | |
+|---|---|
+| 🕹️ **조종석은 하나** | 한 프로젝트(행성)에는 세션이 하나, 조종석에는 **한 번에 한 기기만** 앉아요. 다른 기기는 잠겨서 겹쳐 고칠 일이 없어요. |
+| ☀️ **해 — 앉기** | 최신 커밋·환경·대화를 받아 이 기기에서 바로 이어가요. |
+| 🌙 **달 — 내리기** | 저장·커밋·푸시하고, 환경과 대화를 은하수에 올리고, 조종석을 비워요. |
+| 🔁 **교대** | 다른 기기에 "넘겨 줘"를 보내면, 앉아 있는 기기에 알림이 가요. |
+| 🌌 **은하수** | 내 **비공개 GitHub 저장소** 하나에 설정·스킬·에이전트·기억·대화가 따라다녀요. 비밀번호·토큰은 절대 올라가지 않아요. |
+| ⭐ **별** | 내 기기 하나하나(집 맥북 💻, 회사 PC 🖥️, 내 폰 📱). 우주 지도에서 누가 조종 중인지 한눈에 보여요. |
+| 📱 **폰으로 이어 하기** | 내 릴레이 서버(종단간 암호화)를 거쳐 켜져 있는 PC를 폰으로 몰아요. |
+| ▶ **실행** | `package.json` 스크립트·Makefile 타깃이 큰 버튼으로. 누르면 프로젝트 터미널에서 실행돼요. |
 
-- [63% fewer tokens](#benchmarks) than Codex CLI on the same model, at the
-  same success rate.
-- **Auto reasoning effort** — each message and tool step gets the effort it
-  needs. On by default.
-- Use the **Claude, ChatGPT, or Grok** subscription you already have, API
-  keys, or local models on your own GPU.
-- Mix models by role and scale from **Solo to Swarm** — a strong model leads
-  while cheaper ones search, edit, and review in parallel.
-- A full workspace: editor, terminals, Git and GitHub, code graph, and
-  language servers.
-- Keeps working on its own with **Goals, schedules, and webhooks** — and
-  continues from your phone, end-to-end encrypted.
-- Goes beyond code with **browser and desktop control**, Office and PDF
-  documents, and image and video generation.
-- Runs on Windows and macOS. No config files.
+AI 계정은 기기마다 달라도 괜찮아요. 집에서는 Claude, 회사에서는 ChatGPT로 로그인해 있어도 **같은 대화를 그대로 이어서** 써요(공급자 형식은 자동 변환, 길면 자동 압축).
 
-## Installation
+## 이어달리기 흐름
 
-Download the desktop app:
-
-| Platform | Download |
-| --- | --- |
-| Windows (x64) | [`mixdog-desktop-win-x64.exe`](https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-win-x64.exe) |
-| macOS (Apple Silicon) | [`mixdog-desktop-mac-arm64.dmg`](https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-mac-arm64.dmg) |
-| macOS (Intel) | [`mixdog-desktop-mac-x64.dmg`](https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-mac-x64.dmg) |
-
-Then sign in with a ChatGPT, Claude, or Grok account, or paste an API key. A
-five-step tutorial walks you through the rest.
-
-> [!NOTE]
-> The Windows installer is not code-signed yet. If SmartScreen appears,
-> choose **More info → Run anyway**. The Mac app is signed and notarized.
-
-Or run it in the terminal (Node.js 22.19+ or 24+):
-
-```bash
-npm install -g mixdog
-mixdog
+```
+💻 회사 PC          🌌 은하수 (비공개 GitHub)          🏠 집 맥북
+   ☀️ 앉기  ───────▶  조종석: 회사 PC
+   … 작업 …                                     🔒 잠김 · 🔁 교대 요청
+   🌙 내리기 ──────▶  커밋·푸시 · 환경 · 대화 · 조종석 비움 ──▶  ☀️ 앉기 → 그대로 이어서
 ```
 
-<details>
-<summary>Supported providers</summary>
+- 앉아 있던 기기가 꺼져 버렸다면? 30분 동안 신호가 없으면 **⚠️ 넘겨받기** 가 열려요. 그 기기에 남은 작업은 다시 켜질 때 `cosmos/rescue-*` 브랜치로 안전하게 보관돼요.
+- 비밀 파일(`.env`, 키, 토큰 모양 문자열)이 섞여 있으면 🌙 달이 커밋을 멈추고 목록을 보여 줘요.
 
-- Anthropic API keys and Claude account OAuth
-- OpenAI API keys and ChatGPT/Codex account OAuth
-- Google Gemini API keys
-- xAI API keys and Grok account OAuth
-- OpenRouter, DeepSeek, and OpenCode Go
-- Built-in **Local Provider** — download and run models in the app
-  (Windows x64 with an NVIDIA GPU)
+## 두 가지 모드
 
-Cursor and Antigravity (Gemini) OAuth are off by default under
-**Settings → Developer**; using them through OAuth risks account restrictions.
+| 🌱 심플 모드 | 🔭 고급 모드 |
+|---|---|
+| 교신 · 행성 · 파일 · ▶ 실행 · 은하수 · 관제실 | 심플 모드 전부 + 에이전트 · 소스 제어 전체 · 예약 · 워크플로 · 확장(스킬·MCP·플러그인) · 사용량 · 브라우저/컴퓨터 제어 · 개발자 옵션 |
+| 큰 버튼, 라벨 달린 레일, 꼭 필요한 설정만 | 모든 세부 설정 |
 
-</details>
+상단 바의 **심플 ⇄ 고급** 스위치로 바꿔요. 고른 모드는 은하수로 다른 기기에도 따라가요.
 
-<details>
-<summary>Headless <code>mixdog exec</code></summary>
+## 시작하기
 
-`mixdog exec` runs one non-interactive, single-model session without personal
-memory, prior sessions, skills, MCP servers, or plugins:
+### 1. 설치 (소스에서)
 
 ```bash
-mixdog exec --provider openai-oauth --model gpt-5.6-sol --effort xhigh "fix the failing test"
+git clone <이 저장소> cosmos && cd cosmos
+npm install
+cd apps/desktop && npm install && npm run build:mac   # 윈도: build:win · 리눅스: build:linux
 ```
 
-Web search is off by default (`--web-search` enables it). This does not block
-shell networking — headless exec is not an offline sandbox. Run
-`mixdog --help` for the full reference.
+`apps/desktop/dist/` 에 앱이 만들어져요. 개발 모드는 `npm run dev` 예요.
 
-</details>
+### 2. 첫 실행 마법사
 
-## Benchmarks
+1. 🙂 프로필 (부를 이름·말투)
+2. 🤖 AI 계정 로그인 (Claude · ChatGPT · Grok 등, 기기마다 달라도 돼요)
+3. 🔑 Git·GitHub 준비 (`gh` 로그인)
+4. 🌌 은하수 — ⭐ 이 기기 이름 붙이기("집 맥북"), 버튼 한 번으로 비공개 저장소 `cosmos-galaxy` 를 만들거나 이미 있는 은하수에 연결. 다른 기기에서 만든 은하수라면 설정·스킬·행성 목록이 자동으로 돌아와요. 폰을 쓸 거라면 📡 릴레이 주소는 나중에 🛸 관제실 → 은하수에서 넣어요.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/tribgames/mixdog/main/benchmarks/terminal-bench-2.1/tb21-sol-vs-codex-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/tribgames/mixdog/main/benchmarks/terminal-bench-2.1/tb21-sol-vs-codex-light.svg">
-    <img alt="Bar chart: Mixdog vs Codex CLI on Terminal-Bench 2.1" src="https://raw.githubusercontent.com/tribgames/mixdog/main/benchmarks/terminal-bench-2.1/tb21-sol-vs-codex-light.svg">
-  </picture>
-</p>
+두 번째 기기부터는 4번에서 **같은 은하수에 연결** 만 하면 끝이에요.
 
-<p align="center">
-  <i>All 89 Terminal-Bench 2.1 tasks × 5 trials on GPT-5.6 Sol xhigh, scored by the official Harbor verifier.</i>
-</p>
+### 3. 폰
 
-Mixdog used fewer tokens on 87 of 89 tasks. With Claude Opus 5, it solved 2
-more tasks than Claude Code at 19% lower cost. Every verdict, log, and script
-is published in [`benchmarks/terminal-bench-2.1/`](benchmarks/terminal-bench-2.1/),
-and [Context efficiency](docs/context-efficiency.md) explains where the
-savings come from.
+[docs/cosmos/RELAY.md](docs/cosmos/RELAY.md) — VPS 한 대와 도메인 하나, 한 줄 설치.
 
-## Documentation
+## 명령줄
 
-- [Context efficiency](docs/context-efficiency.md)
-- [Benchmarks](benchmarks/terminal-bench-2.1/)
-- [Code Tidy](docs/code-tidy.md)
-- [Git & GitHub](docs/git-github-integration.md)
-- [Language servers](docs/language-servers.md)
-- [Office runtime](src/runtime/office/README.md)
-- [Development, configuration, and testing](docs/development.md)
+`cosmos` (예전 이름 `mixdog` 도 그대로 동작해요)
 
-## Feedback
+```bash
+cosmos 해 [--force]          # 조종석에 앉기: 프로젝트·환경·대화 받기
+cosmos 달 ["메모"]           # 내리기: 커밋·푸시·환경·대화 올리고 조종석 비우기
+cosmos 교대 ["메모"]         # 교대 요청 (--cancel 로 취소)
+cosmos 은하수                # 별(기기)들과 이 행성의 조종석 상태
+cosmos 연결 <저장소 URL>     # 은하수 연결
+cosmos 별 "<이름>" [pc|mac]  # 이 기기 이름 짓기
+```
 
-Found a bug or missing a feature?
-[Open an issue](https://github.com/tribgames/mixdog/issues). If Mixdog saves
-you tokens, a star helps others find it.
+영어 별칭: `start` · `finish` · `request` · `status` · `connect` · `star`.
 
-## License
+## 무엇이 동기화되나
 
-Mixdog is licensed under [Apache-2.0](LICENSE). Third-party components retain
-their respective licenses; see [NOTICE.md](NOTICE.md).
+| 올라가요 (은하수) | 절대 안 올라가요 |
+|---|---|
+| 모델 경로·프리셋·프로필·테마·모드·릴레이 주소·MCP 정의 (비밀값은 `${secret}` 자리표시) | OAuth 토큰, API 키, 공급자 계정 토큰 |
+| 스킬 · 에이전트 · 출력 스타일 · 워크플로 · 훅 · 핵심 기억 | 키체인, 로컬 DB(`pgdata`), 사용량 기록, 백업 |
+| 행성(프로젝트) 목록과 원격 주소 | 릴레이 기기 비밀(`relay-e2ee.json`) |
+| 이어갈 대화 (시스템 메시지 제외, 토큰 모양 문자열 가림) | 원본 세션 파일(절대 경로·PID·캐시 키) |
+
+충돌이 나면 방향이 이겨요(☀️ 해는 받아오고 🌙 달은 올려요). 진 쪽 사본은 백업 폴더에 남아요.
+
+## 문서
+
+- [설계 — 우주 개념·조종석·은하수·화면](docs/cosmos/DESIGN.md)
+- [폰 연결 — 릴레이 서버 설치](docs/cosmos/RELAY.md)
+- [개발 환경](docs/development.md)
+
+## 라이선스
+
+Apache-2.0. COSMOS는 [Mixdog](https://github.com/tribgames/mixdog)(tribgames)의 포크예요. 원본 저작권과 고지는 [NOTICE.md](NOTICE.md) 와 `LICENSES/` 에 그대로 남아 있어요.

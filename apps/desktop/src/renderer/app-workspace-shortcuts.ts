@@ -22,6 +22,10 @@ interface WorkspaceShortcutActions {
   navigateTab: (tab: WorkspaceTab) => void;
   startTask: () => void;
   openSettings: () => void;
+  /** mod+/ : the keyboard shortcut reference. */
+  openShortcuts?: () => void;
+  /** mod+Shift+D : the Tandem dock (multi-PC session). */
+  openTandem?: () => void;
   toggleSidebar: () => void;
   toggleDock: () => void;
   togglePanel: () => void;
@@ -98,6 +102,8 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
       if (!plain) return null;
       if (key === 'n') return () => actionsRef.current.startTask();
       if (key === ',') return () => actionsRef.current.openSettings();
+      if (key === '/' && !event.altKey && actionsRef.current.openShortcuts) return () => actionsRef.current.openShortcuts?.();
+      if (key === 'd' && event.shiftKey && !event.altKey && actionsRef.current.openTandem) return () => actionsRef.current.openTandem?.();
       if (key === 'j') return () => actionsRef.current.togglePanel();
       if (key === 'w' || key === 'q') return closeActiveTab;
       return null;

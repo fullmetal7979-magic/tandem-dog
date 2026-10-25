@@ -411,19 +411,63 @@
   height: var(--mx-icon-xs);
   stroke: none;
 }
-/* The send disc is ink — white on dark, near-black on paper — with the arrow
-   cut in the sheet tone (user: 입력 버튼은 흰색). */
+/* Tandem Dog: the send disc is the one accent in the composer (user: 엔터
+   버튼은 다른 색상으로 강조), white arrow on the theme's accent plate. */
 .send-button {
-  color: var(--mx-workspace-sheet);
+  color: #fff;
   /* Longhand for the same clip reason as the recording mic above. */
-  background-color: var(--mx-text);
+  background-color: var(--mx-accent-bg);
   background-image: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mx-accent-bg) 60%, transparent);
+  transition: background-color 120ms ease, transform 120ms ease;
 }
-/* A mid-grey wash dims the white disc and lifts the ink one alike. */
 .send-button:hover:not(:disabled) {
-  background-image: linear-gradient(rgb(128 128 128 / 20%), rgb(128 128 128 / 20%));
-  background-color: var(--mx-text);
+  background-image: linear-gradient(rgb(255 255 255 / 12%), rgb(255 255 255 / 12%));
+  background-color: var(--mx-accent-bg);
+}
+.send-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+/* Typing reveals how to send; quiet until there is something to send. */
+.composer-send-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--mx-text-faint);
+  white-space: nowrap;
+}
+.composer-send-hint kbd {
+  font: inherit;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--mx-border);
+  color: var(--mx-text-muted);
+}
+.composer-send-hint kbd.is-primary {
+  color: #fff;
+  border-color: transparent;
+  background: var(--mx-accent-bg);
+}
+@media (max-width: 720px) {
+  .composer-send-hint {
+    display: none;
+  }
+}
+@container (max-width: 520px) {
+  .composer-send-hint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-button {
+    transition: none;
+  }
+  .send-button:active:not(:disabled) {
+    transform: none;
+  }
 }
 /* Stop keeps the contrast disc (grey on dark, ink on paper) and its square. */
 .send-button.stop {

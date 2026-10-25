@@ -3,9 +3,15 @@
 Mixdog
 Copyright (c) 2026 tribgames
 
-This is "Tandem Dog", a modified fork of Mixdog with multi-PC session continuity.
+This is "COSMOS" (코스모스), a modified fork of Mixdog (Mixdog 포크 → COSMOS).
+COSMOS turns one project session into a relay that PCs, Macs and phones take
+turns in (one seat, one device at a time), syncs the working environment
+through a private Galaxy repository, and reshapes the desktop app around a
+simple/advanced mode. It began as the "Tandem Dog" fork.
+
 The files were changed from the upstream Mixdog release; the original copyright,
-`LICENSE`, and the notices below are retained.
+`LICENSE`, and the notices below are retained. Image/video generation and the
+Office/PDF toolchain were removed from this fork.
 
 Mixdog itself is licensed under Apache-2.0 (see `LICENSE`). The sections below cover the
 third-party code and data that Mixdog actually carries, kept here in one place

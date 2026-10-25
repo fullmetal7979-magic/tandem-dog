@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import type { ComposerProps } from './Composer';
 import { ComposerAddMenu } from './ComposerAddMenu';
+import { t } from './i18n';
 import { ComposerGoalDialog } from './ComposerGoalDialog';
 import { ModelSelector } from './model-controls';
 import { DictationButton, SendButton } from './composer-surfaces';
@@ -143,6 +144,11 @@ export function ComposerFooter({
             disabled={transitioning || dictation.dictationState === 'transcribing'}
             onToggle={() => void dictation.toggleDictation()}
           />
+        )}
+        {!stopOnly && !voiceSend && draft.trim() && (
+          <span className="composer-send-hint" aria-hidden="true">
+            <kbd className="is-primary">Enter</kbd> {t('send')} · <kbd>Shift+Enter</kbd> {t('new line')}
+          </span>
         )}
         <SendButton
           stopOnly={stopOnly}

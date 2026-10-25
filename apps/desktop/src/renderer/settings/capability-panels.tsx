@@ -66,6 +66,8 @@ const SHORTCUT_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [s
       ['Ctrl+Alt+B', 'Toggle right utility panel'],
       ['Ctrl+` / Ctrl+T', 'Toggle terminal panel'],
       ['Ctrl+,', 'Open settings'],
+      ['Ctrl+/', 'Show keyboard shortcuts'],
+      ['Ctrl+Shift+D', 'Open Tandem'],
       ['Esc', 'Close menus and popovers'],
     ],
   ],
@@ -81,7 +83,7 @@ const SHORTCUT_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [s
   [
     'Composer',
     [
-      ['Enter', 'Send message'],
+      ['Enter', 'Send message (one press, also while typing Korean)'],
       ['Shift+Enter / Ctrl+Enter', 'Insert new line'],
       ['Ctrl+J', 'Insert new line'],
       ['Ctrl+U', 'Delete to line start'],
@@ -99,6 +101,14 @@ const SHORTCUT_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [s
   ],
 ];
 
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+/** The workbench keymap treats Ctrl and ⌘ alike; show the Mac key on a Mac.
+ *  Ctrl+Tab, Ctrl+J, Ctrl+U and Ctrl+Enter are Control-only in the composer. */
+function platformKeys(keys: string): string {
+  if (!IS_MAC || /Tab|Ctrl\+[JU]\b|Ctrl\+Enter/.test(keys)) return keys;
+  return keys.replace(/Ctrl\+/g, '⌘').replace(/Shift\+/g, '⇧').replace(/Alt\+/g, '⌥');
+}
+
 function ShortcutsPanel() {
   return (
     <>
@@ -108,7 +118,7 @@ function ShortcutsPanel() {
             {shortcuts.map(([keys, action]) => (
               <div className="settings-shortcut-row" key={keys}>
                 <span>{t(action)}</span>
-                <kbd>{keys}</kbd>
+                <kbd>{platformKeys(keys)}</kbd>
               </div>
             ))}
           </div>

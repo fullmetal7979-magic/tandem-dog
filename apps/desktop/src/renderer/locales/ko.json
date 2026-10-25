@@ -1797,7 +1797,6 @@
   "Open Pull Requests on GitHub": "GitHub에서 풀 리퀘스트 열기",
   "Open Settings": "설정 열기",
   "Open Settings → Connection, then ask again.": "설정 → 연결을 열고 다시 질문하세요.",
-  "Open Tandem": "Tandem 열기",
   "Open a file to go to a line.": "행으로 이동하려면 파일을 여세요.",
   "Open a file to go to a symbol.": "심벌로 이동하려면 파일을 여세요.",
   "Open a file to search project symbols.": "프로젝트 심벌을 검색하려면 파일을 여세요.",
@@ -3321,5 +3320,10 @@
   "내 GitHub에 비공개 저장소": "내 GitHub에 비공개 저장소",
   "를 하나 두고, 설정·스킬·기억·교신을 모든 기기가 함께 써요. 비밀번호와 API 키는 절대 올라가지 않아요.": "를 하나 두고, 설정·스킬·기억·교신을 모든 기기가 함께 써요. 비밀번호와 API 키는 절대 올라가지 않아요.",
   "예) 로그인 화면 완성, API 연결은 다음에": "예) 로그인 화면 완성, API 연결은 다음에",
-  "🖥️ PC": "🖥️ PC"
+  "🖥️ PC": "🖥️ PC",
+  "send": "보내기",
+  "new line": "줄바꿈",
+  "Show keyboard shortcuts": "단축키 보기",
+  "Open Tandem": "Tandem 열기",
+  "Send message (one press, also while typing Korean)": "메시지 보내기 (한글 입력 중에도 한 번)"
 }

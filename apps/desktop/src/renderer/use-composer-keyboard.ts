@@ -352,6 +352,28 @@ export function useComposerKeyboard({
         }, 0);
         return;
       }
+      if (composing && event.key === 'Enter' && !newlineChord && !mobile && !event.repeat) {
+        // Hangul IMEs spend the first Enter committing the last syllable, so a
+        // Korean prompt needed two presses to send. Send once the commit lands.
+        // Japanese/Chinese conversion keeps its Enter: only a Hangul tail sends.
+        const element = event.currentTarget;
+        const before = element.value.slice(0, element.selectionStart);
+        const paletteOpen = /^\//.test(element.value) || /@[^\s]*$/.test(before);
+        if (!paletteOpen && /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]$/.test(before)) {
+          event.preventDefault();
+          event.stopPropagation();
+          let tries = 0;
+          const sendWhenCommitted = () => {
+            if (ime.composing.current && tries++ < 10) {
+              window.requestAnimationFrame(sendWhenCommitted);
+              return;
+            }
+            if (element.value.trim()) void actions.send('', 'keyboard-enter');
+          };
+          window.requestAnimationFrame(sendWhenCommitted);
+          return;
+        }
+      }
       if (
         composing &&
         (event.key === 'Enter' || event.key === 'Escape' || event.key === 'Tab' || event.key.startsWith('Arrow'))

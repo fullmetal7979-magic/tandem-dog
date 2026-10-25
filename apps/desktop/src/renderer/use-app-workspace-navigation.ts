@@ -39,7 +39,7 @@ export function useAppWorkspaceNavigation({
   toggleDock(): void;
   toggleBottomPanel(): void;
   setQuickAccessMode: Dispatch<SetStateAction<'files' | 'commands' | null>>;
-  openDockTab(tab: 'search'): void;
+  openDockTab(tab: 'search' | 'tandem'): void;
   navigateEditorHistory(offset: -1 | 1): void;
 }) {
   const tabMruRef = useRef<string[]>([]);
@@ -129,6 +129,8 @@ export function useAppWorkspaceNavigation({
     focusVerticalPane,
     startTask,
     openSettings,
+    openShortcuts: () => (openSettings as (section?: string) => void)('shortcuts'),
+    openTandem: () => openDockTab('tandem'),
     toggleSidebar,
     toggleDock,
     togglePanel: toggleBottomPanel,
