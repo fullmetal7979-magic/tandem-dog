@@ -144,7 +144,7 @@ jobs:
       arch: ${{ matrix.arch }}
       artifact_arch: ${{ matrix.artifact_arch }}
       target: ${{ matrix.target }}
-      product_name: COSMOS
+      product_name: 코스모스
       artifact_prefix: cosmos-desktop
       publish_owner: ${{ github.repository_owner }}
       publish_repo: ${{ github.event.repository.name }}

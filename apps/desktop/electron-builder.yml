@@ -3,7 +3,7 @@
 # the two drift apart. Side-by-side with upstream Mixdog needs a distinct appId
 # (Windows AUMID, macOS bundle id), protocol scheme and userData name.
 appId: app.cosmos.desktop
-productName: COSMOS
+productName: 코스모스
 artifactName: cosmos-desktop-${os}-${arch}.${ext}
 asar: true
 asarUnpack:
@@ -24,7 +24,7 @@ nodeGypRebuild: false
 extraMetadata:
   name: cosmos-desktop
 protocols:
-  name: COSMOS
+  name: 코스모스
   schemes:
     - cosmos
 directories:

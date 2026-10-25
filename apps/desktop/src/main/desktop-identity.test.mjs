@@ -9,7 +9,7 @@ import { APP_ID, APP_NAME } from '../shared/fork-identity.ts';
 test('installed COSMOS keeps its own identity, not upstream Mixdog; dev/probes cannot collide', () => {
   assert.deepEqual(desktopIdentity('installed'), { appId: APP_ID, name: APP_NAME });
   assert.equal(APP_ID, 'app.cosmos.desktop');
-  assert.equal(APP_NAME, 'COSMOS');
+  assert.equal(APP_NAME, '코스모스');
   for (const identity of ['installed', 'development', 'probe'].map(desktopIdentity)) {
     assert.doesNotMatch(identity.appId, /mixdog/i);
     assert.doesNotMatch(identity.name, /mixdog/i);
@@ -17,8 +17,8 @@ test('installed COSMOS keeps its own identity, not upstream Mixdog; dev/probes c
   const identities = ['installed', 'development', 'probe'].map(desktopIdentity);
   assert.equal(new Set(identities.map((identity) => identity.appId)).size, 3);
   assert.equal(new Set(identities.map((identity) => identity.name)).size, 3);
-  assert.equal(desktopIdentity('development').name, 'COSMOS Dev');
-  assert.equal(desktopIdentity('probe').name, 'COSMOS Notification Test');
+  assert.equal(desktopIdentity('development').name, '코스모스 Dev');
+  assert.equal(desktopIdentity('probe').name, '코스모스 Notification Test');
 });
 
 test('the native probe rejects a production identity override before launching Electron', async () => {

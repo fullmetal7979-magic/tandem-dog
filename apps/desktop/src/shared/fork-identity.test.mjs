@@ -14,7 +14,7 @@ import {
 } from './fork-identity.ts';
 
 test('fork identity differs from upstream Mixdog so both install side by side', () => {
-  assert.equal(APP_NAME, 'COSMOS');
+  assert.equal(APP_NAME, '코스모스');
   assert.equal(APP_ID, 'app.cosmos.desktop');
   assert.equal(PROTOCOL_SCHEME, 'cosmos');
   assert.equal(USER_DATA_DIR_NAME, 'cosmos-desktop');

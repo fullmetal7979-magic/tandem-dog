@@ -11,7 +11,7 @@
 // Keep this file free of runtime imports: it is bundled into Electron main,
 // the renderer and the plain-Node daemon, and loaded straight by tsx tests.
 
-export const APP_NAME = 'COSMOS';
+export const APP_NAME = '코스모스';
 export const APP_ID = 'app.cosmos.desktop';
 export const PROTOCOL_SCHEME = 'cosmos';
 /** Packaged userData folder. Electron derives it from package.json "name",
