@@ -6,6 +6,14 @@
 // focus (the service throttles network fetches on its own). While this star
 // holds a seat it sends a heartbeat every five minutes, which is what keeps
 // other stars from seeing it as "응답 없음".
+//
+// Heartbeat policy: it follows the SEAT, not window visibility. The app lives
+// on in the tray when its window is hidden (desktop-tray.ts), and that PC is
+// still the one holding the seat, so beating must continue or other stars would
+// wrongly show it as "응답 없음". Hidden timers are throttled by Chromium, so a
+// beat is also sent as soon as the window becomes visible again after a gap.
+// Every beat is fire-and-forget: errors are swallowed (the next tick retries)
+// and beats never overlap.
 import { useEffect, useSyncExternalStore } from 'react';
 import type {
   CosmosMoonResult,
@@ -15,6 +23,7 @@ import type {
   CosmosSunResult,
 } from '../../shared/contract-cosmos';
 import { isCosmosRefusal } from '../../shared/contract-cosmos';
+import { josa } from './cosmos-format';
 
 export type CosmosBusy = 'sun' | 'moon' | 'request' | 'withdraw' | 'setup' | 'star' | 'continue' | null;
 
@@ -50,6 +59,10 @@ const listeners = new Map<string, Set<() => void>>();
 const watchers = new Map<string, number>();
 let pollTimer: number | null = null;
 let heartbeatTimer: number | null = null;
+let beating = false;
+let lastBeatAt = 0;
+/** Watched project keys, most recently watched last: the target of keyboard / slash COSMOS actions. */
+const watchOrder: string[] = [];
 
 const keyOf = (projectPath: string | null | undefined) => String(projectPath || '');
 const api = () => (typeof window === 'undefined' ? undefined : window.mixdogDesktop);
@@ -105,6 +118,7 @@ function startPolling(): void {
     for (const key of watchers.keys()) void refreshCosmos(key);
   }, POLL_MS);
   window.addEventListener('focus', onFocus);
+  window.addEventListener(COSMOS_SEAT_ACTION_EVENT, onSeatAction);
 }
 
 function stopPolling(): void {
@@ -112,6 +126,7 @@ function stopPolling(): void {
   window.clearInterval(pollTimer);
   pollTimer = null;
   window.removeEventListener('focus', onFocus);
+  window.removeEventListener(COSMOS_SEAT_ACTION_EVENT, onSeatAction);
 }
 
 function onFocus(): void {
@@ -134,29 +149,60 @@ function seatedPlanets(): string[] {
   return [...planets];
 }
 
+function beat(): void {
+  if (beating) return;
+  const current = seatedPlanets();
+  const send = api()?.cosmosHeartbeat;
+  if (!current.length || !send) return;
+  beating = true;
+  lastBeatAt = Date.now();
+  try {
+    Promise.resolve(send(current))
+      .catch(() => undefined)
+      .finally(() => {
+        beating = false;
+      });
+  } catch {
+    beating = false;
+  }
+}
+
+function onVisibility(): void {
+  if (document.visibilityState === 'visible' && Date.now() - lastBeatAt > HEARTBEAT_MS) beat();
+}
+
 function syncHeartbeat(): void {
   if (typeof window === 'undefined') return;
   const planets = seatedPlanets();
   if (!planets.length) {
-    if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+    if (heartbeatTimer !== null) {
+      window.clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    }
     heartbeatTimer = null;
     return;
   }
   if (heartbeatTimer !== null) return;
-  heartbeatTimer = window.setInterval(() => {
-    const current = seatedPlanets();
-    if (current.length) void api()?.cosmosHeartbeat?.(current);
-  }, HEARTBEAT_MS);
+  heartbeatTimer = window.setInterval(beat, HEARTBEAT_MS);
+  document.addEventListener('visibilitychange', onVisibility);
 }
 
 function watch(key: string): () => void {
   watchers.set(key, (watchers.get(key) ?? 0) + 1);
+  if (key) {
+    const at = watchOrder.indexOf(key);
+    if (at >= 0) watchOrder.splice(at, 1);
+    watchOrder.push(key);
+  }
   startPolling();
   if (!get(key).loadedAt && !get(key).loading) void refreshCosmos(key);
   return () => {
     const count = (watchers.get(key) ?? 1) - 1;
-    if (count <= 0) watchers.delete(key);
-    else watchers.set(key, count);
+    if (count <= 0) {
+      watchers.delete(key);
+      const at = watchOrder.indexOf(key);
+      if (at >= 0) watchOrder.splice(at, 1);
+    } else watchers.set(key, count);
     if (!watchers.size) stopPolling();
   };
 }
@@ -241,6 +287,56 @@ export async function cosmosContinue(projectPath: string, conversationId: string
   return result;
 }
 
+// ------------------------------------------------- keyboard / slash entry
+
+export const COSMOS_SEAT_ACTION_EVENT = 'cosmos:seat-action';
+export type CosmosSeatShortcut = 'galaxy' | 'sit' | 'leave';
+
+/** ⌘⇧S / ⌘⇧L / ⌘⇧D and /이어받기 /내려놓기 /은하수 all arrive here. */
+export function dispatchCosmosSeatAction(action: CosmosSeatShortcut): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(COSMOS_SEAT_ACTION_EVENT, { detail: { action } }));
+}
+
+function openGalaxyScreen(): void {
+  window.dispatchEvent(new CustomEvent('cosmos:open-galaxy'));
+}
+
+/**
+ * Runs the seat action on the most recently watched project (the titlebar seat
+ * badge watches the active project, so that is the one in front of the user).
+ * Anything that is not a plain, safe move (someone else seated, no Galaxy yet)
+ * opens the Galaxy screen, where the full explanation and note field live.
+ */
+async function onSeatAction(event: Event): Promise<void> {
+  const action = (event as CustomEvent<{ action?: CosmosSeatShortcut }>).detail?.action;
+  const key = watchOrder[watchOrder.length - 1];
+  if (!key || !action) return;
+  const view = get(key).view;
+  if (action === 'galaxy' || !view) {
+    openGalaxyScreen();
+    return;
+  }
+  const state = view.state;
+  const holder = view.seat?.holder?.name;
+  let done: unknown = null;
+  if (action === 'leave') {
+    if (state === 'mine') done = await cosmosLeave(key, { note: '' });
+    else openGalaxyScreen();
+  } else if (state === 'empty' || (state === 'occupied' && view.here)) {
+    done = await cosmosSit(key);
+  } else if (state === 'stale') {
+    if (window.confirm(`${josa(holder || '다른 기기', '이가')} 응답이 없어요. 작업 자리를 넘겨받을까요?\n그 기기에 남은 작업은 나중에 별도 브랜치로 보관돼요.`)) {
+      done = await cosmosSit(key, { force: true });
+    }
+  } else if (state === 'remote') {
+    if (window.confirm(`${josa(holder || '폰', '이가')} 작업 중이에요. 이 PC로 되찾을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 PC에 그대로 있어요.`)) {
+      done = await cosmosSit(key);
+    }
+  } else openGalaxyScreen(); // already seated, or someone else is: show where things stand
+  // The outcome (최신 작업 요약 / 남긴 메모) is shown on the Galaxy screen.
+  if (done) openGalaxyScreen();
+}
+
 export function clearCosmosNotice(projectPath: string | null | undefined): void {
   set(keyOf(projectPath), { refusal: null, error: '', lastSun: null, lastMoon: null });
 }
@@ -249,6 +345,11 @@ export function clearCosmosNotice(projectPath: string | null | undefined): void 
 export function resetCosmosStore(): void {
   entries.clear();
   stopPolling();
-  if (heartbeatTimer !== null && typeof window !== 'undefined') window.clearInterval(heartbeatTimer);
+  if (heartbeatTimer !== null && typeof window !== 'undefined') {
+    window.clearInterval(heartbeatTimer);
+    document.removeEventListener('visibilitychange', onVisibility);
+  }
   heartbeatTimer = null;
+  beating = false;
+  watchOrder.length = 0;
 }

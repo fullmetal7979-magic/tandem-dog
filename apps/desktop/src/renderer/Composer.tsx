@@ -1,3 +1,4 @@
+import type { ComposerAttachment } from './composer-support';
 import React, {
   memo,
   useCallback,
@@ -62,6 +63,9 @@ import {
 import { ComposerBanners } from './ComposerBanners';
 import { ComposerFooter } from './ComposerFooter';
 import { CapabilityIcon } from './CapabilityIcon';
+import { withComposerModelHandoff, takeComposerModelHandoff } from './composer-model-handoff';
+import { readComposerDraft, rememberComposerDraft, saveComposerDraft } from './composer-draft-store';
+import { readExecutionBudget, saveExecutionBudget, type ExecutionBudget } from './execution-budget-settings';
 import { shouldRemoveSelectedSkill, skillTitle, useComposerSkill } from './composer-skill';
 
 // Perf diagnostics (MIXDOG_DESKTOP_PERF=1): keystroke→paint latency, logged
@@ -226,6 +230,7 @@ export type ComposerProps = {
   contextPercent?: number;
   draftMode?: boolean;
   onDraftModelSelection?: (selection: DesktopModelSelection) => void;
+  onContinueWithModel?: (selection: DesktopModelSelection) => Promise<boolean>;
   onRoutePreferenceApplied?: (selection: DesktopModelSelection, options?: { modelChoice?: boolean }) => void;
   /** Session readout seated right after the model trigger — the context
    *  gauge (user: 컨텍스트는 모델 선택기 옆). */
@@ -261,7 +266,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
   const {
     turnBusy,
     commandBusy,
-    transitioning,
+    transitioning: parentTransitioning,
     focusRequest,
     historyScope,
     identityScope,
@@ -294,7 +299,13 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     dropTargetRef,
     paneActive = true,
   } = props;
+  const [modelHandoffPending, setModelHandoffPending] = useState(false);
+  const modelHandoffGuard = useRef(false);
+  const [hydratedDraftScope, setHydratedDraftScope] = useState('');
+  const transitioning = parentTransitioning || modelHandoffPending || hydratedDraftScope !== identityScope;
   const [draft, setDraft] = useState('');
+  const [executionBudget, setExecutionBudget] = useState<ExecutionBudget>(() => readExecutionBudget(identityScope));
+  const persistentDraftRef = useRef({ scope: identityScope, saved: { text: '', attachments: [] as ComposerAttachment[] } });
   const [submitting, setSubmitting] = useState(false);
   const [submissionRecoveryVersion, setSubmissionRecoveryVersion] = useState(0);
   const submittingRef = useRef(false);
@@ -453,6 +464,71 @@ export const Composer = memo(function Composer(props: ComposerProps) {
       setDraggingFiles,
     });
   }, [identityScope, resetAttachments, clearNotice, palettes.reset, palettes.invalidateSearch, selector.reset]);
+  // Hydrate after the scope reset, before accepting input. A model handoff
+  // wins over disk recovery, and a late read can never write into another tab.
+  useLayoutEffect(() => {
+    let live = true;
+    const restore = (saved: { text: string; attachments: typeof attachments } | undefined) => {
+      if (!live) return;
+      if (saved) {
+        replaceAttachments(saved.attachments);
+        attachmentSequence.current = Math.max(attachmentSequence.current, ...saved.attachments.map(item => item.id));
+        draftRef.current = saved.text;
+        setDraft(saved.text);
+      }
+      setHydratedDraftScope(identityScope);
+    };
+    const carried = takeComposerModelHandoff(sessionId || '');
+    if (carried) restore(carried);
+    else void readComposerDraft(identityScope).then(restore, () => {
+      if (live) {
+        setHydratedDraftScope(identityScope);
+        showComposerNotice(t('Draft recovery is unavailable. Keep this window open until your message is sent.'), 'error');
+      }
+    });
+    return () => { live = false; };
+  }, [identityScope, sessionId, replaceAttachments, attachmentSequence, showComposerNotice]);
+
+  useEffect(() => {
+    if (hydratedDraftScope !== identityScope) return;
+    const saved = { text: draft, attachments };
+    persistentDraftRef.current = { scope: identityScope, saved };
+    rememberComposerDraft(identityScope, saved);
+    const timer = window.setTimeout(() => {
+      void saveComposerDraft(identityScope, saved).catch(() => {
+        showComposerNotice(t('Could not save the draft for recovery. Your input is still in this window.'), 'error');
+      });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [draft, attachments, identityScope, hydratedDraftScope, showComposerNotice]);
+  useEffect(() => {
+    setExecutionBudget(readExecutionBudget(identityScope));
+    const flush = () => {
+      const pending = persistentDraftRef.current;
+      if (pending.scope === identityScope) void saveComposerDraft(identityScope, pending.saved).catch(() => {});
+    };
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, [identityScope]);
+
+  const continueWithModel = async (selection: DesktopModelSelection) => {
+    if (!props.onContinueWithModel || !sessionId || modelHandoffGuard.current) return false;
+    if (turnBusy || commandBusy || submittingRef.current || (queued?.length ?? 0) > 0 || parentTransitioning) {
+      showComposerNotice(t('Finish or stop the current turn and clear queued messages before switching models.'), 'info');
+      return false;
+    }
+    modelHandoffGuard.current = true;
+    transitioningRef.current = true;
+    setModelHandoffPending(true);
+    try {
+      return await withComposerModelHandoff(sessionId, { text: draftRef.current, attachments },
+        () => props.onContinueWithModel!(selection));
+    } finally {
+      modelHandoffGuard.current = false;
+      if (mountedRef.current) setModelHandoffPending(false);
+    }
+  };
+
   const placeholder = composerPlaceholder({
     hasConversation,
     turnBusy,
@@ -535,7 +611,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     restoredAttachments,
     executeSlash,
     rememberPrompt: history.rememberPrompt,
-    submit,
+    submit: (content, options) => submit(content, { ...options, executionBudget }),
     abort,
     onQueuedRestored,
     selectedSkill: skillSelection.name,
@@ -779,6 +855,8 @@ export const Composer = memo(function Composer(props: ComposerProps) {
           draft={draft}
           attachments={attachments}
           onStop={() => void stop()}
+          executionBudget={executionBudget}
+          onExecutionBudgetChange={(value) => { setExecutionBudget(value); saveExecutionBudget(identityScope, value); }}
           modelAside={modelAside}
           provider={provider}
           model={model}
@@ -792,6 +870,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
           applySnapshot={applySnapshot}
           onOpenSettings={onOpenSettings}
           onDraftModelSelection={onDraftModelSelection}
+          onContinueWithModel={props.onContinueWithModel ? continueWithModel : undefined}
           onRoutePreferenceApplied={onRoutePreferenceApplied}
         />
       </form>

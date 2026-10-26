@@ -1,3 +1,4 @@
+import { WORKBENCH_SHORTCUTS, shortcutLabel } from '../workbench-shortcuts';
 import { CosmosSettingsPanel } from '../cosmos/CosmosSettingsPanel';
 import { useEffect, useState } from 'react';
 import { ErrorNotice } from '../ErrorNotice';
@@ -52,25 +53,7 @@ export function CategoryPanel({ category, context }: { category: CapabilityCateg
 // Keybind reference (read-only). Bindings live in App.tsx's
 // global keydown handler and the composer key map; keep this list in sync.
 const SHORTCUT_GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
-  [
-    'Project',
-    [
-      ['Ctrl+N', 'New task'],
-      ['Ctrl+P', 'Quick Open'],
-      ['Ctrl+Shift+P', 'Command Palette'],
-      ['Ctrl+W', 'Close tab'],
-      ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous tab'],
-      ['Ctrl+← / →', 'Switch tab / pane'],
-      ['Ctrl+↑ / ↓', 'Focus pane above / below'],
-      ['Ctrl+B', 'Toggle left side bar'],
-      ['Ctrl+Alt+B', 'Toggle right utility panel'],
-      ['Ctrl+` / Ctrl+T', 'Toggle terminal panel'],
-      ['Ctrl+,', 'Open settings'],
-      ['Ctrl+/', 'Show keyboard shortcuts'],
-      ['Ctrl+Shift+D', 'Open Tandem'],
-      ['Esc', 'Close menus and popovers'],
-    ],
-  ],
+  ['Project', WORKBENCH_SHORTCUTS.map(entry => [entry.keys, entry.label] as const)],
   [
     'Editor',
     [
@@ -105,6 +88,7 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(naviga
 /** The workbench keymap treats Ctrl and ⌘ alike; show the Mac key on a Mac.
  *  Ctrl+Tab, Ctrl+J, Ctrl+U and Ctrl+Enter are Control-only in the composer. */
 function platformKeys(keys: string): string {
+  if (keys.includes('mod+') || keys.startsWith('ctrl+') || keys.startsWith('shift+ctrl+')) return shortcutLabel(keys, IS_MAC);
   if (!IS_MAC || /Tab|Ctrl\+[JU]\b|Ctrl\+Enter/.test(keys)) return keys;
   return keys.replace(/Ctrl\+/g, '⌘').replace(/Shift\+/g, '⇧').replace(/Alt\+/g, '⌥');
 }

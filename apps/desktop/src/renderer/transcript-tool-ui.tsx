@@ -5,7 +5,6 @@ import {
   Brush,
   ChevronRight,
   Code2,
-  FileSpreadsheet,
   GitBranch,
   Globe,
   Layers3,
@@ -862,8 +861,6 @@ const TOOL_CATEGORY_ICONS: Record<string, React.ReactNode> = {
   Setup: <Settings2 size={16} />,
   Browser: <AppWindow size={16} />,
   Computer: <Monitor size={16} />,
-  Office: <FileSpreadsheet size={16} />,
-  Media: <MxIcon name="photo" size={16} />,
   Tidy: <Brush size={16} />,
 };
 

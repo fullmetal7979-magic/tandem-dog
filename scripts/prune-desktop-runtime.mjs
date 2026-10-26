@@ -5,14 +5,6 @@ import { embeddingRuntimeTarget } from './prune-embedding-runtime.mjs';
 
 const PRODUCTION_SOURCE_EXTENSIONS = /\.(?:map|ts|tsx|mts|cts)$/i;
 const NATIVE_BUILD_ARTIFACT_EXTENSIONS = /\.(?:pdb|obj|ilk|exp|lib)$/i;
-const TESSERACT_LSTM_CORE_FILES = new Set([
-  'tesseract-core-lstm.js',
-  'tesseract-core-lstm.wasm',
-  'tesseract-core-simd-lstm.js',
-  'tesseract-core-simd-lstm.wasm',
-  'tesseract-core-relaxedsimd-lstm.js',
-  'tesseract-core-relaxedsimd-lstm.wasm',
-]);
 
 async function exists(path) {
   try {
@@ -111,17 +103,6 @@ async function assertRuntimePaths(root, paths, label) {
   }
 }
 
-async function pruneTesseractCore(nodeModules) {
-  const packageRoot = join(nodeModules, 'tesseract.js-core');
-  if (!(await exists(packageRoot))) return { beforeBytes: 0, afterBytes: 0 };
-  await assertRuntimePaths(packageRoot, [...TESSERACT_LSTM_CORE_FILES], 'Tesseract LSTM');
-
-  const beforeBytes = await directoryBytes(packageRoot);
-  await removeChildrenExcept(packageRoot, new Set(['package.json', 'LICENSE', ...TESSERACT_LSTM_CORE_FILES]));
-  const afterBytes = await directoryBytes(packageRoot);
-  return { beforeBytes, afterBytes };
-}
-
 async function prunePdfJs(nodeModules) {
   const packageRoot = join(nodeModules, 'pdfjs-dist');
   if (!(await exists(packageRoot))) return { beforeBytes: 0, afterBytes: 0 };
@@ -138,27 +119,28 @@ async function prunePdfJs(nodeModules) {
   return { beforeBytes, afterBytes };
 }
 
-async function prunePdfLib(nodeModules) {
-  const packageRoot = join(nodeModules, 'pdf-lib');
-  if (!(await exists(packageRoot))) return { beforeBytes: 0, afterBytes: 0 };
-  await assertRuntimePaths(packageRoot, ['cjs/index.js'], 'pdf-lib');
-
-  const beforeBytes = await directoryBytes(packageRoot);
-  await removeChildrenExcept(packageRoot, new Set(['package.json', 'LICENSE.md', 'cjs']));
-  const afterBytes = await directoryBytes(packageRoot);
-  return { beforeBytes, afterBytes };
-}
-
-async function prunePdfFontkit(nodeModules) {
-  const packageRoot = join(nodeModules, '@pdf-lib', 'fontkit');
-  if (!(await exists(packageRoot))) return { beforeBytes: 0, afterBytes: 0 };
-  await assertRuntimePaths(packageRoot, ['dist/fontkit.umd.js'], 'PDF fontkit');
-
-  const beforeBytes = await directoryBytes(packageRoot);
-  await removeChildrenExcept(packageRoot, new Set(['package.json', 'dist']));
-  await removeChildrenExcept(join(packageRoot, 'dist'), new Set(['fontkit.umd.js']));
-  const afterBytes = await directoryBytes(packageRoot);
-  return { beforeBytes, afterBytes };
+// pdfjs-dist lists @napi-rs/canvas as an optional dependency for DOMMatrix and
+// Path2D, and npm installs optional dependencies even under --omit=dev. Text
+// extraction never renders, and pdfjs-runtime.mjs supplies the two globals
+// itself, so the native canvas binaries (tens of MB) are dead weight.
+async function pruneNapiCanvas(nodeModules) {
+  const scopeRoot = join(nodeModules, '@napi-rs');
+  let entries;
+  try {
+    entries = await readdir(scopeRoot, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { beforeBytes: 0, afterBytes: 0 };
+    throw error;
+  }
+  const canvasPackages = entries.filter((entry) => entry.name === 'canvas' || entry.name.startsWith('canvas-'));
+  let beforeBytes = 0;
+  for (const entry of canvasPackages) {
+    const path = join(scopeRoot, entry.name);
+    beforeBytes += await directoryBytes(path);
+    await removePath(path);
+  }
+  if (canvasPackages.length === entries.length) await removePath(scopeRoot);
+  return { beforeBytes, afterBytes: 0 };
 }
 
 async function pruneUnpdf(nodeModules) {
@@ -176,9 +158,8 @@ async function pruneUnpdf(nodeModules) {
 async function prunePdfRuntime(nodeModules) {
   const packages = await Promise.all([
     prunePdfJs(nodeModules),
-    prunePdfLib(nodeModules),
-    prunePdfFontkit(nodeModules),
     pruneUnpdf(nodeModules),
+    pruneNapiCanvas(nodeModules),
   ]);
   return packages.reduce(
     (total, entry) => ({
@@ -225,16 +206,14 @@ export async function pruneDesktopRuntime(packageRoot, options = {}) {
   }
 
   const removedSourceFiles = await removeMatchingFiles(packageRoot, (name) => PRODUCTION_SOURCE_EXTENSIONS.test(name));
-  const [removedSharpWasm, tesseractCore, pdfRuntime] = await Promise.all([
+  const [removedSharpWasm, pdfRuntime] = await Promise.all([
     pruneSharpWasmFallback(nodeModules, target),
-    pruneTesseractCore(nodeModules),
     prunePdfRuntime(nodeModules),
   ]);
   return {
     ...target,
     removedSourceFiles,
     removedSharpWasm,
-    removedTesseractBytes: tesseractCore.beforeBytes - tesseractCore.afterBytes,
     removedPdfBytes: pdfRuntime.beforeBytes - pdfRuntime.afterBytes,
   };
 }

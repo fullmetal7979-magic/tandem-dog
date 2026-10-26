@@ -1,11 +1,4 @@
-/**
- * Desktop feature locks, in two layers:
- *  - DESKTOP_FEATURES: what this build ships at all (source-controlled).
- *  - COSMOS 심플 모드: the everyday subset. 고급 모드 shows every shipped
- *    feature. The mode is fixed per window (cosmos/ui-mode.ts reloads on a
- *    switch), so every gate below may still be read at module load.
- */
-import { CURRENT_UI_MODE } from './cosmos/ui-mode';
+/** One workspace; source-controlled switches define what this build ships. */
 
 type DesktopFeatureId =
   | 'sessions'
@@ -60,19 +53,13 @@ const UTILITY_DOCK_TABS: readonly DesktopUtilityDockTab[] = [
   'pull-requests',
 ];
 
-// Simple mode keeps conversations, projects, files/search, ▶ run, the Galaxy
-// and settings; agents, automation, extensions, usage and full source control are
-// advanced tools.
-const SIMPLE_MODE_FEATURES: ReadonlySet<DesktopFeatureId> = new Set(['sessions', 'projects', 'explorer', 'settings', 'tandem', 'run']);
-
 export function desktopFeatureEnabled(feature: DesktopFeatureId): boolean {
-  if (!DESKTOP_FEATURES[feature]) return false;
-  return CURRENT_UI_MODE === 'advanced' || SIMPLE_MODE_FEATURES.has(feature);
+  return DESKTOP_FEATURES[feature];
 }
 
 export function desktopSidebarDestinationEnabled(destination: DesktopSidebarDestination): boolean {
   // Workflows ride on Projects in the build switch but are an advanced tool.
-  if (destination === 'workflows') return desktopFeatureEnabled('projects') && CURRENT_UI_MODE === 'advanced';
+  if (destination === 'workflows') return desktopFeatureEnabled('projects');
   return desktopFeatureEnabled(destination);
 }
 

@@ -9,6 +9,11 @@
 set -euo pipefail
 
 DOMAIN="${1:?usage: deploy.sh <relay-domain>}"
+# $DOMAIN lands in sed, a heredoc and certbot: only a plain hostname passes.
+if ! [[ "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]]; then
+  echo "[deploy] invalid relay domain: letters, digits, '-' and '.' only (e.g. relay.example.com)" >&2
+  exit 2
+fi
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 if ! command -v node >/dev/null || [[ "$(node -v | cut -c2-3)" -lt 22 ]]; then

@@ -1,10 +1,8 @@
 // IPC channel names shared by main, preload and renderer.
 
-import { TANDEM_IPC } from './contract-tandem';
 import { COSMOS_IPC } from './contract-cosmos';
 
 export const DESKTOP_IPC = {
-  ...TANDEM_IPC,
   ...COSMOS_IPC,
   chooseProject: 'mixdog:choose-project',
   chooseFile: 'mixdog:choose-file',

@@ -62,7 +62,7 @@ export function createAppSideViewDescriptors(
     ['agents', { id: 'agents', label: t('Agents'), icon: Bot, onPrefetch: () => onPrefetch('agents') }],
     ['search', { id: 'search', label: t('Search'), icon: Search, onPrefetch: () => onPrefetch('search') }],
     ['run', { id: 'run', label: t('Run'), icon: Play, onPrefetch: () => onPrefetch('run') }],
-    ['tandem', { id: 'tandem', label: t('Galaxy'), icon: Orbit, onPrefetch: () => onPrefetch('tandem') }],
+    ['tandem', { id: 'tandem', label: t('Device sync'), icon: Orbit, onPrefetch: () => onPrefetch('tandem') }],
     [
       'source-control',
       {

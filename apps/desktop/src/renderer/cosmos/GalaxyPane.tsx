@@ -1,10 +1,10 @@
 // 은하수 화면: the whole relay at a glance — verdict hero, the star map, the
-// constellation of past turns, recent conversations, this device's identity
-// and the new-device checklist. Lives in the side dock (where Tandem was).
+// history of past turns, recent sessions, this device's identity and the
+// second-PC checklist. Lives in the side dock.
 import type { CosmosOverview } from '../../shared/contract-cosmos';
 import { ago, kindGlyph } from './cosmos-format';
 import { ConstellationTimeline } from './ConstellationTimeline';
-import { GalaxySetup, NewStarChecklist, RelayOutcome, StarIdentity, VerdictHero } from './CosmosParts';
+import { CloneMessage, GalaxySetup, NewStarChecklist, RelayOutcome, StarIdentity, VerdictHero, useProjectClone } from './CosmosParts';
 import { StarMap } from './StarMap';
 import { cosmosContinue, refreshCosmos, useCosmos } from './cosmos-store';
 
@@ -15,6 +15,37 @@ function SyncLine({ view, loading }: { view: CosmosOverview; loading: boolean })
       {view.offline ? '은하수에 연결하지 못했어요 · 마지막으로 받은 상태예요' : `은하수와 맞춤: ${ago(view.syncedAt)}`}
       {loading && ' · 확인 중…'}
     </p>
+  );
+}
+
+/** Opens Settings → providers (App listens; same plumbing as the rail's settings button). */
+function openSettingsProviders(): void {
+  window.dispatchEvent(new CustomEvent('cosmos:open-settings', { detail: { section: 'providers' } }));
+}
+
+function GalaxyPlanets({ view, projectPath }: { view: CosmosOverview; projectPath: string | null }) {
+  const { busy, message, clone } = useProjectClone(projectPath);
+  return (
+    <section className="cosmos-card">
+      <h3>🪐 은하수의 프로젝트</h3>
+      <ul className="cosmos-planets">
+        {view.planets.map((planet) => (
+          <li key={planet.id}>
+            <b>{planet.name}</b>
+            <small>
+              {planet.lastMoon ? `🌙 ${planet.lastMoon.name} · ${ago(planet.lastMoon.at)}${planet.lastMoon.note ? ` · “${planet.lastMoon.note}”` : ''}` : planet.lastSeat ? `☀️ ${planet.lastSeat.name} · ${ago(planet.lastSeat.at)}` : ''}
+            </small>
+            <code>{planet.remote}</code>
+            {planet.id !== view.planet?.id && (
+              <button type="button" className="cosmos-button cosmos-button--plain" disabled={busy} onClick={() => void clone(planet.remote, planet.name)}>
+                {busy ? '받는 중…' : '이 기기에 받기'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <CloneMessage message={message} />
+    </section>
   );
 }
 
@@ -44,7 +75,7 @@ export function GalaxyPane({ projectPath, active = true }: { projectPath: string
           <GalaxySetup projectPath={projectPath} entry={entry} />
           <RelayOutcome projectPath={key} entry={entry} />
           <StarIdentity projectPath={projectPath} view={view} entry={entry} />
-          <NewStarChecklist view={view} />
+          <NewStarChecklist view={view} projectPath={projectPath} onOpenSettings={openSettingsProviders} />
         </>
       ) : (
         <>
@@ -57,7 +88,7 @@ export function GalaxyPane({ projectPath, active = true }: { projectPath: string
             </section>
           ) : (
             <section className="cosmos-card">
-              <h3>별 {view.stars.length}개</h3>
+              <h3>기기 {view.stars.length}개</h3>
               <ul className="cosmos-star-list">
                 {view.stars.map((star) => (
                   <li key={star.id}>
@@ -72,18 +103,18 @@ export function GalaxyPane({ projectPath, active = true }: { projectPath: string
           )}
           {view.seat && (
             <section className="cosmos-card">
-              <h3>별자리 · 조종 기록</h3>
+              <h3>작업 기록</h3>
               <ConstellationTimeline history={view.seat.history} stars={view.stars} />
             </section>
           )}
           {view.conversations.length > 0 && projectPath && (
             <section className="cosmos-card">
-              <h3>💬 은하수의 교신</h3>
+              <h3>💬 은하수의 세션</h3>
               <ul className="cosmos-conversations">
                 {view.conversations.map((conversation) => (
                   <li key={conversation.id}>
                     <div>
-                      <b>{conversation.title || '제목 없는 교신'}</b>
+                      <b>{conversation.title || '제목 없는 세션'}</b>
                       <small>
                         {kindGlyph(conversation.star?.kind)} {conversation.star?.name || '?'} · {ago(conversation.exportedAt)} · 메시지{' '}
                         {conversation.messageCount}개
@@ -102,24 +133,9 @@ export function GalaxyPane({ projectPath, active = true }: { projectPath: string
               </ul>
             </section>
           )}
-          {view.planets.length > 0 && (
-            <section className="cosmos-card">
-              <h3>🪐 은하수의 행성</h3>
-              <ul className="cosmos-planets">
-                {view.planets.map((planet) => (
-                  <li key={planet.id}>
-                    <b>{planet.name}</b>
-                    <small>
-                      {planet.lastMoon ? `🌙 ${planet.lastMoon.name} · ${ago(planet.lastMoon.at)}${planet.lastMoon.note ? ` · “${planet.lastMoon.note}”` : ''}` : planet.lastSeat ? `☀️ ${planet.lastSeat.name} · ${ago(planet.lastSeat.at)}` : ''}
-                    </small>
-                    <code>{planet.remote}</code>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {view.planets.length > 0 && <GalaxyPlanets view={view} projectPath={projectPath} />}
           <StarIdentity projectPath={projectPath} view={view} entry={entry} />
-          <NewStarChecklist view={view} />
+          <NewStarChecklist view={view} projectPath={projectPath} onOpenSettings={openSettingsProviders} />
           <p className="cosmos-footnote">은하수 저장소: {view.remote || '이 기기에만 있음'}</p>
         </>
       )}

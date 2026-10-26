@@ -1,3 +1,4 @@
+import { matchesWorkbenchShortcut } from './workbench-shortcuts';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   type CSSProperties,
@@ -336,8 +337,18 @@ export function RouteEditor({
       event.preventDefault();
       openModelPicker.current();
     };
+    const onShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey) return;
+      if (!matchesWorkbenchShortcut(event, 'models')) return;
+      event.preventDefault();
+      openModelPicker.current();
+    };
     window.addEventListener(OPEN_MODEL_PICKER_EVENT, onRequest);
-    return () => window.removeEventListener(OPEN_MODEL_PICKER_EVENT, onRequest);
+    window.addEventListener('keydown', onShortcut);
+    return () => {
+      window.removeEventListener(OPEN_MODEL_PICKER_EVENT, onRequest);
+      window.removeEventListener('keydown', onShortcut);
+    };
   }, [respondsToModelPicker]);
 
   useEffect(() => {

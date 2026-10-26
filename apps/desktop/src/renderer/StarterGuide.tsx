@@ -5,10 +5,12 @@
 // once every step is done. Each step opens its screen and runs a spotlight
 // tour over the real controls; a one-time welcome card offers the whole
 // tour in order.
-import { Check, GraduationCap, KeyRound, Smartphone, X, type LucideIcon } from 'lucide-react';
+import { Check, GraduationCap, KeyRound, Monitor, Smartphone, X, type LucideIcon } from 'lucide-react';
 import { type CSSProperties, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useCosmos } from './cosmos/cosmos-store';
+import { desktopFeatureEnabled, desktopSidebarDestinationEnabled, desktopUtilityDockTabEnabled } from './desktop-feature-config';
 import { t } from './i18n';
 import { record, rows } from './record-utils';
 import { SettingsConfirmDialog } from './settings/capability-controls';
@@ -21,14 +23,14 @@ import './starter-guide.css';
 const STORAGE_KEY = 'mixdog.desktop.starter-guide.v1';
 const REFERENCE_KEYS = ['providerSetup', 'projects'] as const;
 
-type StepId = 'provider' | 'project' | 'workflow' | 'extensions' | 'remote';
+type StepId = 'provider' | 'project' | 'galaxy' | 'device' | 'remote';
 interface GuideState {
   closed: boolean;
   /** The welcome card was answered (tour started or postponed). */
   welcomed: boolean;
   /** Steps whose tour was completed; the steps with no state of their own
-   *  (workflow, extensions, project without a folder, remote without a
-   *  paired device) are done by it. */
+   *  (project without a folder, second PC, remote without a paired device)
+   *  are done by it. */
   visited: StepId[];
 }
 
@@ -107,13 +109,14 @@ export function StarterGuide({
   const pillRef = useRef<HTMLElement>(null);
   const listId = useId();
   const { values, loading } = useSidebarReferences(api, REFERENCE_KEYS, !state.closed);
+  const galaxy = useCosmos('').view;
   const update = (change: (current: GuideState) => GuideState) => setState(persisted(change));
   const visit = (step: StepId) => update(markVisited(step));
 
   const remotePaired = Boolean(api && (getCachedConnectionInfo(api)?.clients?.length ?? 0) > 0);
   const viewIcon = (id: WorkbenchSideViewId, fallback: LucideIcon) => descriptors.get(id)?.icon ?? fallback;
-  // Guided order: a model to talk to, a folder to work in, who does the work,
-  // then reaching it from anywhere and growing its toolset.
+  // Guided order: a model to talk to, a folder to work in, the Galaxy, the
+  // second PC, then reaching it from the phone through the relay.
   // Rail destinations sit under Settings, so a sidebar step closes it first.
   const openView = (id: WorkbenchSideViewId) => {
     onCloseSettings();
@@ -125,7 +128,7 @@ export function StarterGuide({
   // remote also by pairing a device.
   // The last stop of a tour whose control opens something is a live
   // "click it" stop, so the tour ends inside the real action.
-  const steps: Array<{
+  const allSteps: Array<{
     id: StepId;
     label: string;
     hint: string;
@@ -172,13 +175,6 @@ export function StarterGuide({
       open: () => openView('projects'),
       tour: [
         {
-          target: '.projects-common-instructions .projects-row',
-          title: t('Memories'),
-          body: t(
-            'Install Memory under Extensions → Built-in and turn on the Maintainer, and COSMOS remembers what matters.'
-          ),
-        },
-        {
           target: '.session-panel-action.projects-add',
           title: t('Add a project folder'),
           body: t('Press + and pick a folder on this computer.'),
@@ -198,37 +194,34 @@ export function StarterGuide({
       ],
     },
     {
-      id: 'workflow',
-      label: t('Set up workflows and agents'),
-      hint: t('Turn on agents and pick their models.'),
-      doneWhen: t('Done when you finish this tour.'),
-      icon: viewIcon('workflows', GraduationCap),
-      done: state.visited.includes('workflow'),
-      open: () => openView('workflows'),
+      id: 'galaxy',
+      label: '은하수 연결',
+      hint: '내 GitHub에 은하수를 만들어 기기끼리 이어 써요.',
+      doneWhen: '은하수가 연결되거나 이 안내를 마치면 완료돼요.',
+      icon: viewIcon('tandem', GraduationCap),
+      done: galaxy?.ready === true || state.visited.includes('galaxy'),
+      open: () => openView('tandem'),
       tour: [
         {
-          target: '.workflows-packs .schedules-row',
-          title: t('Workflows'),
-          body: t('A workflow sets how a request gets done. Open one to edit it.'),
+          target: ['.cosmos-setup', '.cosmos-pane'],
+          title: '은하수 만들기',
+          body: '처음이면 은하수를 만들고, 다른 PC에서 이미 만들었다면 찾기를 눌러 주세요.',
         },
+      ],
+    },
+    {
+      id: 'device',
+      label: '두 번째 PC 연결',
+      hint: '다른 PC에서 같은 은하수를 연결하면 어디서든 이어서 작업해요.',
+      doneWhen: '다른 기기가 연결되거나 이 안내를 마치면 완료돼요.',
+      icon: Monitor,
+      done: (galaxy?.stars.length ?? 0) > 1 || state.visited.includes('device'),
+      open: () => openView('tandem'),
+      tour: [
         {
-          target: '.workflows-packs ~ section.workflows-models:last-of-type .schedules-row',
-          title: t('Agents'),
-          body: t('Agents start off. Open one, turn it on and pick a model.'),
-        },
-        {
-          target: '.orchestration-mode-select',
-          title: t('Delegation mode'),
-          body: t('Choose how much work goes to agents.'),
-        },
-        {
-          target: '[data-agent-id="maintainer"]',
-          title: t('Turn on the Maintainer'),
-          body: t(
-            'The Maintainer handles upkeep like memory and session titles. Open it, turn it on and pick a model.'
-          ),
-          tip: t('Recommended: the cheapest model at the lowest effort is enough.'),
-          action: true,
+          target: ['.cosmos-checklist', '.cosmos-pane'],
+          title: '두 번째 PC 준비',
+          body: '새 PC에서 같은 GitHub 계정으로 은하수를 찾은 뒤 AI 계정에 로그인하고 프로젝트를 받으세요.',
         },
       ],
     },
@@ -248,36 +241,17 @@ export function StarterGuide({
         },
       ],
     },
-    {
-      id: 'extensions',
-      label: t('Explore extensions'),
-      hint: t('Give agents more tools.'),
-      doneWhen: t('Done when you finish this tour.'),
-      icon: viewIcon('extensions', GraduationCap),
-      done: state.visited.includes('extensions'),
-      open: () => openView('extensions'),
-      tour: [
-        {
-          target: '.extensions-pane[data-surface-active="true"] .sidebar-section-toolbar',
-          title: t('Extension type'),
-          body: t('Plugins add tools; skills teach agents how to work.'),
-        },
-        {
-          target: '.session-panel-action.extensions-add',
-          title: t('Add an extension'),
-          body: t('Press + to add one.'),
-        },
-        // The built-in list ships with the app: pointing at it (and letting
-        // the user open one) is the fastest way to useful tools.
-        {
-          target: '.extensions-pane[data-surface-active="true"] .settings-group',
-          title: t('Built-in plugins'),
-          body: t('Ready-made tools like Git, Memory, Browser and Office. Install the ones you need.'),
-          action: true,
-        },
-      ],
-    },
   ];
+  // 심플/고급 모드: a step is offered only when the screen it opens exists in
+  // the current mode.
+  const available: Record<StepId, boolean> = {
+    provider: desktopFeatureEnabled('settings'),
+    project: desktopSidebarDestinationEnabled('projects'),
+    galaxy: desktopUtilityDockTabEnabled('tandem'),
+    device: desktopUtilityDockTabEnabled('tandem'),
+    remote: desktopFeatureEnabled('settings'),
+  };
+  const steps = allSteps.filter((step) => available[step.id]);
   const startTour = (id: StepId, chain: boolean) => {
     const step = steps.find((entry) => entry.id === id);
     if (!step) return;

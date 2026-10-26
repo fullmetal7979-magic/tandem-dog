@@ -81,7 +81,7 @@ test('the guide counts real provider and project state and lists the steps in gu
   await click(pill());
   assert.deepEqual(
     steps().map((step) => step.querySelector('b').textContent),
-    ['Connect a provider', 'Add a project', 'Set up workflows and agents', 'Set up remote access', 'Explore extensions']
+    ['Connect a provider', 'Add a project', '은하수 연결', '두 번째 PC 연결', 'Set up remote access']
   );
   assert.deepEqual(
     steps().map((step) => step.dataset.done === 'true'),
@@ -106,7 +106,7 @@ test('each step opens its destination and runs its own tour', async (t) => {
     assert.ok(document.querySelector('.starter-tour-card'));
   }
   assert.deepEqual(opened.settings, ['providers', 'connection']);
-  assert.deepEqual(opened.views, ['projects', 'workflows', 'extensions']);
+  assert.deepEqual(opened.views, ['projects', 'tandem', 'tandem']);
   // Opening a screen is not completing it.
   assert.match(pill().textContent, /0\/5/);
 });
@@ -116,13 +116,10 @@ test('finishing a tour completes its step and says so', async (t) => {
   await click(button('Maybe later'));
   await click(pill());
   await click(steps()[2]);
-  assert.equal(tourCount(), '1/4');
-  await click(button('Next'));
-  await click(button('Next'));
-  await click(button('Next'));
+  assert.ok(document.querySelector('.starter-tour-card'));
   await click(button('Done'));
   assert.match(pill().textContent, /1\/5/);
-  assert.match(document.querySelector('.starter-guide-toast').textContent, /Set up workflows and agents/);
+  assert.match(document.querySelector('.starter-guide-toast').textContent, /은하수 연결/);
 });
 
 test('clicking a live control completes the stop and hands the screen over', async (t) => {
@@ -133,7 +130,6 @@ test('clicking a live control completes the stop and hands the screen over', asy
   document.body.append(add);
   t.after(() => add.remove());
   await click(button('Start the tour'));
-  await click(button('Next'));
   await click(button('Next'));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 60)));
   assert.ok(document.querySelector('.starter-tour-hole[data-live="true"]'));
@@ -153,8 +149,7 @@ async function projectAddStop(t) {
   document.body.append(add);
   t.after(() => add.remove());
   await click(button('Start the tour'));
-  await click(button('Next'));
-  assert.equal(tourCount(), '2/3');
+  assert.equal(tourCount(), '1/2');
   await act(async () => new Promise((resolve) => setTimeout(resolve, 60)));
   assert.ok(document.querySelector('.starter-tour-hole[data-live="true"]'));
   return add;
@@ -176,7 +171,7 @@ test('the add-project stop steps aside for its form and carries on once it close
   // finishing it completes the step — a project is optional.
   form.remove();
   await act(async () => new Promise((resolve) => setTimeout(resolve, 60)));
-  assert.equal(tourCount(), '3/3');
+  assert.equal(tourCount(), '2/2');
   await click(button('Done'));
   assert.match(pill().textContent, /2\/5/);
 });
@@ -187,17 +182,17 @@ test('an add-project form that never opens does not strand the tour', async (t) 
   await settle();
   assert.equal(document.querySelector('.starter-tour-card'), null);
   await act(async () => new Promise((resolve) => setTimeout(resolve, 2700)));
-  assert.equal(tourCount(), '3/3');
+  assert.equal(tourCount(), '2/2');
 });
 
 test('a stop whose control never appears is skipped instead of dimming an empty screen', async (t) => {
   await mount(t);
   await click(button('Maybe later'));
   await click(pill());
-  await click(steps()[2]);
-  assert.equal(tourCount(), '1/4');
+  await click(steps()[1]);
+  assert.equal(tourCount(), '1/2');
   await act(async () => new Promise((resolve) => setTimeout(resolve, 2700)));
-  assert.equal(tourCount(), '2/4');
+  assert.equal(tourCount(), '2/2');
 });
 
 test('the card sits beside the spotlight with its arrow on the target middle', () => {
@@ -249,17 +244,15 @@ test('a chained tour walks each stop, then moves on to the next open step', asyn
   await click(button('Start the tour'));
   assert.deepEqual(opened.views, ['projects']);
   assert.equal(opened.settingsClosed, 1);
-  assert.equal(tourCount(), '1/3');
+  assert.equal(tourCount(), '1/2');
   await click(button('Next'));
-  assert.equal(tourCount(), '2/3');
-  await click(button('Next'));
-  assert.equal(tourCount(), '3/3');
+  assert.equal(tourCount(), '2/2');
   await click(button('Done'));
-  assert.deepEqual(opened.views, ['projects', 'workflows']);
-  assert.equal(tourCount(), '1/4');
+  assert.deepEqual(opened.views, ['projects', 'tandem']);
+  assert.ok(document.querySelector('.starter-tour-card'));
   await click(button('Skip'));
   assert.equal(document.querySelector('.starter-tour-card'), null);
-  assert.deepEqual(opened.views, ['projects', 'workflows']);
+  assert.deepEqual(opened.views, ['projects', 'tandem']);
 });
 
 test('X asks once before closing, and closing retires the guide across launches', async (t) => {
@@ -282,7 +275,7 @@ test('finishing every step retires the guide even if a provider is disconnected 
   window.localStorage.clear();
   window.localStorage.setItem(
     'mixdog.desktop.starter-guide.v1',
-    JSON.stringify({ closed: false, visited: ['workflow', 'extensions', 'remote'] })
+    JSON.stringify({ closed: false, visited: ['galaxy', 'device', 'remote'] })
   );
   await mount(t, { connected: true, projects: [{ path: 'C:/work', name: 'work' }], clearStorage: false });
   assert.equal(document.querySelector('.starter-guide'), null);

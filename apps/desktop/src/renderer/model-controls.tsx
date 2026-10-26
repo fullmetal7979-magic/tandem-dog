@@ -307,6 +307,8 @@ export const ModelSelector = memo(function ModelSelector({
   applySnapshot,
   onOpenSettings,
   onDraftSelection,
+  onContinueWithModel,
+  hasConversation = false,
   onRoutePreferenceApplied,
   sessionId,
   answersModelPickerRequests = false,
@@ -329,6 +331,8 @@ export const ModelSelector = memo(function ModelSelector({
   applySnapshot: (snapshot: SessionSnapshot | null) => void;
   onOpenSettings: (section?: SettingsSection | null) => void;
   onDraftSelection?: (selection: DesktopModelSelection) => void;
+  onContinueWithModel?: (selection: DesktopModelSelection) => Promise<boolean>;
+  hasConversation?: boolean;
   onRoutePreferenceApplied?: (selection: DesktopModelSelection, options?: { modelChoice?: boolean }) => void;
 }) {
   const [cachedCatalog] = useState(readCachedModelCatalog);
@@ -532,6 +536,11 @@ export const ModelSelector = memo(function ModelSelector({
     if (onDraftSelection) {
       onDraftSelection(selection);
       return true;
+    }
+    if (modelChoice && hasConversation && sessionId && onContinueWithModel) {
+      // Populated sessions have immutable provider caches. Continue via the
+      // existing inheritance preflight, which compacts only when needed.
+      return (await invokeResult(() => onContinueWithModel(selection))) === true;
     }
     const token = begin(selection);
     latestRouteToken.current = token;
@@ -755,7 +764,7 @@ export const ModelSelector = memo(function ModelSelector({
         fast={displayedFast}
         fastVisible={fastControlVisible}
         fastAvailable={fastAvailable}
-        contextVisible={maxContextWindow > 0}
+        contextVisible={!hasConversation && maxContextWindow > 0}
         contextPercent={normalizedContextPercent}
         contextDefaultPercent={contextDefaultPercent}
         contextTokens={contextTokens}
@@ -790,6 +799,7 @@ export const ModelSelector = memo(function ModelSelector({
         }}
         answersModelPickerRequests={answersModelPickerRequests}
       />
+
     </div>
   );
 });

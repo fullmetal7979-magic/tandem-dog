@@ -9,12 +9,6 @@ import { BUILT_IN_FEATURES } from './settings/built-in-feature-registry.ts';
 const names = [
   'browser-use',
   'computer-use',
-  'docx',
-  'pdf',
-  'xlsx',
-  'pptx',
-  'image',
-  'video',
   'goal-management',
   'history-recall',
   'memory-management',
@@ -62,11 +56,11 @@ test('custom skills and plugin skills retain their authors descriptions even whe
   await i18next.changeLanguage('ko');
   try {
     for (const source of ['global', 'plugin']) {
-      assert.equal(skillDisplayDescription({ name: 'pdf', source, description: 'Author wording' }), 'Author wording');
+      assert.equal(skillDisplayDescription({ name: 'setup', source, description: 'Author wording' }), 'Author wording');
     }
     assert.equal(
-      skillDisplayDescription({ name: 'pdf', owner: { kind: 'builtin' }, description: 'MODEL_ONLY_TEXT' }),
-      'PDF 문서를 읽고 만들고 편집합니다.'
+      skillDisplayDescription({ name: 'setup', owner: { kind: 'builtin' }, description: 'MODEL_ONLY_TEXT' }),
+      '모델, 도구, 앱 설정을 관리합니다.'
     );
     assert.equal(
       skillDisplayDescription({ name: 'future-skill', source: 'builtin', description: 'Future description' }),
@@ -86,7 +80,6 @@ test('composer skill titles follow the active catalog; product names and custom 
     assert.equal(skillTitle('skill-creator'), '스킬 만들기');
     assert.equal(skillTitle('memory-management'), '메모리');
     assert.equal(skillTitle('code-tidy'), '코드 정리');
-    assert.equal(skillTitle('pdf'), 'PDF');
     assert.equal(skillTitle('team-review'), 'team-review');
   } finally {
     await i18next.changeLanguage('en');

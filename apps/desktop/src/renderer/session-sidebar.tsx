@@ -1,3 +1,4 @@
+import { collapseModelContinuations } from './task-session-history';
 import { Plus, Search, SquarePen } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DesktopSessionSummary } from '../shared/contract';
@@ -170,15 +171,17 @@ export const SessionSidebar = React.memo(function SessionSidebar({
             }),
     [hasSessionSurface, sessions]
   );
+  const [showModelHistory, setShowModelHistory] = useState(false);
+  const taskRows = useMemo(() => showModelHistory ? allRows : collapseModelContinuations(allRows, selection.kind === 'session' ? selection.id : ''), [allRows, showModelHistory, selection]);
   const favoriteRows = useMemo(
     () =>
-      allRows.filter((session) => session.favorite === true && session.archived !== true && !isAutomationRow(session)),
-    [allRows]
+      taskRows.filter((session) => session.favorite === true && session.archived !== true && !isAutomationRow(session)),
+    [taskRows]
   );
   const rows = useMemo(
     () =>
-      allRows.filter((session) => session.archived !== true && session.favorite !== true && !isAutomationRow(session)),
-    [allRows]
+      taskRows.filter((session) => session.archived !== true && session.favorite !== true && !isAutomationRow(session)),
+    [taskRows]
   );
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   // allRows is activity-desc, which is the order the grouped runs keep.
@@ -519,6 +522,7 @@ export const SessionSidebar = React.memo(function SessionSidebar({
               >
                 <Search size={16} aria-hidden="true" />
               </button>
+              <button type="button" className="session-panel-action" aria-label={t('Show model history')} title={t('Show model history')} aria-pressed={showModelHistory} onClick={() => setShowModelHistory(!showModelHistory)}>↳</button>
               <button
                 type="button"
                 className="session-panel-action session-new-task"

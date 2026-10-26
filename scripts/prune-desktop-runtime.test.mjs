@@ -36,26 +36,9 @@ test('desktop runtime prune removes production sources and native Sharp WASM fal
   }
 });
 
-test('desktop runtime prune keeps the Node LSTM OCR and PDF entrypoints only', async () => {
+test('desktop runtime prune keeps the PDF.js entrypoints only and drops the native canvas', async () => {
   const root = await mkdtemp(join(tmpdir(), 'mixdog-desktop-runtime-variants-'));
   try {
-    const tesseractRoot = join(root, 'node_modules', 'tesseract.js-core');
-    for (const name of [
-      'tesseract-core-lstm.js',
-      'tesseract-core-lstm.wasm',
-      'tesseract-core-simd-lstm.js',
-      'tesseract-core-simd-lstm.wasm',
-      'tesseract-core-relaxedsimd-lstm.js',
-      'tesseract-core-relaxedsimd-lstm.wasm',
-    ]) {
-      await put(join(tesseractRoot, name), Buffer.alloc(64));
-    }
-    await put(join(tesseractRoot, 'package.json'), '{"name":"tesseract.js-core"}');
-    await put(join(tesseractRoot, 'LICENSE'));
-    await put(join(tesseractRoot, 'tesseract-core.js'), Buffer.alloc(128));
-    await put(join(tesseractRoot, 'tesseract-core.wasm'), Buffer.alloc(128));
-    await put(join(tesseractRoot, 'tesseract-core-relaxedsimd-lstm.wasm.js'), Buffer.alloc(128));
-
     const pdfJsRoot = join(root, 'node_modules', 'pdfjs-dist');
     await put(join(pdfJsRoot, 'package.json'), '{"name":"pdfjs-dist"}');
     await put(join(pdfJsRoot, 'LICENSE'));
@@ -71,17 +54,8 @@ test('desktop runtime prune keeps the Node LSTM OCR and PDF entrypoints only', a
     await put(join(pdfJsRoot, 'wasm', 'openjpeg.wasm'));
     await put(join(pdfJsRoot, 'iccs', 'CGATS001Compat-v2-micro.icc'));
 
-    const pdfLibRoot = join(root, 'node_modules', 'pdf-lib');
-    await put(join(pdfLibRoot, 'package.json'), '{"name":"pdf-lib","main":"cjs/index.js"}');
-    await put(join(pdfLibRoot, 'LICENSE.md'));
-    await put(join(pdfLibRoot, 'cjs', 'index.js'));
-    await put(join(pdfLibRoot, 'es', 'index.js'), Buffer.alloc(128));
-    await put(join(pdfLibRoot, 'dist', 'pdf-lib.js'), Buffer.alloc(128));
-
-    const fontkitRoot = join(root, 'node_modules', '@pdf-lib', 'fontkit');
-    await put(join(fontkitRoot, 'package.json'), '{"name":"@pdf-lib/fontkit","main":"dist/fontkit.umd.js"}');
-    await put(join(fontkitRoot, 'dist', 'fontkit.umd.js'));
-    await put(join(fontkitRoot, 'dist', 'fontkit.es.js'), Buffer.alloc(128));
+    await put(join(root, 'node_modules', '@napi-rs', 'canvas', 'index.js'));
+    await put(join(root, 'node_modules', '@napi-rs', 'canvas-darwin-x64', 'skia.node'), Buffer.alloc(256));
 
     const unpdfRoot = join(root, 'node_modules', 'unpdf');
     await put(join(unpdfRoot, 'package.json'), '{"name":"unpdf","type":"module"}');
@@ -92,10 +66,6 @@ test('desktop runtime prune keeps the Node LSTM OCR and PDF entrypoints only', a
 
     const result = await pruneDesktopRuntime(root, { platform: 'win32', arch: 'x64' });
 
-    await access(join(tesseractRoot, 'tesseract-core-relaxedsimd-lstm.js'));
-    await access(join(tesseractRoot, 'tesseract-core-relaxedsimd-lstm.wasm'));
-    await missing(join(tesseractRoot, 'tesseract-core.js'));
-    await missing(join(tesseractRoot, 'tesseract-core-relaxedsimd-lstm.wasm.js'));
     await access(join(pdfJsRoot, 'legacy', 'build', 'pdf.mjs'));
     await access(join(pdfJsRoot, 'legacy', 'build', 'pdf.worker.mjs'));
     await access(join(pdfJsRoot, 'cmaps', 'Identity-H.bcmap'));
@@ -104,15 +74,10 @@ test('desktop runtime prune keeps the Node LSTM OCR and PDF entrypoints only', a
     await missing(join(pdfJsRoot, 'build'));
     await missing(join(pdfJsRoot, 'legacy', 'web'));
     await missing(join(pdfJsRoot, 'legacy', 'build', 'pdf.min.mjs'));
-    await access(join(pdfLibRoot, 'cjs', 'index.js'));
-    await missing(join(pdfLibRoot, 'es'));
-    await missing(join(pdfLibRoot, 'dist'));
-    await access(join(fontkitRoot, 'dist', 'fontkit.umd.js'));
-    await missing(join(fontkitRoot, 'dist', 'fontkit.es.js'));
+    await missing(join(root, 'node_modules', '@napi-rs'));
     await access(join(unpdfRoot, 'dist', 'index.mjs'));
     await missing(join(unpdfRoot, 'dist', 'index.cjs'));
     await missing(join(unpdfRoot, 'dist', 'pdfjs.mjs'));
-    assert.ok(result.removedTesseractBytes > 0);
     assert.ok(result.removedPdfBytes > 0);
   } finally {
     await rm(root, { recursive: true, force: true });

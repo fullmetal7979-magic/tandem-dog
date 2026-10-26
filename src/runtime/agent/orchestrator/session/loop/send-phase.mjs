@@ -15,6 +15,7 @@ import { sendWithRecovery } from '../send-with-recovery.mjs';
 import { stripInlineImages } from '../image-strip-recovery.mjs';
 import { runWithProviderRequestToolsScope } from '../../runtime-core/provider-request-tools.mjs';
 import { REPEAT_FAIL_LIMIT } from './loop-state.mjs';
+import { admitBudgetRequest, assertBudgetRequestAllowed } from './execution-budget.mjs';
 
 /**
  * Open an iteration: refresh the live cwd, drain queued steering after a
@@ -30,6 +31,7 @@ export async function beginIteration(state) {
   state.cwd = resolveLiveToolCwd(state.cwd, sessionRef);
   const iterT0 = Date.now();
   state.throwIfAborted();
+  assertBudgetRequestAllowed(state);
   // Drain queued steering/prompts BEFORE the pre-send compact check, but only
   // immediately after a tool batch has completed: queued entries are attached
   // after tool results and before the continuation, not on arbitrary
@@ -116,6 +118,7 @@ export async function beginIteration(state) {
 /** Project the transcript for the provider and send it with recovery. */
 export async function sendProviderRequest(state, round) {
   const { opts, provider, model, messages, sessionRef, sessionId } = state;
+  admitBudgetRequest(state);
   const sendStartedAt = Date.now();
   const preSendMs = sendStartedAt - round.iterT0;
   const toolResumeMs = state.lastToolBatchEndedAt ? sendStartedAt - state.lastToolBatchEndedAt : null;
@@ -343,6 +346,11 @@ export function settleSendResult(state, round, sent) {
   // A response without usage is still an unmeasured call. Do not silently
   // omit it and later label a mixed reasoning subtotal as complete.
   const reportedUsage = response.usage || {};
+  if (state.executionBudgetTracker) {
+    const u = response.usage;
+    if (!u || !(Number(u.inputTokens) > 0 || Number(u.promptTokens) > 0 || Number(u.cachedTokens) > 0 || Number(u.cacheWriteTokens) > 0))
+      state.executionBudgetTracker.unmeasured = true;
+  }
   const hadUsage = !!state.lastUsage;
   state.lastUsage = addUsage(state.lastUsage, reportedUsage);
   // Snapshot the first turn separately so callers can show iter1 vs final

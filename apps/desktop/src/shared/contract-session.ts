@@ -371,6 +371,7 @@ export interface DesktopPastedText {
 }
 
 export interface DesktopSubmitOptions {
+  executionBudget?: { maxTokens?: number; maxCostUsd?: number; maxRequests?: number };
   /** Renderer-generated correlation id reused by the session queue/transcript. */
   id?: string;
   /** Wall-clock submit time for privacy-safe queue/steering latency diagnostics. */

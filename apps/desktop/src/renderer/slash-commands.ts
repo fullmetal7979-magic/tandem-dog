@@ -34,6 +34,8 @@ export interface DesktopSlashCommand {
   desktopDescription?: string;
   settingsRow?: SettingsSection;
   surface?: CommandSurface;
+  /** COSMOS seat commands: dispatched to cosmos-store (dispatchCosmosSeatAction). */
+  cosmos?: 'galaxy' | 'sit' | 'leave';
   action?: 'clear' | 'compact' | 'goal' | 'resume' | 'remote' | 'project' | 'fast' | 'settings' | 'close-task';
 }
 
@@ -178,6 +180,30 @@ export const SLASH_COMMANDS: ReadonlyArray<DesktopSlashCommand> = [
     description: 'Set your title, development experience, and response language',
     settingsRow: 'profile',
   },
+  {
+    name: '은하수',
+    usage: '/은하수',
+    aliases: ['galaxy'],
+    showAliasUsage: false,
+    description: 'Open the Galaxy (everything COSMOS shares between your devices)',
+    cosmos: 'galaxy',
+  },
+  {
+    name: '이어받기',
+    usage: '/이어받기',
+    aliases: ['sit'],
+    showAliasUsage: false,
+    description: 'Take over the seat on this device and pick up the latest work',
+    cosmos: 'sit',
+  },
+  {
+    name: '내려놓기',
+    usage: '/내려놓기',
+    aliases: ['leave'],
+    showAliasUsage: false,
+    description: 'Put the seat down so another device can take over',
+    cosmos: 'leave',
+  },
   { name: 'update', usage: '/update', description: 'Check version and update COSMOS', settingsRow: 'update' },
   { name: 'doctor', usage: '/doctor', description: 'Diagnose installation health', surface: 'doctor' },
   {
@@ -209,7 +235,7 @@ const COMPOSER_SLASH_COMMANDS: ReadonlyArray<DesktopSlashCommand> = [
 ].map((name) => ({ ...resolveDesktopSlashCommand(name)!, usage: `/${name}` }));
 
 export function desktopComposerSlashCommands(draft: string): ReadonlyArray<DesktopSlashCommand> {
-  if (!/^\/[a-z]*$/i.test(draft)) return [];
+  if (!/^\/[a-z가-힣]*$/i.test(draft)) return [];
   const query = draft.toLowerCase();
   return COMPOSER_SLASH_COMMANDS.filter((command) => command.usage.startsWith(query));
 }

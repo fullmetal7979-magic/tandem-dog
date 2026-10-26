@@ -434,8 +434,8 @@
   align-items: center;
   gap: 4px;
   margin-right: 6px;
-  font-size: 11px;
-  color: var(--mx-text-faint);
+  font-size: 11.5px;
+  color: var(--mx-text-muted);
   white-space: nowrap;
 }
 .composer-send-hint kbd {

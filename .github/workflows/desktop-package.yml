@@ -160,9 +160,25 @@ jobs:
         with:
           toolchain: "1.95.0"
           targets: ${{ inputs.platform == 'darwin' && (inputs.arch == 'x64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin') || (inputs.arch == 'arm64' && 'aarch64-unknown-linux-gnu' || 'x86_64-unknown-linux-gnu') }}
+      # The prepared-runtime cache above only helps when no Computer Use source
+      # changed; any edit to native/mixdog-computer rebuilds every dependency
+      # from scratch. Caching cargo's registry and target dir keeps that to the
+      # crate itself.
+      - name: Cache Computer Use cargo build
+        if: >-
+          inputs.platform == 'darwin'
+          && steps.prepared-runtime.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: native/mixdog-computer
+          key: desktop-${{ inputs.arch }}
       - name: Install desktop dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
         working-directory: apps/desktop
+      - name: Test macOS native titlebar compatibility
+        if: inputs.platform == 'darwin'
+        working-directory: apps/desktop
+        run: node --import ./scripts/test-env.mjs --import tsx ../../scripts/test-direct.mjs src/renderer/titlebar-mac.slow.test.mjs src/renderer/titlebar-native-controls.test.mjs scripts/dev-update-mac.test.mjs scripts/computer-native-validation.test.mjs
       - name: Prepare platform runtime
         if: steps.prepared-runtime.outputs.cache-hit != 'true'
         shell: bash

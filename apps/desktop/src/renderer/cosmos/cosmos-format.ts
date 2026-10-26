@@ -95,7 +95,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     };
   }
   if (!view.planet) {
-    return { level: 'info', icon: '🪐', title: '행성(프로젝트)을 열면 조종석이 보여요', detail: '', action: null };
+    return { level: 'info', icon: '🪐', title: '프로젝트를 열면 누가 작업 중인지 보여요', detail: '', action: null };
   }
   if (view.state === 'no_remote' || !view.planet.id) {
     return {
@@ -120,7 +120,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       return {
         level: 'info',
         icon: '⏳',
-        title: `${josa(target?.name || '교대를 요청한 기기', '을를')} 위해 조종석을 비워 두었어요`,
+        title: `${josa(target?.name || '교대를 요청한 기기', '을를')} 위해 자리를 비워 두었어요`,
         detail: '잠시 뒤에도 앉지 않으면 누구나 앉을 수 있어요.',
         action: 'sun',
       };
@@ -128,7 +128,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: waitingForMe ? 'ok' : 'info',
       icon: '☄️',
-      title: waitingForMe ? '조종석이 나를 기다려요 · 앉아서 이어 하세요' : '조종석이 비어 있어요',
+      title: waitingForMe ? '내 차례예요 · 이어받아서 계속하세요' : '지금은 아무도 작업하지 않아요',
       detail: [
         lastMoon?.to ? `마지막: ${josa(lastMoon.name, '이가')} ${ago(lastMoon.to, now)} 내렸어요${lastMoon.memo ? ` — “${lastMoon.memo}”` : ''}` : '',
         behind ? `새 커밋 ${behind}개를 받아올게요.` : '',
@@ -152,8 +152,8 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: unsaved ? 'info' : 'ok',
       icon: '🕹️',
-      title: `지금 이 기기가 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
-      detail: unsaved ? `아직 올리지 않은 변경 ${unsaved}건 · 떠날 때 🌙 달을 누르면 모두 저장돼요.` : '다른 기기로 옮길 때 🌙 달을 누르세요.',
+      title: `지금 이 기기에서 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      detail: unsaved ? `아직 올리지 않은 변경 ${unsaved}건 · 떠날 때 내려놓기를 누르면 모두 저장돼요.` : '다른 기기로 옮길 때 내려놓기를 누르세요.',
       action: 'moon',
     };
   }
@@ -161,8 +161,8 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: 'warn',
       icon: '📱',
-      title: `${josa(who(seat?.holder), '이가')} 이 PC를 원격으로 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
-      detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 🌙 달을 누르거나, 지금 이 PC로 되찾을 수 있어요.',
+      title: `${josa(who(seat?.holder), '이가')} 이 PC에서 원격으로 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르거나, 지금 이 PC로 되찾을 수 있어요.',
       action: 'reclaim',
     };
   }
@@ -170,7 +170,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: 'info',
       icon: '💻',
-      title: `${josa(who(seat?.holder), '이가')} 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
+      title: `${josa(who(seat?.holder), '이가')} 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
       detail: '지금 연결된 바로 그 PC라서 교대 없이 폰으로 이어갈 수 있어요. 그 PC는 잠겨요.',
       action: 'carry',
     };
@@ -182,7 +182,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       icon: asked ? '📨' : '🔒',
       title: asked
         ? `교대 요청을 보냈어요 · ${josa(who(seat?.holder), '이가')} 마무리하면 알려 드릴게요`
-        : `${josa(who(seat?.holder), '이가')} 조종 중이에요 · ${since(seat?.holder?.since, now)}`,
+        : `${josa(who(seat?.holder), '이가')} 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
       detail: asked ? '확인은 1분마다 해요.' : '겹쳐 고치지 않도록 이 기기에서는 잠겨 있어요.',
       action: asked ? 'withdraw' : 'request',
     };
@@ -198,9 +198,9 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
 
 export const ACTION_LABEL: Record<Exclude<CosmosAction, null>, string> = {
   setup: '🌌 은하수 연결',
-  sun: '☀️ 앉기',
-  moon: '🌙 마무리',
-  handoff: '🌙 마무리하고 넘기기',
+  sun: '☀️ 이어받기',
+  moon: '🌙 내려놓기',
+  handoff: '🌙 내려놓고 넘기기',
   request: '🔁 교대 요청',
   withdraw: '요청 취소',
   force: '⚠️ 강제로 넘겨받기',

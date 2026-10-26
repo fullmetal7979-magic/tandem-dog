@@ -17,6 +17,7 @@ import {
   type SettingsSection,
 } from './slash-commands';
 import { TURN_LOCKED_SLASH_COMMANDS, asRecord } from './text-format';
+import { dispatchCosmosSeatAction } from './cosmos/cosmos-store';
 
 type SlashExecutorDeps = {
   draftMode?: boolean;
@@ -106,6 +107,7 @@ async function runSlashCommand(
   // close path as Ctrl+W, so unsaved-close guards and group collapse apply.
   // Explicit app quit stays in the File menu.
   else if (command.action === 'close-task') window.dispatchEvent(new CustomEvent('mixdog:close-active-tab'));
+  else if (command.cosmos) dispatchCosmosSeatAction(command.cosmos);
   else if (name === 'autoclear' && argument) await runAutoClear(run, argument);
   else if (name === 'outputstyle' && argument) await runOutputStyle(run, argument);
   else if (name === 'theme' && argument) await runTheme(run, argument);

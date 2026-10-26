@@ -1,4 +1,4 @@
-import { Check, Plus, Search, X } from 'lucide-react';
+import { Check, Plus, Search, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { DesktopModelOption } from '../shared/contract';
@@ -8,6 +8,8 @@ import { PaneSurfaceGate } from './PaneSurfaceGate';
 import { record } from './record-utils';
 import {
   modelDisplayName,
+  formatContextWindow,
+  modelContextWindow,
   modelOptionDescription,
   ProviderIcon,
   providerDisplayName,
@@ -17,6 +19,14 @@ import type { RecordValue } from './desktop-types';
 
 const RECENT_MODELS_KEY = 'mixdog.desktop-recent-models';
 const RECENT_MODELS_LIMIT = 7;
+const FAVORITE_MODELS_KEY = 'cosmos.desktop-favorite-models';
+const FAVORITE_MODELS_LIMIT = 12;
+function readFavoriteModelKeys(): string[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(FAVORITE_MODELS_KEY) || '[]');
+    return Array.isArray(value) ? [...new Set(value.filter((key): key is string => typeof key === 'string'))].slice(0, FAVORITE_MODELS_LIMIT) : [];
+  } catch { return []; }
+}
 // A drilled catalog can unmount between choices; acknowledgement order must
 // not rewind recents across catalog instances.
 let latestModelChoice = 0;
@@ -111,6 +121,7 @@ export function ModelCatalog({
   onClose(): void;
 }) {
   const [query, setQuery] = useState('');
+  const [favoriteKeys, setFavoriteKeys] = useState<string[]>(readFavoriteModelKeys);
   const [activeRowKey, setActiveRowKey] = useState('');
   const [recentModelKeys, setRecentModelKeys] = useState<string[]>(readRecentModelKeys);
   const dialog = useRef<HTMLElement>(null);
@@ -127,6 +138,7 @@ export function ModelCatalog({
       return;
     }
     setRecentModelKeys(readRecentModelKeys());
+    setFavoriteKeys(readFavoriteModelKeys());
     // Opening the list must not summon the keyboard on a phone: it covered
     // half the catalog before a single row was read (user: 검색창 터치도 안
     // 했는데 바로 타이핑창 열리게 하지 말고). The field waits for a tap.
@@ -155,17 +167,32 @@ export function ModelCatalog({
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const matchesQuery = (option: DesktopModelOption) =>
     !normalizedQuery ||
-    `${option.model} ${option.display} ${modelDisplayName(option.model, option.provider, option.display)} ${modelOptionDescription(option)}`
+    `${option.provider} ${providerDisplayName(option.provider)} ${option.model} ${option.display} ${modelDisplayName(option.model, option.provider, option.display)} ${modelOptionDescription(option)}`
       .toLocaleLowerCase()
       .includes(normalizedQuery);
   const visibleProviderEntries = providerEntries
     .map(([entryProvider, options]) => [entryProvider, options.filter(matchesQuery)] as const)
     .filter(([, options]) => options.length > 0);
-  const recentModels = recentModelKeys.flatMap((key) => {
+  const favoriteModels = favoriteKeys.flatMap((key) => {
+    const option = models.find((entry) => modelKey(entry) === key);
+    return option && matchesQuery(option) ? [option] : [];
+  });
+  const currentOption = models.find((entry) => entry.provider === provider && entry.model === model);
+  const currentFavorite = Boolean(currentOption && favoriteKeys.includes(modelKey(currentOption)));
+  const toggleFavorite = () => {
+    if (!currentOption) return;
+    const key = modelKey(currentOption);
+    const next = currentFavorite ? favoriteKeys.filter((entry) => entry !== key)
+      : [key, ...favoriteKeys.filter((entry) => entry !== key)].slice(0, FAVORITE_MODELS_LIMIT);
+    setFavoriteKeys(next);
+    try { window.localStorage.setItem(FAVORITE_MODELS_KEY, JSON.stringify(next)); } catch { /* usable in memory */ }
+  };
+  const recentModels = recentModelKeys.filter((key) => !favoriteKeys.includes(key)).flatMap((key) => {
     const option = models.find((entry) => modelKey(entry) === key);
     return option && matchesQuery(option) ? [option] : [];
   });
   const renderedKeys = [
+    ...favoriteModels.map((option) => modelKey(option, 'favorite:')),
     ...recentModels.map((option) => modelKey(option, 'recent:')),
     ...visibleProviderEntries.flatMap(([, options]) => options.map((option) => modelKey(option))),
   ];
@@ -173,6 +200,11 @@ export function ModelCatalog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: the derived lists are recomputed each render; the primitive inputs (normalizedQuery, models, recentModelKeys) are the intended triggers.
   useEffect(() => {
     if (!active) return;
+    const favorite = favoriteModels.find((option) => option.provider === provider && option.model === model);
+    if (favorite) {
+      setActiveRowKey(modelKey(favorite, 'favorite:'));
+      return;
+    }
     const recent = recentModels.find((option) => option.provider === provider && option.model === model);
     if (recent) {
       setActiveRowKey(modelKey(recent, 'recent:'));
@@ -182,7 +214,7 @@ export function ModelCatalog({
     const preferred =
       visibleModels.find((option) => option.provider === provider && option.model === model) || visibleModels[0];
     setActiveRowKey(preferred ? modelKey(preferred) : '');
-  }, [active, model, normalizedQuery, models, provider, recentModelKeys]);
+  }, [active, model, normalizedQuery, models, provider, recentModelKeys, favoriteKeys]);
 
   const focusRow = (index: number) => {
     const options = Array.from(
@@ -259,10 +291,14 @@ export function ModelCatalog({
           <span className="model-row-title">
             <strong>
               {modelDisplayName(option.model, option.provider, option.display)}
-              {scope === 'recent:' && (
+              {(scope === 'recent:' || scope === 'favorite:') && (
                 <span className="model-row-source">{` (${providerDisplayName(option.provider)})`}</span>
               )}
             </strong>
+          </span>
+          <span className="model-capabilities">
+            {modelContextWindow(option) > 0 && <span>{formatContextWindow(modelContextWindow(option)).replace(/ Context$/, '')} {t('Context')}</span>}
+            {option.supportsVision && <span>{t('Images')}</span>}
           </span>
         </span>
         {selected && (
@@ -316,6 +352,14 @@ export function ModelCatalog({
                   </button>
                 )}
               </div>
+              {currentOption && (
+                <button type="button" className="model-provider-add model-favorite-toggle"
+                  aria-label={currentFavorite ? t('Unpin current model') : t('Pin current model')}
+                  title={currentFavorite ? t('Unpin current model') : t('Pin current model')}
+                  aria-pressed={currentFavorite} onClick={toggleFavorite}>
+                  <Star size={16} fill={currentFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
+                </button>
+              )}
               {onOpenProviders && (
                 <button
                   type="button"
@@ -339,6 +383,12 @@ export function ModelCatalog({
                 <p className="model-empty">
                   {emptyCatalogText(catalogRefreshing || !catalogLoaded, Boolean(normalizedQuery))}
                 </p>
+              )}
+              {favoriteModels.length > 0 && (
+                <section className="model-group model-group--favorite">
+                  <h3>{t('Pinned models')}</h3>
+                  <div className="model-items">{favoriteModels.map((option) => renderModelOption(option, 'favorite:'))}</div>
+                </section>
               )}
               {recentModels.length > 0 && (
                 <section className="model-group model-group--recent">

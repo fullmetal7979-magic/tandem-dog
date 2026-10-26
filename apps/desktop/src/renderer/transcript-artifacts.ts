@@ -1,13 +1,10 @@
 import type { TranscriptItem } from './desktop-types';
-import { asRecord } from './text-format';
 import {
-  desktopToolActivityCategory,
   desktopToolActivitySurface,
   flattenedToolActivityItems,
   toolItemDone,
 } from './transcript-tool-core';
 import { toolActivityFirstText } from './transcript-tool-format';
-import { toolActivityResultValue } from './transcript-tool-result';
 
 export interface TranscriptArtifact {
   key: string;
@@ -18,7 +15,6 @@ export interface TranscriptArtifact {
   aspect?: number;
 }
 
-const DOCUMENT = /\.(?:docx|xlsx|pptx|pdf|csv|tsv|rtf|odt|ods|odp)$/i;
 const SVG = /\.svg$/i;
 
 /** Files a successful edit/apply_patch call wrote: its own write targets, not
@@ -39,28 +35,6 @@ function writtenFiles(normalizedName: string, args: Record<string, unknown>): st
   return paths;
 }
 
-// Otherwise only parse structured tool output, never paths guessed from prose or input args.
-function resultRecords(value: unknown, depth = 0): Record<string, unknown>[] {
-  if (depth > 3) return [];
-  if (typeof value === 'string') {
-    try {
-      return resultRecords(JSON.parse(value), depth + 1);
-    } catch {
-      return [];
-    }
-  }
-  const record = asRecord(value);
-  if (!record || record.isError === true || record.ok === false) return [];
-  if (record.structuredContent) return resultRecords(record.structuredContent, depth + 1);
-  if (Array.isArray(record.content)) {
-    return record.content.flatMap((entry) => {
-      const part = asRecord(entry);
-      return part?.type === 'text' ? resultRecords(part.text, depth + 1) : [];
-    });
-  }
-  return [record];
-}
-
 export function transcriptArtifacts(items: readonly TranscriptItem[]): TranscriptArtifact[] {
   const artifacts = new Map<string, TranscriptArtifact>();
   for (const item of flattenedToolActivityItems(items)) {
@@ -77,20 +51,6 @@ export function transcriptArtifacts(items: readonly TranscriptItem[]): Transcrip
       if (!SVG.test(path)) continue;
       const key = `file:${path.replace(/\\/g, '/')}`;
       artifacts.set(key, { key, kind: 'image', path, name: path.split(/[\\/]/).pop() || path });
-    }
-    const category = desktopToolActivityCategory(item.name, item.args);
-    if (category !== 'Office') continue;
-    for (const result of resultRecords(toolActivityResultValue(item))) {
-      if (['running', 'failed', 'canceled', 'cancelled'].includes(String(result.status || ''))) continue;
-      if (category !== 'Office') continue;
-      const outputs = Array.isArray(result.artifacts) ? result.artifacts : [];
-      for (const output of outputs) {
-        const artifact = asRecord(output);
-        const path = typeof artifact?.path === 'string' ? artifact.path : '';
-        if (!DOCUMENT.test(path) || !['create', 'edit'].includes(String(artifact?.operation))) continue;
-        const key = `file:${path.replace(/\\/g, '/')}`;
-        artifacts.set(key, { key, kind: 'document', path, name: path.split(/[\\/]/).pop() || path });
-      }
     }
   }
   return [...artifacts.values()];

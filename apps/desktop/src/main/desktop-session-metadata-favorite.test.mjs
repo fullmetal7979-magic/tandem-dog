@@ -45,3 +45,28 @@ test('archiving keeps the favorite flag and deleting a session forgets it', asyn
   await metadata.forget('session-a');
   assert.deepEqual((await reload()).withFavoriteFlags([{ id: 'session-a' }]), [{ id: 'session-a' }]);
 });
+
+
+test('model history keeps task identity and favorites after restart; archive covers the whole task', async t => {
+  const { metadata, reload } = await fixture(t);
+  await metadata.setFavorite('session-a', true);
+  await metadata.setName('session-a', 'My task');
+  await metadata.linkModelContinuation('session-a', 'session-b');
+  await metadata.linkModelContinuation('session-b', 'session-c');
+  const loaded = await reload();
+  const rows = ['session-a', 'session-b', 'session-c'].map(id => ({ id }));
+  assert.deepEqual(loaded.withTaskLineage(rows).slice(1), [
+    { id: 'session-b', taskId: 'session-a', previousSessionId: 'session-a' },
+    { id: 'session-c', taskId: 'session-a', previousSessionId: 'session-b' },
+  ]);
+  assert.equal(loaded.names['session-c'], 'My task');
+  assert.ok(loaded.withFavoriteFlags(rows).every(row => row.favorite));
+  await loaded.setFavorite('session-c', false);
+  assert.ok((await reload()).withFavoriteFlags(rows).every(row => !row.favorite));
+  await loaded.setArchived('session-c', true);
+  assert.ok((await reload()).withArchiveFlags(rows).every(row => row.archived));
+  await loaded.setArchived('session-b', false);
+  assert.ok((await reload()).withArchiveFlags(rows).every(row => !row.archived));
+  await loaded.forget('session-c');
+  assert.equal((await reload()).withTaskLineage([{ id: 'session-c' }])[0].taskId, undefined);
+});

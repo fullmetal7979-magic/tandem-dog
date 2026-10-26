@@ -391,6 +391,20 @@ export function App() {
     setupUiRequest: snapshot.setupUiRequest,
     setupChanged: snapshot.setupChanged,
   });
+  // COSMOS surfaces without shell props ask for Settings / the space home by event.
+  useEffect(() => {
+    const open = (event: Event) => {
+      const section = (event as CustomEvent<{ section?: string }>).detail?.section;
+      openSettings(section === 'providers' || section === 'connection' ? section : undefined);
+    };
+    const home = () => startTask();
+    window.addEventListener('cosmos:open-settings', open);
+    window.addEventListener('cosmos:open-home', home);
+    return () => {
+      window.removeEventListener('cosmos:open-settings', open);
+      window.removeEventListener('cosmos:open-home', home);
+    };
+  }, [openSettings, startTask]);
 
   useLaunchTabMeasurements();
   const { paneDraftSubmitFor, paneSubmitFor, submit } = useAppSubmitRouting({

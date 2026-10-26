@@ -53,6 +53,38 @@ const localFontDisplayFallback: Plugin = {
   },
 };
 
+// KaTeX ships every face as woff2, woff and ttf. Chromium 144 and every phone
+// browser the remote UI targets read woff2, so the two fallbacks only add
+// ~1 MB of dead assets. Strip them from the emitted stylesheet and drop the
+// files; a face with no woff2 source would keep its full list.
+const KATEX_FALLBACK_SOURCE = /,\s*url\([^)]*KaTeX_[^)]*\.(?:woff|ttf)\)\s*format\(\s*["']?(?:woff|truetype)["']?\s*\)/g;
+const katexWoff2Only: Plugin = {
+  name: 'mixdog-katex-woff2-only',
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    let stripped = 0;
+    for (const output of Object.values(bundle)) {
+      if (output.type !== 'asset' || !output.fileName.endsWith('.css')) continue;
+      const css = String(output.source);
+      if (!css.includes('KaTeX_')) continue;
+      const next = css.replace(KATEX_FALLBACK_SOURCE, () => {
+        stripped += 1;
+        return '';
+      });
+      output.source = next;
+    }
+    if (stripped === 0) return;
+    const remaining = Object.values(bundle)
+      .filter((output) => (output.type === 'asset' && output.fileName.endsWith('.css')) || output.type === 'chunk')
+      .map((output) => (output.type === 'asset' ? String(output.source) : output.code))
+      .join('\n');
+    for (const fileName of Object.keys(bundle)) {
+      const name = basename(fileName);
+      if (/^KaTeX_.*\.(?:woff|ttf)$/.test(name) && !remaining.includes(name)) delete bundle[fileName];
+    }
+  },
+};
+
 // This tiny first-paint script must run before CSS or the renderer, but an
 // external classic script blocks HTML parsing for a full relay round trip.
 // Inline the public source into the no-cache document; the relay derives the
@@ -100,18 +132,12 @@ const FIRST_SCREEN_ROOT_CHUNKS = [
 // does the entry + transport graph that has to evaluate before the relay
 // socket can open.
 const FIRST_SCREEN_HIGH_PRIORITY_CHUNKS = new Set(['bootstrap', 'react-vendor', 'ui-vendor']);
-const FIRST_SCREEN_LOCALE_CHUNKS = {
-  de: 'de',
-  es: 'es',
-  fr: 'fr',
-  it: 'it',
-  ja: 'ja',
-  ko: 'ko',
-  'pt-BR': 'pt-BR',
-  ru: 'ru',
-  vi: 'vi',
-  'zh-CN': 'zh-CN',
-  'zh-TW': 'zh-TW',
+// Only Korean is the product's default language, so only its catalog earns a
+// head preload; other languages resolve through the lazy loader as before.
+// The catalog is matched by its facade module, never by chunk name: a Rollup
+// name like "ko" also belongs to the changelog Markdown chunk.
+const FIRST_SCREEN_LOCALE_MODULES = {
+  ko: 'locales/ko.json',
 } as const;
 
 const firstScreenHints: Plugin = {
@@ -180,11 +206,13 @@ const firstScreenHints: Plugin = {
           + ` href="./${chunk.fileName}">`,
       );
       const workerHints = workerScripts.map((asset) => `<link rel="prefetch" href="./${asset.fileName}">`);
-      // The language is known synchronously in boot.js. Keep every catalog
+      // The language is known synchronously in boot.js. Keep the catalog
       // inert in the template, then move only the resolved locale into <head>
       // so Korean does not pay a serial request after i18n evaluates.
-      const localeHints = Object.entries(FIRST_SCREEN_LOCALE_CHUNKS).flatMap(([language, name]) => {
-        const fileName = chunkByName.get(name)?.fileName;
+      const localeHints = Object.entries(FIRST_SCREEN_LOCALE_MODULES).flatMap(([language, module]) => {
+        const fileName = chunks.find(
+          (chunk) => chunk.facadeModuleId?.replace(/\\/g, '/').endsWith(`/${module}`),
+        )?.fileName;
         return fileName
           ? [`<link rel="modulepreload" crossorigin data-mixdog-locale="${language}"`
             + ` href="./${fileName}">`]
@@ -197,12 +225,12 @@ const firstScreenHints: Plugin = {
         || styles.size === 0
         || workerScripts.length === 0
         || desktopHints.length === 0
-        || localeHints.length !== Object.keys(FIRST_SCREEN_LOCALE_CHUNKS).length) {
+        || localeHints.length !== Object.keys(FIRST_SCREEN_LOCALE_MODULES).length) {
         console.warn(
           `[mixdog] first-screen hints matched ${entry ? 1 : 0}/1 entry,`
           + ` ${roots.length}/${FIRST_SCREEN_ROOT_CHUNKS.length} root chunks, ${styles.size} styles,`
           + ` ${workerScripts.length} worker scripts, ${desktopHints.length} desktop hints`
-          + ` and ${localeHints.length}/${Object.keys(FIRST_SCREEN_LOCALE_CHUNKS).length} locales;`
+          + ` and ${localeHints.length}/${Object.keys(FIRST_SCREEN_LOCALE_MODULES).length} locales;`
           + ' the web app boots the missing ones serially.',
         );
       }
@@ -351,7 +379,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [localFontDisplayFallback, inlineBootScript, firstScreenHints, react()],
+    plugins: [localFontDisplayFallback, katexWoff2Only, inlineBootScript, firstScreenHints, react()],
     server: {
       host: '127.0.0.1',
       // The translated changelogs (repo-root changelog/*.md) load as lazy

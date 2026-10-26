@@ -127,6 +127,8 @@ export interface RemoteMethodDependencies {
     ): { id: string; replay: string } | Promise<{ id: string; replay: string }>;
     write(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
+    /** The folder a PTY was opened in (null: none, undefined: unknown id). Lets the seat gate judge PC-owned terminals. */
+    cwdOf?(id: string): string | null | undefined;
   };
   browserRemote?: (method: 'stream' | 'control' | 'release', args: unknown[]) => Promise<unknown>;
   /** 조종석 gate: the relay leg refuses writes unless the phone holds the seat. */
@@ -829,11 +831,19 @@ export function createRemoteMethods({
   if (seatGate) {
     gateRemoteWrites(methods, {
       gate: seatGate,
+      // A failed lookup is the gate's to refuse (fail closed), so it is not swallowed here.
       projectDirectory: async (projectPath) =>
-        typeof projectPath === 'string' && projectPath ? host.projectDirectory(projectPath).catch(() => null) : null,
+        typeof projectPath === 'string' && projectPath ? host.projectDirectory(projectPath) : null,
+      projectDirectories: async () => {
+        const projects = await host.listProjects();
+        return (await Promise.all(projects.map((project) => host.projectDirectory(project.path).catch(() => null)))).filter(
+          (folder): folder is string => typeof folder === 'string' && folder.length > 0
+        );
+      },
+      terminalCwd: terminals?.cwdOf ? (id) => terminals.cwdOf!(id) : undefined,
       sessionCwd: async (sessionId) => {
         if (typeof sessionId !== 'string' || !sessionId) return null;
-        const sessions = await host.listSessions().catch(() => []);
+        const sessions = await host.listSessions();
         const session = sessions.find((row) => row.id === sessionId);
         return session?.projectPath || session?.cwd || null;
       },
@@ -853,20 +863,29 @@ function cosmosRemoteMethods(host: DesktopService, invokeDesktopOperation: Invok
     if (!value || typeof value !== 'object') throw new TypeError('guest is required.');
     return value;
   };
-  const cwdOf = (value: unknown) => (typeof value === 'string' && value ? value : null);
+  // The phone names a planet, never a path: whatever it sends must be one of
+  // this PC's registered projects (id or path) and is replaced by that
+  // project's own directory before anything touches git or the disk.
+  const projectCwd = async (value: unknown): Promise<string> =>
+    host.projectDirectory(requiredString(value, 'cwd', 4_096)).catch(() => {
+      throw new TypeError('이 PC에 등록된 프로젝트가 아니에요.');
+    });
+  const optionalProjectCwd = (value: unknown): Promise<string | null> =>
+    typeof value === 'string' && value ? projectCwd(value) : Promise.resolve(null);
   return {
-    cosmosOverview: ([cwd, options, guest]) => invokeDesktopOperation('cosmosOverview', [cwdOf(cwd), options ?? null, guestOf(guest)]),
-    cosmosSun: ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosSun', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
-    cosmosMoon: ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosMoon', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
-    cosmosRequest: ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosRequest', [requiredString(cwd, 'cwd', 4_096), request ?? null, guestOf(guest)]),
+    cosmosOverview: async ([cwd, options, guest]) =>
+      invokeDesktopOperation('cosmosOverview', [await optionalProjectCwd(cwd), options ?? null, guestOf(guest)]),
+    cosmosSun: async ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosSun', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
+    cosmosMoon: async ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosMoon', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
+    cosmosRequest: async ([cwd, request, guest]) =>
+      invokeDesktopOperation('cosmosRequest', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
     // The phone has no beat of its own; its seat lives on this PC's beat.
     cosmosHeartbeat: ([planets]) => invokeDesktopOperation('cosmosHeartbeat', [Array.isArray(planets) ? planets : []]),
-    cosmosContinueConversation: ([cwd, conversationId]) =>
+    cosmosContinueConversation: async ([cwd, conversationId]) =>
       host.continueGalaxyConversation(
-        requiredString(cwd, 'cwd', 4_096),
+        await projectCwd(cwd),
         typeof conversationId === 'string' && conversationId ? conversationId : null
       ),
   };

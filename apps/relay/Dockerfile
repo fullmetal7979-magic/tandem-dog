@@ -1,7 +1,7 @@
 # 코스모스 릴레이 — the relay plus the phone web app it serves.
 # Build context: apps/relay, after `npm run stage:web` filled ./renderer
 # (deploy/cosmos/deploy.sh does both). TLS is Caddy's job (compose.yml).
-FROM node:22-alpine
+FROM node:22.11.0-alpine3.20
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=9800 \

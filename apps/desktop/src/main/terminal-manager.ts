@@ -246,6 +246,13 @@ export class TerminalManager {
     return { id: nextId, replay: '' };
   }
 
+  /** The working directory a live terminal was spawned in (the remote seat
+   *  gate uses it to scope PC-owned terminals). Null when unknown or gone. */
+  cwdOf(id: string): string | null {
+    const entry = this.terminals.get(id);
+    return entry && !entry.disposed ? entry.cwd : null;
+  }
+
   /** Read-only: the tabs of one session's terminal, ordered by tab number.
    * Tab 1 is `session-terminal:<sessionId>`, tab n is `…:<n>`. Other
    * sessions' terminals are never visible through this. */

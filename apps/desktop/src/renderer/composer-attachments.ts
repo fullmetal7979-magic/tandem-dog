@@ -4,12 +4,9 @@ import { asRecord } from './text-format';
 import {
   MAX_COMPOSER_ATTACHMENTS,
   MAX_IMAGE_FILE_BYTES,
-  MAX_INLINE_FILE_BASE64_TOTAL,
   MAX_INLINE_FILE_BYTES,
   MAX_INLINE_IMAGE_BASE64_TOTAL,
   MAX_INLINE_TEXT_TOTAL,
-  MAX_OFFICE_FILE_BYTES,
-  MAX_PDF_FILE_BYTES,
   type ComposerAttachment,
 } from './composer-support';
 import { t } from './i18n';
@@ -18,8 +15,6 @@ import {
   LEGACY_OFFICE_REPLACEMENT,
   MAX_PROMPT_IMAGE_BASE64_LENGTH,
   OFFICE_MIME_BY_EXTENSION,
-  canonicalPromptFileMimeType,
-  PDF_MIME_TYPE,
   PROMPT_IMAGE_MIME_PATTERN,
 } from '../shared/prompt-limits';
 
@@ -94,13 +89,6 @@ export function attachmentPolicyError(
     (attachment.kind === 'image' ? attachment.data.length : 0);
   if (imageTotal > MAX_INLINE_IMAGE_BASE64_TOTAL) {
     return 'Attached images are too large together. Remove one or use smaller files.';
-  }
-  const isFilePart = (item: ComposerAttachment) => item.kind === 'pdf' || item.kind === 'office';
-  const fileTotal =
-    currentAttachments.reduce((sum, item) => sum + (isFilePart(item) ? item.data.length : 0), 0) +
-    (isFilePart(attachment) ? attachment.data.length : 0);
-  if (fileTotal > MAX_INLINE_FILE_BASE64_TOTAL) {
-    return t('Attached PDFs and Office files are too large together. Remove one or use smaller files.');
   }
   return '';
 }
@@ -289,48 +277,6 @@ async function imageAttachment({
   };
 }
 
-async function pdfAttachment({
-  file,
-  id,
-  displayName,
-  cancelled,
-}: AttachmentInput): Promise<ComposerAttachment | null> {
-  if (file.size > MAX_PDF_FILE_BYTES) throw new Error(`${displayName}: PDFs must be under 20 MB.`);
-  if (!(await hasPdfHeader(file))) {
-    throw new Error(t('{{name}}: this file is not a valid PDF.', { name: displayName }));
-  }
-  if (cancelled()) return null;
-  const data = await base64Payload(file, `${displayName}: could not read PDF.`);
-  if (cancelled()) return null;
-  return {
-    id,
-    name: displayName,
-    kind: 'pdf',
-    mimeType: 'application/pdf',
-    data,
-    token: `[PDF #${id}: ${displayName}]`,
-  };
-}
-
-async function officeAttachment(
-  { file, id, displayName, cancelled }: AttachmentInput,
-  mimeType: string
-): Promise<ComposerAttachment | null> {
-  if (file.size > MAX_OFFICE_FILE_BYTES) {
-    throw new Error(t('{{name}}: Office files must be under 20 MB.', { name: displayName }));
-  }
-  const data = await base64Payload(file, `${displayName}: could not read file.`);
-  if (cancelled()) return null;
-  return {
-    id,
-    name: displayName,
-    kind: 'office',
-    mimeType,
-    data,
-    token: `[File #${id}: ${displayName}]`,
-  };
-}
-
 async function textAttachment(
   { file, id, displayName, cancelled }: AttachmentInput,
   mimeKind: string
@@ -380,17 +326,8 @@ export async function attachmentFromFile(
   if (file.size === 0) {
     throw new RejectedComposerFileError(t('{{name}}: the file is empty.', { name: displayName }));
   }
-  const legacyFormat = legacyOfficeReplacement(displayName);
-  if (legacyFormat) {
-    throw new RejectedComposerFileError(
-      t("{{name}}: legacy Office files can't be attached. Save it as {{format}} and try again.", {
-        name: displayName,
-        format: legacyFormat,
-      })
-    );
-  }
   // Windows often reports an empty or octet-stream type; the extension then
-  // decides the image type (PDF and Office are already decided by name).
+  // decides the image type.
   const reportedType = (file.type || '').split(';', 1)[0].trim().toLowerCase();
   const imageType = IMAGE_MIME_BY_EXTENSION[fileExtension(displayName)];
   if (imageType && (!reportedType || reportedType === 'application/octet-stream')) {
@@ -398,8 +335,5 @@ export async function attachmentFromFile(
   }
   if (file.type.startsWith('image/')) return imageAttachment(input);
   const mimeKind = reportedType;
-  if (mimeKind === PDF_MIME_TYPE || /\.pdf$/i.test(displayName)) return pdfAttachment(input);
-  const officeMime = officeMimeForName(displayName) || canonicalPromptFileMimeType(mimeKind);
-  if (officeMime) return officeAttachment(input, officeMime);
   return textAttachment(input, mimeKind);
 }

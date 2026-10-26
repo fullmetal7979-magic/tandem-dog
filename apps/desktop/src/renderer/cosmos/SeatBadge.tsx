@@ -1,4 +1,4 @@
-// 조종석 배지: always-visible relay state in the titlebar. Clicking it opens
+// 작업 자리 배지: always-visible relay state in the titlebar. Clicking it opens
 // the Galaxy screen; the colour, icon and words all carry the same state.
 import { useEffect } from 'react';
 import { cosmosVerdict, since } from './cosmos-format';
@@ -19,19 +19,19 @@ export function SeatBadge({ projectPath }: { projectPath: string | null }) {
   } else if (view?.planet?.id && view.seat) {
     const holder = view.seat.holder;
     if (view.state === 'mine') {
-      label = view.seat.requests.length ? `🔁 ${view.seat.requests[0].name} 교대 요청` : `🕹️ 조종 중 · ${since(holder?.since)}`;
+      label = view.seat.requests.length ? `🔁 ${view.seat.requests[0].name} 교대 요청` : `작업 중 · ${since(holder?.since)}`;
       tone = view.seat.requests.length ? 'warn' : 'ok';
     } else if (view.state === 'remote') {
-      label = `📱 ${holder?.name} 원격 조종 중`;
+      label = `📱 ${holder?.name} 원격 작업 중`;
       tone = 'warn';
     } else if (view.state === 'occupied') {
-      label = `🔒 ${holder?.name} 조종 중`;
+      label = `🔒 ${holder?.name} 작업 중`;
       tone = 'warn';
     } else if (view.state === 'stale') {
       label = `⚠️ ${holder?.name} 응답 없음`;
       tone = 'bad';
     } else {
-      label = '☄️ 조종석 비어 있음';
+      label = '☄️ 작업 자리 비어 있음';
     }
   } else if (view?.state === 'no_remote') {
     label = '🛰️ 혼자 쓰는 행성';

@@ -38,17 +38,17 @@ export function ConstellationTimeline({ history, stars, now = Date.now() }: { hi
       const x2 = Math.max(x1 + 6, xOf(turn.to ?? now));
       return { ...turn, lane, x1, x2, y: 18 + lane * LANE_H };
     });
-    const colorOf = (id: string) => stars.find((star) => star.id === id)?.color ?? recent.find((turn) => turn.star === id)?.color ?? '#a5b4fc';
+    const colorOf = (id: string) => stars.find((star) => star.id === id)?.color ?? recent.find((turn) => turn.star === id)?.color ?? 'var(--cosmos-moon-strong)';
     return { start, laneIds, turns, colorOf, height: 30 + laneIds.length * LANE_H };
   }, [recent, stars, now]);
 
   if (!model) {
-    return <p className="cosmos-empty-note">아직 조종 기록이 없어요. ☀️ 앉기를 누르면 여기에 별자리가 그려져요.</p>;
+    return <p className="cosmos-empty-note">아직 작업 기록이 없어요. 이어받기를 누르면 여기에 기록이 쌓여요.</p>;
   }
   const { turns, laneIds, colorOf, height, start } = model;
   return (
     <figure className="cosmos-timeline">
-      <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-label={`최근 조종 기록 ${turns.length}번`}>
+      <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-label={`최근 작업 기록 ${turns.length}번`}>
         {laneIds.map((id, lane) => {
           const sample = recent.find((turn) => turn.star === id);
           return (
@@ -89,7 +89,7 @@ export function ConstellationTimeline({ history, stars, now = Date.now() }: { hi
             <li key={`${turn.star}-${turn.from}`}>
               <span className="cosmos-dot" style={{ background: colorOf(turn.star) }} aria-hidden="true" />
               <b>{turn.name}</b>
-              <span>{turn.to ? `${ago(turn.to, now)} 내림` : '조종 중'}</span>
+              <span>{turn.to ? `${ago(turn.to, now)} 내려놓음` : '작업 중'}</span>
               {turn.memo && <q>{turn.memo}</q>}
               {turn.forced && <em>넘겨받음</em>}
             </li>

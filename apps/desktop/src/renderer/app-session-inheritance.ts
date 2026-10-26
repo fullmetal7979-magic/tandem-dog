@@ -1,6 +1,8 @@
+import { carryExecutionBudget } from './execution-budget-settings';
 import type { DesktopModelSelection, DesktopSessionSummary, SessionSnapshot } from '../shared/contract';
 import { sessionSummaryTitle } from '../shared/session-title.mjs';
 import { t } from './i18n';
+import { transferComposerModelHandoff } from './composer-model-handoff';
 import type { NavigationSelection } from './navigation';
 import type { PaneLeaf } from './pane-layout';
 import { navigationKey } from './text-format';
@@ -71,6 +73,8 @@ export async function inheritSessionInPlace(
     target.leaves().find((entry) => entry.id === owner.id && ownsSource(entry)) ?? target.leaves().find(ownsSource);
   if (!leaf) return;
   target.prepare(sessionId, snapshot);
+  transferComposerModelHandoff(sourceId, sessionId);
+  carryExecutionBudget(sourceId, sessionId);
   target.replace(
     leaf.id,
     { kind: 'session', id: sessionId },

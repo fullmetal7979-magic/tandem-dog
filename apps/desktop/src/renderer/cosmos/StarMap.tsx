@@ -40,7 +40,7 @@ function place(view: CosmosOverview, now: number): Placed[] {
   // A holder that has not published its star record yet still gets a body.
   if (holder && !stars.some((star) => star.id === holder) && view.seat?.holder) {
     const h = view.seat.holder;
-    stars.push({ id: h.star, name: h.name, kind: h.kind, color: h.color || '#fbbf24', beat: null });
+    stars.push({ id: h.star, name: h.name, kind: h.kind, color: h.color || 'var(--cosmos-sun)', beat: null });
   }
   const resting = stars.filter((star) => star.id !== holder);
   const out: Placed[] = [];
@@ -54,7 +54,7 @@ function place(view: CosmosOverview, now: number): Placed[] {
       seated: true,
       asking: false,
       label: star.me ? `${star.name} (이 기기)` : star.name,
-      sub: `🕹️ ${since(view.seat?.holder?.since, now)} 조종 중`,
+      sub: `🕹️ ${since(view.seat?.holder?.since, now)} 작업 중`,
     });
   }
   resting.forEach((star, index) => {
@@ -85,8 +85,8 @@ export function StarMap({ view, compact = false }: { view: CosmosOverview; compa
   const motion = !reducedMotion();
   const seatEmpty = !seated;
   const summary = seated
-    ? `${josa(seated.star.name, '이가')} 조종 중. 다른 별 ${placed.length - 1}개.`
-    : `조종석이 비어 있어요. 별 ${placed.length}개.`;
+    ? `${josa(seated.star.name, '이가')} 작업 중. 다른 기기 ${placed.length - 1}개.`
+    : `지금은 아무도 작업하지 않아요. 기기 ${placed.length}개.`;
 
   return (
     <figure className={`cosmos-starmap${compact ? ' cosmos-starmap--compact' : ''}`}>
@@ -97,9 +97,9 @@ export function StarMap({ view, compact = false }: { view: CosmosOverview; compa
             <stop offset="1" stopColor="var(--cosmos-sun)" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="cosmos-planet-body" cx="0.35" cy="0.3">
-            <stop offset="0" stopColor="#c7d2fe" />
-            <stop offset="0.55" stopColor="#818cf8" />
-            <stop offset="1" stopColor="#3730a3" />
+            <stop offset="0" stopColor="var(--cosmos-moon)" />
+            <stop offset="0.55" stopColor="var(--cosmos-moon-strong)" />
+            <stop offset="1" stopColor="var(--cosmos-nebula)" />
           </radialGradient>
           <marker id="cosmos-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0L10 5L0 10z" fill="var(--cosmos-warn)" />
@@ -109,7 +109,7 @@ export function StarMap({ view, compact = false }: { view: CosmosOverview; compa
         <ellipse className="cosmos-orbit" cx={CX} cy={CY} rx={OUTER_X} ry={OUTER_Y} />
         <circle className={`cosmos-orbit cosmos-orbit--seat${seatEmpty ? ' is-empty' : ''}`} cx={CX} cy={CY} r={INNER} />
         <text className="cosmos-orbit-label" x={CX} y={CY - INNER - 8} textAnchor="middle">
-          조종석 궤도 · 한 번에 한 기기
+          작업 자리 · 한 번에 한 기기
         </text>
         {/* the session: a ringed planet with a sun-like glow while someone sits */}
         {!seatEmpty && <circle cx={CX} cy={CY} r={70} fill="url(#cosmos-sun-glow)" />}

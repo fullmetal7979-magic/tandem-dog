@@ -1,6 +1,6 @@
-// 우주 홈: the first thing every new 교신 shows. One glance answers "where is
+// 우주 홈: the first thing every new 세션 shows. One glance answers "where is
 // my work and can I start here?", and three big buttons do the rest:
-//   ☀️ 앉기 (or 🔁 교대 요청 when another star is seated) · 🌙 내리기 · 💬 새 교신
+//   ☀️ 이어받기 (or 🔁 교대 요청 when another device is working) · 🌙 내려놓기 · 💬 새 세션
 import { useState } from 'react';
 import type { CosmosAction } from './cosmos-format';
 import { since } from './cosmos-format';
@@ -10,11 +10,11 @@ import { useCosmos } from './cosmos-store';
 
 function greeting(now = new Date()): string {
   const hour = now.getHours();
-  if (hour < 5) return '깊은 밤이에요 🌌';
-  if (hour < 11) return '좋은 아침이에요 ☀️';
-  if (hour < 17) return '좋은 오후예요 🪐';
-  if (hour < 21) return '좋은 저녁이에요 🌙';
-  return '별이 빛나는 밤이에요 ✨';
+  if (hour < 5) return '깊은 밤이에요';
+  if (hour < 11) return '좋은 아침이에요';
+  if (hour < 17) return '좋은 오후예요';
+  if (hour < 21) return '좋은 저녁이에요';
+  return '오늘도 수고했어요';
 }
 
 export function openCosmosGalaxy(): void {
@@ -29,11 +29,11 @@ function focusComposer(): void {
 /** The first big button changes with the seat; one face per action. */
 type SunFace = { tone: string; icon: string; title: string; sub: string };
 const SUN_FACE: Record<'sun' | 'request' | 'force' | 'reclaim' | 'carry', SunFace> = {
-  sun: { tone: 'sun', icon: '☀️', title: '앉기', sub: '최신 작업·환경·교신을 받아 시작' },
+  sun: { tone: 'sun', icon: '☀️', title: '이어받기', sub: '최신 작업·환경·세션을 받아 시작' },
   request: { tone: 'plain', icon: '🔁', title: '교대 요청', sub: '' },
-  force: { tone: 'danger', icon: '⚠️', title: '넘겨받기', sub: '응답 없는 기기 대신 앉기' },
-  reclaim: { tone: 'plain', icon: '↩️', title: '되찾기', sub: '폰이 조종 중 · 이 PC로 가져오기' },
-  carry: { tone: 'sun', icon: '📱', title: '폰으로 이어하기', sub: '연결된 PC의 조종석을 그대로 이어받기' },
+  force: { tone: 'danger', icon: '⚠️', title: '넘겨받기', sub: '응답 없는 기기 대신 이어받기' },
+  reclaim: { tone: 'plain', icon: '↩️', title: '되찾기', sub: '폰에서 작업 중 · 이 PC로 가져오기' },
+  carry: { tone: 'sun', icon: '📱', title: '폰으로 이어하기', sub: '연결된 PC의 작업을 그대로 이어받기' },
 };
 
 export function CosmosHome({ projectPath, projectLabel }: { projectPath: string; projectLabel?: string }) {
@@ -77,7 +77,7 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
                 <span className="cosmos-dot" style={{ background: view.star.color }} aria-hidden="true" /> 이 기기는 <b>{view.star.name}</b>
                 {projectPath && (
                   <>
-                    {' · '}🪐 <b>{view.planet?.name || projectLabel || '행성'}</b>
+                    {' · '}🪐 <b>{view.planet?.name || projectLabel || '프로젝트'}</b>
                   </>
                 )}
               </>
@@ -104,7 +104,7 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
           <span className="cosmos-big-title">{face.title}</span>
           <span className="cosmos-big-sub">
             {state === 'mine'
-              ? `이미 앉아 있어요 · ${since(holder?.since)}`
+              ? `이미 이어받았어요 · ${since(holder?.since)}`
               : sunAction === 'request'
                 ? `${holder?.name || '다른 기기'}에게 부탁하기`
                 : face.sub}
@@ -119,14 +119,14 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
           <span className="cosmos-big-icon" aria-hidden="true">
             🌙
           </span>
-          <span className="cosmos-big-title">내리기</span>
-          <span className="cosmos-big-sub">{state === 'mine' ? '저장·올리고 조종석 비우기' : '앉아 있을 때 쓸 수 있어요'}</span>
+          <span className="cosmos-big-title">내려놓기</span>
+          <span className="cosmos-big-sub">{state === 'mine' ? '저장·올리고 자리 비우기' : '이어받은 뒤에 쓸 수 있어요'}</span>
         </button>
         <button type="button" className="cosmos-big cosmos-big--plain" onClick={focusComposer}>
           <span className="cosmos-big-icon" aria-hidden="true">
             💬
           </span>
-          <span className="cosmos-big-title">새 교신</span>
+          <span className="cosmos-big-title">새 세션</span>
           <span className="cosmos-big-sub">아래 입력창에 바로 물어보기</span>
         </button>
       </div>
@@ -147,7 +147,7 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
           <StarMap view={view} compact />
         </button>
       ) : null}
-      {!projectPath && <p className="cosmos-empty-note">🪐 행성(프로젝트)을 고르면 조종석과 우주 지도가 보여요.</p>}
+      {!projectPath && <p className="cosmos-empty-note">🪐 프로젝트를 고르면 작업 상태와 우주 지도가 보여요.</p>}
     </section>
   );
 }

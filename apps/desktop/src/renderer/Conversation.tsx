@@ -38,6 +38,7 @@ import { SeatLock } from './cosmos/SeatLock';
 import { EMPTY_TRANSCRIPT_ITEMS, type RecordValue, type Snapshot, type TranscriptItem } from './desktop-types';
 import { ComposerDock } from './ComposerDock';
 import { TranscriptList } from './TranscriptList';
+import { inheritSessionDirectly } from './session-inheritance';
 import type { TranscriptAssistantRowProps } from './TranscriptAssistantRow';
 import {
   MarkdownOpenFileContext,
@@ -567,6 +568,9 @@ export function Conversation({
             contextPercent={draftModelSelection?.contextPercent ?? (Number(routeSnapshot.contextPercent) || undefined)}
             draftMode={draftMode}
             onDraftModelSelection={onDraftModelSelection}
+            onContinueWithModel={!draftMode && onInheritSession ? (selection) =>
+              inheritSessionDirectly(String(sessionAddress || routeSnapshot.sessionId || ''), selection, onInheritSession)
+              : undefined}
             onRoutePreferenceApplied={onRoutePreferenceApplied}
             modelAside={contextIndicator}
             queued={composerQueued}

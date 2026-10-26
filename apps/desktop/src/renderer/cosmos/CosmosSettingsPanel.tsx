@@ -1,10 +1,9 @@
-// 관제실 → 은하수: the Galaxy connection, this device's star, the relay
+// 설정 → 은하수: the Galaxy connection, this device's star, the relay
 // address phones use for their turn, and the 심플/고급 mode.
 import { useEffect, useState } from 'react';
 import { GalaxySetup, NewStarChecklist, StarIdentity } from './CosmosParts';
 import { openCosmosGalaxy } from './CosmosHome';
 import { refreshCosmos, useCosmos } from './cosmos-store';
-import { CURRENT_UI_MODE, switchUiMode } from './ui-mode';
 
 function RelaySetting({ current }: { current: string | null }) {
   const [url, setUrl] = useState(current ?? '');
@@ -48,22 +47,6 @@ export function CosmosSettingsPanel() {
   const view = entry.view;
   return (
     <div className="cosmos-settings">
-      <section className="cosmos-card">
-        <h3>화면 모드</h3>
-        <div className="cosmos-segment" role="radiogroup" aria-label="화면 모드">
-          {(
-            [
-              ['simple', '심플 · 꼭 필요한 것만 크게'],
-              ['advanced', '고급 · 모든 기능과 세부 설정'],
-            ] as const
-          ).map(([value, label]) => (
-            <button key={value} type="button" role="radio" aria-checked={CURRENT_UI_MODE === value} className={CURRENT_UI_MODE === value ? 'is-on' : ''} onClick={() => switchUiMode(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <p>모드는 은하수로 다른 기기에도 전해져요. 바꾸면 화면을 한 번 새로 그려요.</p>
-      </section>
       {view ? (
         <>
           {view.ready ? (

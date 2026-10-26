@@ -42,13 +42,25 @@ function world(t) {
 }
 
 const previousHome = process.env.MIXDOG_HOME;
+const previousData = process.env.MIXDOG_DATA_DIR;
+const previousBackups = process.env.MIXDOG_USER_DATA_BACKUP_ROOT;
+// Config writes snapshot user data; never into the real ~/.mixdog/backups.
+const backupRoot = mkdtempSync(join(tmpdir(), 'cosmos-backups-'));
+process.env.MIXDOG_USER_DATA_BACKUP_ROOT = backupRoot;
 test.after(() => {
+  if (previousData === undefined) delete process.env.MIXDOG_DATA_DIR;
+  else process.env.MIXDOG_DATA_DIR = previousData;
   if (previousHome === undefined) delete process.env.MIXDOG_HOME;
   else process.env.MIXDOG_HOME = previousHome;
+  if (previousBackups === undefined) delete process.env.MIXDOG_USER_DATA_BACKUP_ROOT;
+  else process.env.MIXDOG_USER_DATA_BACKUP_ROOT = previousBackups;
+  rmSync(backupRoot, { recursive: true, force: true });
 });
 
 async function as(star, run) {
   process.env.MIXDOG_HOME = star.home;
+  // Each star has its own data dir (and so its own config file), even when other test files run alongside.
+  process.env.MIXDOG_DATA_DIR = join(star.home, 'data');
   invalidateConfigReadCache();
   return run();
 }

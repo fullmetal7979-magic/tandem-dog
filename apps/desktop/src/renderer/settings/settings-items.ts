@@ -1,4 +1,3 @@
-import { CURRENT_UI_MODE } from '../cosmos/ui-mode';
 
 type SettingsItemKind = 'toggle' | 'cycle' | 'open' | 'static';
 
@@ -200,10 +199,9 @@ export function settingsCategoryForSurface(category: SettingsCategory, remote: b
   return remote && REMOTE_HIDDEN_SETTINGS_CATEGORIES.has(category) ? 'general' : category;
 }
 
-// 심플 모드 관제실: only what everyday relay work needs.
-const SIMPLE_SETTINGS_CATEGORIES = new Set<SettingsCategory>(['general', 'cosmos', 'providers', 'connection', 'about']);
+// 심플 모드 설정: only what everyday relay work needs.
 
 export function settingsCategoriesForSurface(remote: boolean): ReadonlyArray<SettingsCategoryItem> {
   const categories = remote ? REMOTE_SETTINGS_CATEGORIES : LOCAL_SETTINGS_CATEGORIES;
-  return CURRENT_UI_MODE === 'simple' ? categories.filter((category) => SIMPLE_SETTINGS_CATEGORIES.has(category.value)) : categories;
+  return categories;
 }

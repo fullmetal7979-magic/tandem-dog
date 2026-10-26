@@ -4,7 +4,7 @@
 // provider/model reads) is shared with Settings and stays authoritative.
 import { GalaxySetup, RelayOutcome, StarIdentity } from '../cosmos/CosmosParts';
 import { useCosmos } from '../cosmos/cosmos-store';
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Github, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Github, X } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -19,7 +19,6 @@ import type {
 } from '../../shared/contract';
 import { t } from '../i18n';
 import { ErrorNotice } from '../ErrorNotice';
-import { OpenSelect } from '../OpenSelect';
 import { PaneSurfaceGate } from '../PaneSurfaceGate';
 import { providerDisplayName } from '../provider-display';
 import { record, rows } from '../record-utils';
@@ -43,13 +42,10 @@ const CLI_DOWNLOAD_URL = 'https://cli.github.com';
 // Resume marker: reopening the wizard continues from the last step reached.
 const ONBOARDING_STEP_KEY = 'mixdog.onboarding.step';
 
+// Providers first, then the Galaxy (which carries the GitHub sign-in inline).
+// The profile questions and the response-language picker are gone: the app is
+// Korean-only, and everything else is editable later in Settings.
 const STEPS = [
-  {
-    id: 'profile',
-    label: () => t('Profile'),
-    title: () => t('Make it yours'),
-    subtitle: () => t('Tell COSMOS what to call you, your development experience, and which language to answer in.'),
-  },
   {
     id: 'providers',
     label: () => t('Providers'),
@@ -57,16 +53,10 @@ const STEPS = [
     subtitle: () => t('Sign in with API keys or OAuth. Local models are set up through chat.'),
   },
   {
-    id: 'git',
-    label: () => t('Git'),
-    title: () => t('Set up Git & GitHub'),
-    subtitle: () => t('Connect the GitHub CLI and you are set — commits and pull requests just work.'),
-  },
-  {
     id: 'galaxy',
     label: () => '은하수',
-    title: () => '이 기기를 별로, 은하수에 연결',
-    subtitle: () => '어느 기기·어느 계정에서든 같은 환경과 같은 세션으로 이어 쓰도록 연결해요.',
+    title: () => '은하수에 연결',
+    subtitle: () => '어느 기기에서든 같은 환경과 같은 세션으로 이어 쓰도록 연결해요.',
   },
 ] as const;
 
@@ -77,10 +67,6 @@ function savedStep(): number {
   } catch {
     return 0;
   }
-}
-
-function title(value: RecordValue): string {
-  return t(String(value.label || value.name || value.display || value.id || 'Unknown'));
 }
 
 function providerTitle(value: RecordValue): string {
@@ -112,7 +98,6 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
   const [providerSetup, setProviderSetup] = useState<RecordValue>({});
-  const [profile, setProfile] = useState<RecordValue>({});
   const [confirmSkip, setConfirmSkip] = useState(false);
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -127,8 +112,8 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
   // The wizard's fullscreen scrim cannot cover the NATIVE caption controls —
   // hold the titlebar dim claim while the wizard is mounted.
   useEffect(() => acquireTitleBarDim(), []);
-  // Warm the Git step while the first steps are on screen, so entering it
-  // paints the finished card instead of popping in.
+  // Warm the GitHub card while the provider step is on screen, so entering the
+  // Galaxy step paints the finished card instead of popping in.
   useEffect(() => {
     void preloadGitPanelInfo(api);
   }, [api]);
@@ -194,15 +179,11 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
       if (!loadedRef.current) setLoading(true);
       setError('');
       try {
-        const readResults = await readCapabilityBatch(api, [
-          { capability: 'getProviderSetup', args: [{ force }] },
-          { capability: 'getProfile' },
-        ]);
+        const readResults = await readCapabilityBatch(api, [{ capability: 'getProviderSetup', args: [{ force }] }]);
         const values = readResults.map((result) => (result.ok ? result.value : null));
         const readErrors = readResults.flatMap((result) => (result.ok ? [] : [result.error]));
         if (readErrors.length) setError(readErrors.join(' · '));
         setProviderSetup(record(values[0]));
-        setProfile(record(values[1]));
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
       } finally {
@@ -231,10 +212,13 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
   // Every step saves as it changes (models stay untouched: the first turn picks
   // a connected provider's model), so Finish and Skip both only mark it done.
   const finish = async () => {
+    void activateGit().catch(() => undefined);
     const result = await run('skipOnboarding', [], 'finish-onboarding');
     if (result !== undefined) {
       clearResume();
       onDone();
+      // Land on the space home (a fresh session) rather than wherever the app was.
+      window.dispatchEvent(new CustomEvent('cosmos:open-home'));
     }
   };
 
@@ -253,7 +237,7 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
     void finish();
   };
 
-  // Moving on past the Git step with GitHub connected installs the Git
+  // Finishing with GitHub connected installs the Git
   // built-in — the same activation as its Extensions card — so the git and
   // github tools work from the first task. Skipping, no system Git, or a
   // failed write leaves the card to install from; it never blocks setup.
@@ -265,7 +249,6 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
     await run('setBuiltinToolEnabled', ['git', true], 'git-builtin', false, true);
   };
   const goToStep = (next: number) => {
-    if (STEPS[step].id === 'git' && next > step) void activateGit().catch(() => undefined);
     setStep(next);
   };
 
@@ -384,14 +367,6 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
           <PaneSurfaceGate ready={!loading} label={t('Loading your COSMOS configuration…')}>
             <div className="onboarding-ready-content">
               <div className="onboarding-step-view" key={meta.id}>
-                {meta.id === 'profile' && (
-                  <ProfileStep
-                    profile={profile}
-                    pending={pending}
-                    run={run}
-                    onProfile={(patch) => setProfile((current) => ({ ...current, ...patch }))}
-                  />
-                )}
                 {meta.id === 'providers' && (
                   <ProviderStep
                     api={api}
@@ -402,8 +377,7 @@ export function OnboardingWizard({ api, onDone }: { api: DesktopApi; onDone(): v
                     onReload={() => void load(true)}
                   />
                 )}
-                {meta.id === 'git' && <GitStep api={api} />}
-                {meta.id === 'galaxy' && <GalaxyStep />}
+                {meta.id === 'galaxy' && <GalaxyStep api={api} />}
               </div>
               {error && <ErrorNotice error={error} />}
             </div>
@@ -914,25 +888,28 @@ function githubPill(loading: boolean, installed: boolean, authenticated: boolean
   return authenticated ? ['ok', t('Connected')] : ['warn', t('Not connected')];
 }
 
-// Final step: name this device (별) and connect the Galaxy (은하수) — the
-// whole point of COSMOS. Both can be done later from the Galaxy screen.
-function GalaxyStep() {
+// Final step: sign in to GitHub (inline: the Galaxy lives in the user's own
+// private repository), name this device and connect the Galaxy. Choosing "이미
+// 다른 PC에서 만들었어요" finds the existing one. Both can be redone later from
+// the Galaxy screen.
+function GalaxyStep({ api }: { api: DesktopApi }) {
   const entry = useCosmos('');
   const view = entry.view;
   return (
     <div className="onboarding-galaxy">
+      <GitStep api={api} />
       <ol className="onboarding-relay-howto">
         <li>
-          <b>☀️ 해 · 앉기</b>
-          <span>작업을 시작할 때 누르면 최신 코드·설정·교신을 받아 이 기기에서 이어 해요.</span>
+          <b>☀️ 이어받기</b>
+          <span>작업을 시작할 때 누르면 최신 코드·설정·세션을 받아 이 기기에서 이어 해요.</span>
         </li>
         <li>
-          <b>🌙 달 · 내리기</b>
-          <span>자리를 뜰 때 누르면 저장·커밋·푸시하고 교신을 은하수에 올려요.</span>
+          <b>🌙 내려놓기</b>
+          <span>자리를 뜰 때 누르면 저장·커밋·푸시하고 세션을 은하수에 올려요.</span>
         </li>
         <li>
-          <b>🕹️ 조종석</b>
-          <span>한 번에 한 기기만 앉아요. 다른 기기는 🔁 교대를 요청해 넘겨받아요.</span>
+          <b>🔁 교대</b>
+          <span>한 번에 한 기기만 작업해요. 다른 기기는 교대를 요청해 넘겨받아요.</span>
         </li>
       </ol>
       {view ? (
@@ -948,133 +925,6 @@ function GalaxyStep() {
       ) : (
         <p className="cosmos-empty-note">✨ 은하수를 살펴보는 중이에요…</p>
       )}
-    </div>
-  );
-}
-
-function ProfileStep({
-  profile,
-  pending,
-  run,
-  onProfile,
-}: {
-  profile: RecordValue;
-  pending: string;
-  run: RunCapability;
-  onProfile(next: RecordValue): void;
-}) {
-  const titleFromProfile = String(profile.title || '');
-  const [draft, setDraft] = useState(titleFromProfile);
-  const [touched, setTouched] = useState(false);
-  // The gate mounts this step before the profile read lands; adopt the saved
-  // title once it arrives unless the user already started typing.
-  useEffect(() => {
-    if (!touched) setDraft(titleFromProfile);
-  }, [titleFromProfile, touched]);
-  const trimmed = draft.trim();
-  const initial = Array.from(trimmed)[0] || '';
-  const languages = rows(profile.languages).map((entry) => ({
-    value: String(entry.id || entry.value || 'system'),
-    label: title(entry),
-  }));
-  const experienceLevels = rows(profile.experienceLevels).map((entry) => ({
-    value: String(entry.id || entry.value || ''),
-    label: title(entry),
-  }));
-  const commitTitle = () => {
-    if (trimmed === String(profile.title || '')) return;
-    void run('setProfile', [{ title: trimmed }], 'onboarding-profile-title').then((result) => {
-      if (result !== undefined) onProfile({ title: trimmed });
-    });
-  };
-  // Settings-row layout (label + hint left, control right) keeps the whole
-  // first step on screen without scrolling at the default window size.
-  return (
-    <div className="onboarding-card onboarding-profile-card">
-      <div className="onboarding-card-head">
-        <span
-          className={`onboarding-card-icon round onboarding-profile-avatar${initial ? ' has-initial' : ''}`}
-          aria-hidden="true"
-        >
-          {initial ? <b>{initial}</b> : <UserRound size={20} />}
-        </span>
-        <p className="onboarding-card-title" aria-live="polite">
-          {trimmed ? t('Hello, {{name}} 👋', { name: trimmed }) : t('Hello there 👋')}
-        </p>
-      </div>
-      <div className="onboarding-profile-fields">
-        <label>
-          <span>
-            <b>{t('Title')}</b>
-            <small>{t('How COSMOS addresses you.')}</small>
-          </span>
-          <input
-            name="title"
-            value={draft}
-            placeholder={t('Your name or role')}
-            aria-label={t('Profile title')}
-            disabled={Boolean(pending)}
-            onChange={(event) => {
-              setTouched(true);
-              setDraft(event.currentTarget.value);
-            }}
-            onBlur={commitTitle}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
-            }}
-          />
-        </label>
-        {/* biome-ignore lint/a11y/noLabelWithoutControl: wraps the custom OpenSelect, which carries its own aria-label. */}
-        <label>
-          <span>
-            <b>{t('Experience level')}</b>
-            <small>
-              {t(
-                'How much development experience do you have? This only adjusts terminology and assumed background, not response length.'
-              )}
-            </small>
-          </span>
-          <OpenSelect
-            ariaLabel={t('Experience level')}
-            value={String(profile.experienceLevel || '')}
-            disabled={Boolean(pending)}
-            options={[
-              { value: '', label: t('Select…'), disabled: true },
-              ...(experienceLevels.length
-                ? experienceLevels
-                : [
-                    { value: 'beginner', label: t('Beginner') },
-                    { value: 'vibe-coder', label: t('Vibe coder') },
-                    { value: 'junior', label: t('Junior') },
-                    { value: 'expert', label: t('Expert') },
-                  ]),
-            ]}
-            onChange={(experienceLevel) => {
-              void run('setProfile', [{ experienceLevel }], 'onboarding-profile-experience').then((result) => {
-                if (result !== undefined) onProfile({ experienceLevel });
-              });
-            }}
-          />
-        </label>
-        {/* biome-ignore lint/a11y/noLabelWithoutControl: wraps the custom OpenSelect, which carries its own aria-label. */}
-        <label>
-          <span>
-            <b>{t('Language')}</b>
-            <small>{t('Every reply follows this language.')}</small>
-          </span>
-          <OpenSelect
-            ariaLabel={t('Response language')}
-            value={String(profile.language || 'system')}
-            disabled={Boolean(pending)}
-            options={languages.length ? languages : [{ value: 'system', label: t('System') }]}
-            onChange={(language) => {
-              void run('setProfile', [{ language }], 'onboarding-profile-language').then((result) => {
-                if (result !== undefined) onProfile({ language });
-              });
-            }}
-          />
-        </label>
-      </div>
     </div>
   );
 }

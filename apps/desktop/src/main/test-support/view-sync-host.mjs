@@ -125,6 +125,9 @@ export async function viewSyncHost({ runTurns = false } = {}) {
   };
   const options = { userDataPath: directory, resourcesPath: directory, appPath: directory, packaged: false };
   const host = await SessionHost.create(options, runtime);
+  // No galaxy here: the relay's seat gate fails closed, so answer "no refusal".
+  const invoke = host.invokeDesktopOperation.bind(host);
+  host.invokeDesktopOperation = async (name, args) => (name === 'cosmosRemoteWriteRefusal' ? null : invoke(name, args));
   return {
     host,
     runtime,

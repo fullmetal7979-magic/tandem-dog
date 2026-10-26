@@ -659,13 +659,13 @@ export class SessionHost implements DesktopService {
   }
 
   private sessionCatalog(): DesktopSessionSummary[] {
-    return this.sessionMetadata.withReadCursors(
+    return this.sessionMetadata.withTaskLineage(this.sessionMetadata.withReadCursors(
       this.sessionMetadata.withFavoriteFlags(
         this.sessionMetadata.withArchiveFlags(
           desktopSessionSummaries(this.rawSessionRows, this.sessionMetadata.titles, this.sessionMetadata.names)
         )
       )
-    );
+    ));
   }
 
   private publishSessionCatalog(sessions: DesktopSessionSummary[]): void {

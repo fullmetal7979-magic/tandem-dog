@@ -5,17 +5,45 @@
 // signed in to. Only the conversation travels — never the raw session file,
 // which holds absolute paths, process ids, provider cache keys and account
 // state. Token-shaped strings are redacted on the way out.
+import { createHash } from 'node:crypto';
 import { readdir, rm } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { readGalaxyJson, writeGalaxyJson } from './galaxy-repo.mjs';
 import { planetSlug } from './planet.mjs';
 import { redactJson } from './secrets.mjs';
 
-export const CONVERSATION_LIMIT_BYTES = 8 * 1024 * 1024;
+// Every conversation is committed to a repository all stars clone: keep each small.
+export const CONVERSATION_LIMIT_BYTES = 2 * 1024 * 1024;
 const KEEP_PER_PLANET = 6;
 
 export function conversationsDir(planetId) {
   return `conversations/${planetSlug(planetId)}`;
+}
+
+/** A session id that is safe as a file name: no separators, no leading dots, never 'latest'. */
+export function safeConversationId(id) {
+  const clean = String(id ?? '')
+    .replace(/[^\w.-]/g, '')
+    .replace(/^\.+/, '')
+    .slice(0, 120);
+  if (clean === 'latest') return 'latest-';
+  // An id with nothing path-safe in it (non-ASCII only) still needs a stable name.
+  return clean || (id ? `c-${createHash('sha1').update(String(id)).digest('hex').slice(0, 12)}` : '');
+}
+
+/** `galaxy` is a Galaxy working-copy path (inside a transaction) or a galaxyReader() (outside one). */
+function sourceOf(galaxy) {
+  if (typeof galaxy !== 'string') return galaxy;
+  return {
+    json: (rel) => readGalaxyJson(galaxy, rel),
+    names: async (relDir) => {
+      try {
+        return await readdir(join(galaxy, relDir));
+      } catch {
+        return [];
+      }
+    },
+  };
 }
 
 const conversational = (messages) => (Array.isArray(messages) ? messages : []).filter((message) => message?.role !== 'system');
@@ -58,11 +86,12 @@ export function buildConversationExport(session, { planetId, planetRoot, star, n
 
 /** Write inside a Galaxy transaction; keeps the newest few per planet. */
 export async function writeConversationIn(galaxy, doc) {
-  if (!doc?.id || !doc.planet) throw new Error('conversation export needs an id and a planet');
+  const id = safeConversationId(doc?.id);
+  if (!id || !doc.planet) throw new Error('conversation export needs an id and a planet');
   const dir = conversationsDir(doc.planet);
-  await writeGalaxyJson(galaxy, `${dir}/${doc.id}.json`, doc);
+  await writeGalaxyJson(galaxy, `${dir}/${id}.json`, { ...doc, id });
   await writeGalaxyJson(galaxy, `${dir}/latest.json`, {
-    id: doc.id,
+    id,
     title: doc.title,
     star: doc.star,
     exportedAt: doc.exportedAt,
@@ -70,25 +99,21 @@ export async function writeConversationIn(galaxy, doc) {
   });
   const entries = await listConversationsIn(galaxy, doc.planet);
   for (const stale of entries.slice(KEEP_PER_PLANET)) {
-    await rm(join(galaxy, dir, `${stale.id}.json`), { force: true });
+    // `file` comes from the directory listing, never from the document's own id field.
+    await rm(join(galaxy, dir, `${stale.file}.json`), { force: true });
   }
 }
 
-/** Newest first: [{ id, title, star, exportedAt, messageCount }]. */
+/** Newest first: [{ id, file, title, star, exportedAt, messageCount }]. */
 export async function listConversationsIn(galaxy, planetId) {
   const dir = conversationsDir(planetId);
-  let names = [];
-  try {
-    names = await readdir(join(galaxy, dir));
-  } catch {
-    return [];
-  }
+  const source = sourceOf(galaxy);
   const docs = [];
-  for (const name of names) {
+  for (const name of await source.names(dir)) {
     if (!name.endsWith('.json') || name === 'latest.json') continue;
-    const doc = await readGalaxyJson(galaxy, `${dir}/${name}`);
+    const doc = await source.json(`${dir}/${name}`);
     if (doc?.id) {
-      docs.push({ id: doc.id, title: doc.title, star: doc.star, exportedAt: doc.exportedAt, messageCount: doc.messageCount });
+      docs.push({ id: doc.id, file: name.slice(0, -'.json'.length), title: doc.title, star: doc.star, exportedAt: doc.exportedAt, messageCount: doc.messageCount });
     }
   }
   return docs.sort((a, b) => (b.exportedAt || 0) - (a.exportedAt || 0));
@@ -96,7 +121,8 @@ export async function listConversationsIn(galaxy, planetId) {
 
 export async function readConversationIn(galaxy, planetId, id = null) {
   const dir = conversationsDir(planetId);
-  const target = id || (await readGalaxyJson(galaxy, `${dir}/latest.json`))?.id;
+  const source = sourceOf(galaxy);
+  const target = safeConversationId(id || (await source.json(`${dir}/latest.json`))?.id);
   if (!target) return null;
-  return readGalaxyJson(galaxy, `${dir}/${String(target).replace(/[^\w.-]/g, '')}.json`);
+  return source.json(`${dir}/${target}.json`);
 }

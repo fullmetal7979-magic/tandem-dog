@@ -34,6 +34,7 @@ test('the composer offers only frequent commands and preserves direct command ex
   const toastText = () => toasts.join('\n');
   window.mixdogDesktop = {
     invokeCapability: async (request) => {
+      if (request.capability === 'contextStatus') return Promise.resolve({ value: {} });
       if (request.capability === 'getVoiceStatus') return { value: { installed: false } };
       calls.push([request.capability, request.args]);
       return { value: {} };

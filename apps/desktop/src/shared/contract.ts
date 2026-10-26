@@ -91,7 +91,6 @@ import type {
   DesktopWorkspaceTextWrite,
 } from './contract-workspace';
 
-import type { DesktopTandemApi } from './contract-tandem';
 import type { DesktopCosmosApi } from './contract-cosmos';
 
 export * from './contract-ipc';
@@ -103,14 +102,13 @@ export * from './provider-models';
 export * from './contract-browser';
 export * from './contract-git';
 export * from './contract-workspace';
-export * from './contract-tandem';
 export * from './contract-cosmos';
 
 export type { GithubRequest, GithubResult } from '../../../../src/runtime/github/contract.mjs';
 
 /** Small, last-writer-wins UI projection shared by Electron and paired web
  * clients. Pane geometry remains local; `selection` is the first visual pane. */
-export interface DesktopApi extends DesktopTandemApi, DesktopCosmosApi {
+export interface DesktopApi extends DesktopCosmosApi {
   /** Immutable process timeline identity injected before renderer modules run. */
   readonly bootContext?: DesktopBootContext;
   chooseProject(): Promise<string | null>;

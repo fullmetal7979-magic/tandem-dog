@@ -4,6 +4,25 @@
    밤하늘 and 새벽 themes both work. Every state is also spelled in words or
    glyphs — colour is never the only signal. */
 
+/* Readable inks. The dark-theme --cosmos-bad (#fb7185) under white text is
+   ~2.9:1, so danger fills carry a dark ink there; Dawn's deeper red keeps
+   white (6.9:1). Dawn's --cosmos-sun/-strong (#d97706/#b45309) under white is
+   only ~3.3:1 at the bright end, so its sun fill steps one shade deeper. */
+:root {
+  --cosmos-bad-ink: #1a0509;
+  --cosmos-sun-fill-a: var(--cosmos-sun);
+  --cosmos-sun-fill-b: var(--cosmos-sun-strong);
+  --cosmos-comet-ink: #fff7cc;
+  --cosmos-star-ink: #fff;
+}
+:root[data-mixdog-theme='light'] {
+  --cosmos-bad-ink: #fff;
+  --cosmos-sun-fill-a: #b45309;
+  --cosmos-sun-fill-b: #92400e;
+  --cosmos-comet-ink: #b45309;
+  --cosmos-star-ink: #fff;
+}
+
 /* ── shared controls ─────────────────────────────────────────────────── */
 .cosmos-button {
   display: inline-flex;
@@ -48,7 +67,7 @@
   border-radius: 14px;
 }
 .cosmos-button--sun {
-  background: linear-gradient(135deg, var(--cosmos-sun), var(--cosmos-sun-strong));
+  background: linear-gradient(135deg, var(--cosmos-sun-fill-a), var(--cosmos-sun-fill-b));
   color: var(--cosmos-sun-ink);
 }
 .cosmos-button--moon {
@@ -62,7 +81,7 @@
 }
 .cosmos-button--danger {
   background: var(--cosmos-bad);
-  color: #fff;
+  color: var(--cosmos-bad-ink);
 }
 .cosmos-link {
   border: 0;
@@ -182,6 +201,7 @@
 }
 .cosmos-note input,
 .cosmos-identity-form input,
+.cosmos-clone-picker input,
 .cosmos-setup-advanced input {
   height: 44px;
   padding: 0 14px;
@@ -194,6 +214,7 @@
 }
 .cosmos-note input:focus,
 .cosmos-identity-form input:focus,
+.cosmos-clone-picker input:focus,
 .cosmos-setup-advanced input:focus {
   outline: 2px solid var(--mx-text-accent);
   outline-offset: 0;
@@ -366,7 +387,7 @@
   word-break: keep-all;
 }
 .cosmos-big--sun {
-  background: linear-gradient(140deg, var(--cosmos-sun), var(--cosmos-sun-strong));
+  background: linear-gradient(140deg, var(--cosmos-sun-fill-a), var(--cosmos-sun-fill-b));
   color: var(--cosmos-sun-ink);
   box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--cosmos-sun) 70%, transparent);
 }
@@ -377,7 +398,7 @@
 }
 .cosmos-big--danger {
   background: var(--cosmos-bad);
-  color: #fff;
+  color: var(--cosmos-bad-ink);
 }
 .cosmos-home-map {
   display: block;
@@ -513,7 +534,7 @@
   animation: cosmos-fade 2.8s ease forwards;
 }
 .cosmos-comet-head {
-  fill: #fff7cc;
+  fill: var(--cosmos-comet-ink);
   filter: drop-shadow(0 0 6px var(--cosmos-sun));
 }
 @keyframes cosmos-fade {
@@ -552,7 +573,7 @@
   animation: cosmos-pulse 2s ease-in-out infinite;
 }
 .cosmos-turn-star {
-  fill: #fff;
+  fill: var(--cosmos-star-ink);
   stroke: var(--mx-bg-deep);
   stroke-width: 1.5;
 }
@@ -629,6 +650,9 @@
 }
 .cosmos-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  overflow-wrap: anywhere;
   gap: 12px;
   padding: 16px;
   border-radius: 16px;
@@ -651,6 +675,25 @@
 }
 .cosmos-setup-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.cosmos-setup-actions > .cosmos-button {
+  flex: 1 1 220px;
+}
+.cosmos-card .cosmos-button {
+  word-break: keep-all;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  padding-block: 10px;
+}
+.cosmos-card code {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .cosmos-setup-advanced summary {
   cursor: pointer;
@@ -658,15 +701,26 @@
   font-size: 13.5px;
 }
 .cosmos-setup-advanced form,
+.cosmos-clone-picker form,
 .cosmos-identity-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
   margin-top: 8px;
 }
 .cosmos-setup-advanced input,
+.cosmos-clone-picker input,
 .cosmos-identity-form input {
-  flex: 1 1 auto;
+  flex: 1 1 160px;
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.cosmos-setup-advanced form > button,
+.cosmos-clone-picker form > button,
+.cosmos-identity-form > button {
+  flex: 0 0 auto;
 }
 .cosmos-segment {
   display: inline-flex;
@@ -687,6 +741,10 @@
   font-size: 14px;
   cursor: pointer;
 }
+.cosmos-segment button:focus-visible {
+  outline: 2px solid var(--mx-focus);
+  outline-offset: -2px;
+}
 .cosmos-segment button.is-on {
   background: var(--mx-bg-base);
   color: var(--mx-text);
@@ -694,9 +752,12 @@
 }
 .cosmos-checklist-head {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 14px;
 }
+.cosmos-checklist-head > svg { flex: 0 0 56px; }
+.cosmos-checklist-head > div { min-width: 0; }
 .cosmos-ring-track {
   fill: none;
   stroke: var(--mx-bg-layer-3);
@@ -729,6 +790,10 @@
   grid-template-columns: 20px minmax(0, 1fr);
   gap: 2px 8px;
   color: var(--mx-text-muted);
+}
+.cosmos-checklist li > .cosmos-button {
+  grid-column: 2;
+  justify-self: start;
 }
 .cosmos-checklist li.is-done {
   color: var(--mx-text);
@@ -799,7 +864,9 @@
   --badge-tone: var(--mx-text-accent);
   display: inline-flex;
   align-items: center;
-  height: 26px;
+  height: 32px;
+  max-width: min(260px, 32vw);
+  min-width: 0;
   padding: 0 12px;
   border: 0;
   border-radius: 999px;
@@ -810,6 +877,8 @@
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
@@ -822,37 +891,77 @@
 .cosmos-seat-badge--bad {
   --badge-tone: var(--cosmos-bad);
 }
-.cosmos-mode-switch {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--mx-bg-layer-1);
-  -webkit-app-region: no-drag;
-}
-.cosmos-mode-switch button {
-  height: 22px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--mx-text-muted);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.cosmos-mode-switch button[aria-checked='true'] {
-  background: var(--mx-bg-base);
-  color: var(--mx-text);
-  box-shadow: var(--mx-raised);
-}
-
 /* ── seat lock ───────────────────────────────────────────────────────── */
+/* Default: a banner along the top of the conversation (the transcript stays
+   readable, "읽기만"); the pane's composer is made inert by SeatLock itself.
+   "자세히" turns it into the full modal card. */
 .cosmos-lock {
   position: absolute;
-  inset: 0;
   z-index: 40;
+}
+.cosmos-lock--banner {
+  inset: 0 0 auto 0;
+  padding: 8px 12px 0;
+  pointer-events: none;
+}
+.cosmos-lock--banner .cosmos-lock-card {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px 12px;
+  width: auto;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  text-align: left;
+  background: color-mix(in srgb, var(--mx-bg-base) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 0 0 1px var(--mx-border),
+    0 10px 24px -16px rgb(0 0 0 / 60%);
+}
+.cosmos-lock--banner .cosmos-lock-icon {
+  font-size: 20px;
+}
+.cosmos-lock--banner .cosmos-lock-card h2 {
+  font-size: 14.5px;
+}
+.cosmos-lock--banner .cosmos-lock-card p {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cosmos-lock--banner .cosmos-lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+}
+.cosmos-lock--banner .cosmos-button--large {
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+.cosmos-lock-readonly {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--mx-bg-layer-2);
+  color: var(--mx-text);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.cosmos-lock--card {
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -860,6 +969,9 @@
     var(--cosmos-star-field),
     color-mix(in srgb, var(--mx-bg-deep) 78%, transparent);
   backdrop-filter: blur(6px);
+}
+.cosmos-lock--card:focus {
+  outline: none;
 }
 .cosmos-lock-card {
   display: grid;
@@ -904,36 +1016,13 @@
   width: 100%;
   text-align: left;
 }
-
-/* ── simple mode: bigger, friendlier chrome ──────────────────────────── */
-:root[data-cosmos-mode='simple'] {
-  --mx-control-sm: 34px;
-  --mx-control-md: 40px;
+.cosmos-lock-card:focus-visible,
+.cosmos-lock--card:focus-visible {
+  outline: 2px solid var(--mx-focus);
 }
-:root[data-cosmos-mode='simple'] .cosmos-big {
-  min-height: 132px;
-}
-/* Simple rail: wider cells with a word under every icon. */
-:root[data-cosmos-mode='simple'] .activity-rail {
-  width: 68px;
-  min-width: 68px;
-}
-:root[data-cosmos-mode='simple'] .activity-rail > button,
-:root[data-cosmos-mode='simple'] .activity-rail .workbench-side-icon-bar.is-vertical > button {
-  width: 67px;
-  height: 62px;
-  display: grid;
-  grid-template-rows: auto auto;
-  place-content: center;
-  justify-items: center;
-  gap: 4px;
-}
-.cosmos-rail-label {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
+/* The composer a held seat keeps inert reads as parked, not broken. */
+form.composer[data-seat-locked='true'] {
+  opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -963,7 +1052,7 @@
   font-size: 15px;
 }
 
-/* 관제실 → 은하수 */
+/* 설정 → 은하수 */
 .cosmos-settings {
   display: grid;
   gap: 14px;
@@ -1101,9 +1190,6 @@
   position: relative;
   flex: 1;
   min-height: 0;
-}
-[data-ui-mode='simple'] .cosmos-run-task {
-  min-height: 72px;
 }
 @media (prefers-reduced-motion: reduce) {
   .cosmos-run-task {

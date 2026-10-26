@@ -116,6 +116,8 @@ test('production desktop uses only the packaged daemon service adapter', async (
   // from the shell's window options.
   assert.doesNotMatch(ipc, /DESKTOP_WINDOW_OPTIONS|initialTitleBarWindowOverrides|new BrowserWindow\(/);
   assert.match(builder, /files:\s+-\s*out\/\*\*/);
+  // Top-level so mac/win/linux all drop the other ~50 Chromium locale paks.
+  assert.match(builder, /^electronLanguages:\s*\n\s+- ko\n\s+- en\s*$/m);
   assert.match(builder, /asarUnpack:[\s\S]*out\/main\/daemon\.cjs/);
   assert.match(builder, /asarUnpack:[\s\S]*out\/renderer\/\*\*/);
   assert.match(builder, /asarUnpack:[\s\S]*node_modules\/@homebridge\/node-pty-prebuilt-multiarch\/\*\*/);

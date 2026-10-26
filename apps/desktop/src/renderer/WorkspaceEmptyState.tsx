@@ -45,6 +45,16 @@ export function WorkspaceEmptyState(): React.JSX.Element {
             </span>
           </div>
           <div>
+            <span>{t('Open Tandem')}</span>
+            <span className="welcome-keys">
+              <kbd>Ctrl</kbd>
+              <i>+</i>
+              <kbd>Shift</kbd>
+              <i>+</i>
+              <kbd>D</kbd>
+            </span>
+          </div>
+          <div>
             <span>{t('Settings')}</span>
             <span className="welcome-keys">
               <kbd>Ctrl</kbd>

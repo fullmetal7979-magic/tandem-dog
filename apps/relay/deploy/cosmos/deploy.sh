@@ -10,6 +10,15 @@ if [ -z "$target" ] || [ -z "$domain" ]; then
   echo "  예)  deploy.sh root@203.0.113.10 relay.example.com" >&2
   exit 2
 fi
+# The domain is interpolated into remote commands: only a plain hostname passes.
+if ! [[ "$domain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]]; then
+  echo "⛔ 도메인 형식이 올바르지 않아요: 영문·숫자·하이픈·점만 쓸 수 있어요 (예: relay.example.com)" >&2
+  exit 2
+fi
+if ! [[ "$target" =~ ^[A-Za-z0-9._@:-]+$ ]] || [[ "$target" == -* ]]; then
+  echo "⛔ 서버 주소 형식이 올바르지 않아요 (예: root@203.0.113.10)" >&2
+  exit 2
+fi
 relay="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 desktop="$relay/../desktop"
 remote_dir="/opt/cosmos-relay"
@@ -19,10 +28,10 @@ echo "🧱 1/3 폰 웹앱 빌드"
 (cd "$relay" && npm run stage:web)
 
 echo "📦 2/3 서버로 올리기 → $target:$remote_dir"
-ssh "$target" "mkdir -p $remote_dir"
+ssh -- "$target" "mkdir -p $remote_dir"
 rsync -az --delete \
   --exclude node_modules --exclude data --exclude .web-precompress --exclude '*.test.mjs' \
   "$relay/" "$target:$remote_dir/"
 
 echo "🚀 3/3 서버에서 시작"
-ssh "$target" "RELAY_DOMAIN='$domain' bash $remote_dir/deploy/cosmos/install.sh"
+ssh -- "$target" "RELAY_DOMAIN='$domain' bash $remote_dir/deploy/cosmos/install.sh"

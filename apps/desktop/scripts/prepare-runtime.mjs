@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { listPackage, statFile } from '@electron/asar';
+import { validateComputerNative } from './computer-native-validation.mjs';
 import { createAsarPackage } from './asar-pack.mjs';
 import { embeddingRuntimeTarget, pruneEmbeddingRuntime } from '../../../scripts/prune-embedding-runtime.mjs';
 import { pruneDesktopPtyPackage, pruneDesktopRuntime } from '../../../scripts/prune-desktop-runtime.mjs';
@@ -596,8 +597,8 @@ async function prepareRuntime(manifest, fingerprint) {
     console.log(
       `Removed ${desktopPrune.removedSourceFiles} source-only runtime files` +
         `${desktopPrune.removedSharpWasm ? ' and the Sharp WASM fallback' : ''}` +
-        `; optimized ${((desktopPrune.removedTesseractBytes + desktopPrune.removedPdfBytes) / 1024 ** 2).toFixed(1)} MiB` +
-        ' of unused OCR and PDF variants.'
+        `; optimized ${(desktopPrune.removedPdfBytes / 1024 ** 2).toFixed(1)} MiB` +
+        ' of unused PDF runtime files.'
     );
 
     if (fastFullMode) {
@@ -872,6 +873,7 @@ try {
   ({ binary: computerNativeBinary, identity: computerInputIdentity } = await timed('computer-native', () =>
     prepareComputerNative()
   ));
+  if (computerNativeBinary) computerInputIdentity = { ...computerInputIdentity, binaryHash: await validateComputerNative(computerNativeBinary, embeddingTarget) };
   const manifest = await timed('package-manifest', () => resolveRuntimePackageManifest());
   const fingerprint = await timed('input-fingerprint', () => runtimeInputFingerprint(manifest));
   if (!fastFullMode && (await timed('prepared-runtime-check', () => canReusePreparedRuntime(fingerprint)))) {

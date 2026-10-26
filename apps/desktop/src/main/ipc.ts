@@ -20,7 +20,6 @@ import { DesktopStateBridge, type DesktopUpdater } from './ipc-state-bridge';
 import { registerTerminalIpc, type DesktopTerminalHost } from './ipc-terminal';
 import { registerWindowSettingsIpc } from './ipc-window-settings';
 import { SelectedFileAccess } from './selected-file-access';
-import { registerTandemIpc } from './ipc-tandem';
 import { registerCosmosIpc } from './ipc-cosmos';
 
 /** A sender-guarded `ipcMain.handle`, shared by every handler family. */
@@ -35,12 +34,6 @@ const SERVICE_OPERATION_NAMES = [
   'cosmosSetupGalaxy',
   'cosmosHeartbeat',
   'cosmosSetPreference',
-  'tandemOverview',
-  'tandemLeave',
-  'tandemResume',
-  'tandemSetDesk',
-  'tandemContext',
-  'tandemSaveSession',
   'githubStarStatus',
   'starGithub',
   'gitCliStatus',
@@ -257,7 +250,6 @@ export function registerDesktopIpc(
     shell,
     grantedFile,
   });
-  registerTandemIpc({ handle, operations: serviceOperations });
   registerCosmosIpc({ handle, operations: serviceOperations });
   const eventChannels = new Set<string>([
     DESKTOP_IPC.state,

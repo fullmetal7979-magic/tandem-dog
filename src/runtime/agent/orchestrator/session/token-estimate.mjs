@@ -30,7 +30,7 @@
 import { denseTokenFloor, structuredTokenFloor } from './token-estimate-floors.mjs';
 
 function readSafetyMultiplier() {
-  const raw = Number(process.env.MIXDOG_TOKEN_ESTIMATE_SAFETY_MULTIPLIER);
+  const raw = Number(typeof process !== 'undefined' ? process.env?.MIXDOG_TOKEN_ESTIMATE_SAFETY_MULTIPLIER : undefined);
   if (Number.isFinite(raw)) return Math.min(2.0, Math.max(1.0, raw));
   return 1.0;
 }

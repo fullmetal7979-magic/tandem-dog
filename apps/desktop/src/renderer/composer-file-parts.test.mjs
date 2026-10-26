@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import { requiredPromptContent } from '../main/ipc-validation.ts';
 import { restoreAttachmentsFromRecord } from './composer-attachment-restore.ts';
-import { attachmentPolicyError } from './composer-attachments.ts';
 import {
   ATTACHMENT_ACCEPT,
   MAX_COMPOSER_ATTACHMENTS,
@@ -44,13 +43,6 @@ test('composer file limits never exceed what the IPC validator accepts', () => {
   const half = 'A'.repeat(MAX_PROMPT_FILE_BASE64_TOTAL / 2);
   requiredPromptContent([filePart(docx, half), filePart(docx, half)]);
   assert.throws(() => requiredPromptContent([filePart(docx, half), filePart(docx, `${half}AAAA`)]), /too large/);
-});
-
-test('the composer budget rejects what the IPC combined file cap would reject', () => {
-  const office = (data) => ({ id: 2, name: 'b.docx', kind: 'office', mimeType: 'x', data, token: '' });
-  const existing = [{ ...office('A'.repeat(MAX_INLINE_FILE_BASE64_TOTAL)), id: 1 }];
-  assert.match(attachmentPolicyError(existing, office('AAAA')), /too large together/);
-  assert.equal(attachmentPolicyError([], office('AAAA')), '');
 });
 
 test('submission sends Office and PDF attachments as file parts', () => {

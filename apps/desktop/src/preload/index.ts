@@ -363,12 +363,6 @@ const api: DesktopApi = {
   cosmosSetPreference: (key, value) => ipcRenderer.invoke(DESKTOP_IPC.cosmosSetPreference, key, value),
   cosmosContinueConversation: (cwd, conversationId) =>
     ipcRenderer.invoke(DESKTOP_IPC.cosmosContinueConversation, cwd, conversationId ?? null),
-  tandemOverview: (cwd, options) => ipcRenderer.invoke(DESKTOP_IPC.tandemOverview, cwd, options),
-  tandemLeave: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemLeave, cwd, request),
-  tandemResume: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemResume, cwd, request),
-  tandemSetDesk: (cwd, request) => ipcRenderer.invoke(DESKTOP_IPC.tandemSetDesk, cwd, request),
-  tandemContext: (cwd) => ipcRenderer.invoke(DESKTOP_IPC.tandemContext, cwd),
-  tandemSaveSession: (cwd, session) => ipcRenderer.invoke(DESKTOP_IPC.tandemSaveSession, cwd, session),
   gitCheckoutBranch: (cwd, branch, remote) =>
     ipcRenderer.invoke(DESKTOP_IPC.gitCheckoutBranch, cwd, branch, remote === true),
   gitCreateBranch: (cwd, branch) => ipcRenderer.invoke(DESKTOP_IPC.gitCreateBranch, cwd, branch),

@@ -793,11 +793,16 @@
 }
 .onboarding-relay-howto {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+@media (max-width: 640px) {
+  .onboarding-relay-howto {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .onboarding-relay-howto li {
   display: grid;

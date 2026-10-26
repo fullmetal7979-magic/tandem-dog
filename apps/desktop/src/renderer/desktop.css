@@ -46,6 +46,7 @@
    eager, and last so they override every base layer above. */
 @import "./desktop/40-cosmos.css";
 @import "./desktop/shell-overrides.css";
+@import "./desktop/development-chat.css";
 /* Layer 31 (Extensions rail) is imported by ExtensionsView.tsx for the same
    reason as layer 21: the pane is a lazy chunk whose stylesheet Vite resolves
    before it renders, and it still lands after every layer listed here. */

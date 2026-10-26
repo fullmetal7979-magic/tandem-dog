@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readConversationIn } from '../../../../src/runtime/galaxy/conversations.mjs';
 import { galaxyDir } from '../../../../src/runtime/galaxy/galaxy-repo.mjs';
 import { planetForRoot } from '../../../../src/runtime/galaxy/planet.mjs';
-import { repoRoot } from '../../../../src/runtime/tandem/tandem-core.mjs';
+import { repoRoot } from '../../../../src/runtime/shared/git-process.mjs';
 
 import type {
   DesktopAbortOptions,
@@ -535,6 +535,7 @@ export class SessionHostLifecycle {
         ]);
       }
       const inherited = await this.owner.invokeSession(sessionId, 'inheritFrom', [source]);
+      await this.owner.sessionMetadata.linkModelContinuation(source, sessionId);
       await this.owner.sessionMetadata.load();
       this.owner.pendingCatalogSessionIds.delete(sessionId);
       void this.owner.publishCatalogs();

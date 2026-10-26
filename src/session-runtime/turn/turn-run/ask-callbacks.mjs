@@ -61,6 +61,7 @@ export function createAskCallbacks({ transcript, notifyFnForSession, scheduleSea
       transcriptMeta: options.transcriptMeta,
       promptSource: options.promptSource,
       retryFailedTurn: options.retryFailedTurn === true,
+      executionBudget: options.executionBudget,
       onTextDelta: options.onTextDelta,
       onTextReset: options.onTextReset,
       onReasoningDelta: options.onReasoningDelta,

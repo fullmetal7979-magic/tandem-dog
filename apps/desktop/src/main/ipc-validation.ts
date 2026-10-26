@@ -1,3 +1,4 @@
+import { normalizeExecutionBudget } from '../../../../src/runtime/shared/execution-budget.mjs';
 import { isAbsolute as pathIsAbsolute, resolve as resolvePath } from 'node:path';
 
 import {
@@ -60,6 +61,7 @@ const BOOLEAN_SECOND_CAPABILITIES = new Set<DesktopCapability>([
 const SUBMIT_OPTION_KEYS = new Set([
   'id',
   'submittedAt',
+  'executionBudget',
   'displayText',
   'goalCommand',
   'priority',
@@ -462,6 +464,7 @@ export function requiredSubmitOptions(value: unknown): DesktopSubmitOptions {
   ) {
     throw new TypeError('submit timestamp is invalid.');
   }
+  if (input.executionBudget !== undefined) normalizeExecutionBudget(input.executionBudget);
   const priority = input.priority;
   if (priority !== undefined && priority !== 'now' && priority !== 'next' && priority !== 'later') {
     throw new TypeError('submit priority is invalid.');
@@ -559,11 +562,11 @@ export function requiredDesktopCapabilityRequest(value: unknown): DesktopCapabil
     throw new TypeError(`${capability} requires a boolean value.`);
   }
   if (capability === 'setBuiltinToolEnabled' && !TOGGLEABLE_BUILTIN_TOOLS.has(args[0] as string)) {
-    throw new TypeError('setBuiltinToolEnabled requires git, office, localProvider, or tidy.');
+    throw new TypeError('setBuiltinToolEnabled requires git, localProvider, tidy, or autoEffort.');
   }
   if (capability === 'setDeveloperOption') requiredString(args[0], 'developer option id', 128);
   if (capability === 'installBuiltinFeature' && !INSTALLABLE_BUILTIN_FEATURES.has(args[0] as string)) {
-    throw new TypeError('installBuiltinFeature requires git, memory, office, localProvider, or tidy.');
+    throw new TypeError('installBuiltinFeature requires git, memory, localProvider, tidy, or autoEffort.');
   }
   if (capability === 'setModel') requiredString(args[0], 'model selector', 512);
   if (capability === 'startLocalProviderInstallation') {

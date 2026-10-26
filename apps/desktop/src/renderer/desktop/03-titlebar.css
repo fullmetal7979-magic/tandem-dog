@@ -136,6 +136,12 @@ html[data-mixdog-remote] .titlebar-caption-space {
   background: var(--mx-window-band);
   -webkit-app-region: drag;
 }
+/* macOS keeps its native traffic lights on the left of a hidden titlebar.
+   WCO reports their real CSS boundary, including Electron zoom and fullscreen.
+   The fallback also protects the first frame before the native geometry arrives. */
+.topbar[data-native-controls="mac"] {
+  padding-left: calc(env(titlebar-area-x, 80px) + 5px);
+}
 .topbar button,
 .topbar nav {
   -webkit-app-region: no-drag;

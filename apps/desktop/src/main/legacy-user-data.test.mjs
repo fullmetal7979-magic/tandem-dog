@@ -49,3 +49,47 @@ test('no legacy profile means a fresh start', (t) => {
   assert.deepEqual(migrateLegacyUserData(root, 'cosmos-desktop', ['tandem-dog-desktop']), { from: null });
   assert.equal(existsSync(join(root, 'cosmos-desktop')), false);
 });
+
+test('device credentials and the E2EE identity stay behind', (t) => {
+  const root = appData(t);
+  const legacy = join(root, 'tandem-dog-desktop');
+  mkdirSync(legacy);
+  for (const name of ['relay-device.json', 'relay-device-revocations.json', 'relay-e2ee.json', 'remote-bridge.token', 'remote-push.json']) {
+    writeFileSync(join(legacy, name), 'secret');
+  }
+  writeFileSync(join(legacy, 'window-state.json'), '{}');
+  migrateLegacyUserData(root, 'cosmos-desktop', ['tandem-dog-desktop']);
+  const target = join(root, 'cosmos-desktop');
+  assert.ok(existsSync(join(target, 'window-state.json')));
+  for (const name of ['relay-device.json', 'relay-device-revocations.json', 'relay-e2ee.json', 'remote-bridge.token', 'remote-push.json']) {
+    assert.equal(existsSync(join(target, name)), false, name);
+  }
+});
+
+test('a half-finished copy is redone and never shows up as the real profile', (t) => {
+  const root = appData(t);
+  const legacy = join(root, 'tandem-dog-desktop');
+  mkdirSync(legacy);
+  writeFileSync(join(legacy, 'window-state.json'), 'fresh');
+  // A crashed launch left a partial staging folder behind.
+  mkdirSync(join(root, 'cosmos-desktop.migrating'));
+  writeFileSync(join(root, 'cosmos-desktop.migrating', 'stale.txt'), 'partial');
+  assert.equal(existsSync(join(root, 'cosmos-desktop')), false, 'a partial copy is not the profile');
+
+  const result = migrateLegacyUserData(root, 'cosmos-desktop', ['tandem-dog-desktop']);
+
+  assert.equal(result.from, legacy);
+  assert.equal(readFileSync(join(root, 'cosmos-desktop', 'window-state.json'), 'utf8'), 'fresh');
+  assert.equal(existsSync(join(root, 'cosmos-desktop', 'stale.txt')), false);
+  assert.equal(existsSync(join(root, 'cosmos-desktop.migrating')), false);
+});
+
+test('a stale staging entry of any kind is cleared, never fatal', (t) => {
+  const root = appData(t);
+  const legacy = join(root, 'tandem-dog-desktop');
+  mkdirSync(legacy);
+  writeFileSync(join(legacy, 'window-state.json'), 'x');
+  writeFileSync(join(root, 'cosmos-desktop.migrating'), 'a file where the staging folder goes');
+  assert.equal(migrateLegacyUserData(root, 'cosmos-desktop', ['tandem-dog-desktop']).from, legacy);
+  assert.ok(existsSync(join(root, 'cosmos-desktop', 'window-state.json')));
+});

@@ -60,3 +60,94 @@ test('every git lane that moves the checkout or the remote is gated', () => {
   }
   for (const name of ['gitStatus', 'gitLog', 'gitDiff', 'gitShow']) assert.ok(!SEAT_GATED_GIT_METHODS.includes(name), name);
 });
+
+test('a gate or resolver that throws refuses the write instead of letting it through', async () => {
+  const calls = [];
+  const broken = gateRemoteWrites(table(calls), {
+    gate: async () => {
+      throw new Error('overview crashed');
+    },
+    projectDirectory: async () => '/free',
+    sessionCwd: async () => '/free',
+  });
+  await assert.rejects(broken.gitCommit(['/free', 'msg']), (error) => error.code === 'seat_refused' && /확인하지 못해/.test(error.message));
+  await assert.rejects(broken.writeProjectFile(['p', 'a', 'x']), (error) => error.code === 'seat_refused');
+
+  const noResolver = gateRemoteWrites(table(calls), {
+    gate: async () => null,
+    projectDirectory: async () => {
+      throw new Error('registry offline');
+    },
+    sessionCwd: async () => {
+      throw new Error('daemon down');
+    },
+  });
+  await assert.rejects(noResolver.writeProjectFile(['p', 'a', 'x']), (error) => error.code === 'seat_refused');
+  await assert.rejects(noResolver.submitToSession(['s', 'hi']), (error) => error.code === 'seat_refused');
+  assert.equal(calls.length, 0, 'no refused write ran');
+});
+
+test('cosmosContinueConversation and githubRequest are seat-gated lanes', async () => {
+  assert.ok(SEAT_GATED_GIT_METHODS.includes('githubRequest'));
+  const calls = [];
+  const named = (name) => (params) => {
+    calls.push([name, ...params]);
+    return 'ok';
+  };
+  const methods = gateRemoteWrites(
+    { cosmosContinueConversation: named('cosmosContinueConversation'), githubRequest: named('githubRequest') },
+    {
+      gate: async (cwd) => (cwd === '/locked' ? 'locked' : null),
+      projectDirectory: async (id) => (id === 'p-locked' ? '/locked' : '/free'),
+      sessionCwd: async () => null,
+    }
+  );
+  await assert.rejects(methods.cosmosContinueConversation(['p-locked', null]), /locked/);
+  await assert.rejects(methods.githubRequest(['/locked', {}]), /locked/);
+  assert.equal(await methods.cosmosContinueConversation(['p-free', null]), 'ok');
+  assert.equal(await methods.githubRequest(['/free', {}]), 'ok');
+});
+
+test('a terminal the PC opened is judged by the host, or by every project when unknown', async () => {
+  const calls = [];
+  const asked = [];
+  const gate = async (cwd) => {
+    asked.push(cwd);
+    return cwd === '/locked' ? 'locked' : null;
+  };
+  // The host knows term_cosmos_run_a lives in a locked folder.
+  const known = gateRemoteWrites(table(calls), {
+    gate,
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    terminalCwd: (id) => (id === 'term_cosmos_run_a' ? '/locked' : id === 'term_cosmos_run_b' ? '/free' : undefined),
+  });
+  await assert.rejects(known.termWrite(['term_cosmos_run_a', 'npm run dev\r']), /locked/);
+  assert.equal(await known.termWrite(['term_cosmos_run_b', 'ls\r']), 'ok');
+
+  // The host cannot say: one locked project refuses, none locked lets it by.
+  const unknown = gateRemoteWrites(table(calls), {
+    gate,
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    projectDirectories: async () => ['/free', '/locked'],
+  });
+  await assert.rejects(unknown.termWrite(['term_cosmos_run_zzz', 'x\r']), /locked/);
+  const freeOnly = gateRemoteWrites(table(calls), {
+    gate,
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    projectDirectories: async () => ['/free'],
+  });
+  assert.equal(await freeOnly.termWrite(['term_cosmos_run_zzz', 'x\r']), 'ok');
+
+  const failing = gateRemoteWrites(table(calls), {
+    gate: async () => {
+      throw new Error('boom');
+    },
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    projectDirectories: async () => ['/free'],
+  });
+  await assert.rejects(failing.termWrite(['term_cosmos_run_zzz', 'x\r']), (error) => error.code === 'seat_refused');
+});

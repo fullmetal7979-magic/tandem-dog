@@ -63,8 +63,16 @@ jobs:
         run: |
           npm ci --prefer-offline --no-audit --no-fund
           npm ci --prefix apps/desktop --prefer-offline --no-audit --no-fund
-      - name: Test Tandem runtime
-        run: node scripts/test.mjs src/runtime/tandem
+      - name: Test COSMOS runtime and execution limits
+        run: node scripts/test.mjs src/runtime/galaxy src/runtime/tandem src/runtime/agent/orchestrator/session/loop/execution-budget.test.mjs src/runtime/agent/orchestrator/runtime-core/context-status.test.mjs
+      - name: Test development chat regressions
+        working-directory: apps/desktop
+        run: node --import ./scripts/test-env.mjs --import tsx ../../scripts/test-direct.mjs src/main/desktop-session-metadata-favorite.test.mjs src/main/ipc-validation.test.mjs src/renderer/task-session-history.test.mjs src/renderer/development-chat-ui.test.mjs src/renderer/development-chat.test.mjs src/renderer/composer-model-handoff.test.mjs src/renderer/app-workspace-shortcuts.test.mjs
+      - name: Test draft recovery and Korean input in Chromium
+        working-directory: apps/desktop
+        run: node --import ./scripts/test-env.mjs --import tsx ../../scripts/test-direct.mjs src/renderer/composer-draft-store.slow.test.mjs src/renderer/composer-focus.slow.test.mjs src/renderer/cosmos/galaxy-pane-layout.slow.test.mjs
+      - name: Check Korean UI catalog
+        run: npm run i18n:check --prefix apps/desktop
       - name: Build platform-neutral desktop output
         run: npm run build --prefix apps/desktop
       - name: Stage common desktop output

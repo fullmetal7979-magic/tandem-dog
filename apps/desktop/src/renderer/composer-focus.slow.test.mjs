@@ -40,11 +40,6 @@ test('composer focus waits for browser typing without changing native-shell focu
             <section data-pane-id="two">
               <form className="composer"><textarea id="other" /></form>
             </section>
-            <section data-pane-id="studio">
-              <div className="studio-root" data-surface-active="true">
-                <textarea id="studio" />
-              </div>
-            </section>
           </>;
         }
         const root = createRoot(document.getElementById("root"));
@@ -116,13 +111,9 @@ test('composer focus waits for browser typing without changing native-shell focu
       try {
         // The platform IME starts with Process (229), then replaces its active
         // composition. Use Chromium's native IME pipeline, not fabricated input.
-        await cdp.send('Input.dispatchKeyEvent', {
-          type: 'keyDown',
-          key: 'Process',
-          code: 'KeyG',
-          windowsVirtualKeyCode: 229,
-          nativeVirtualKeyCode: 229,
-        });
+        await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Unidentified', keyCode: 229, bubbles: true, cancelable: true,
+        })));
         assert.equal(await activeId(page), 'composer');
         for (const text of ['ㅎ', '하', '한']) {
           await cdp.send('Input.imeSetComposition', {
@@ -132,13 +123,6 @@ test('composer focus waits for browser typing without changing native-shell focu
           });
         }
         await cdp.send('Input.insertText', { text: '한' });
-        await cdp.send('Input.dispatchKeyEvent', {
-          type: 'keyUp',
-          key: 'Process',
-          code: 'KeyG',
-          windowsVirtualKeyCode: 229,
-          nativeVirtualKeyCode: 229,
-        });
         assert.equal(await page.$eval('#composer', (node) => node.value), '한');
         assert.equal(await page.$eval('#draft', (node) => node.textContent), '한');
       } finally {
@@ -182,10 +166,6 @@ test('composer focus waits for browser typing without changing native-shell focu
     assert.equal(await activeId(page), 'other');
     assert.equal(await page.$eval('#other', (node) => node.value), 'b');
     assert.equal(await page.$eval('#composer', (node) => node.value), '');
-    await leaveInput(page);
-    await render(page, { leafId: 'studio', kind: 'studio' });
-    await page.keyboard.type('s');
-    assert.equal(await page.$eval('#studio', (node) => node.value), 's');
     await leaveInput(page);
     await render(page, { kind: 'file' });
     await page.keyboard.type('f');

@@ -79,9 +79,18 @@ test('environment sync writes the Galaxy, then this PC, and remembers the agreem
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const previous = process.env.MIXDOG_HOME;
   process.env.MIXDOG_HOME = join(root, 'home');
+  // Config writes snapshot user data under the backup root: keep it in the temp dir, not ~/.mixdog.
+  const previousBackups = process.env.MIXDOG_USER_DATA_BACKUP_ROOT;
+  const previousData = process.env.MIXDOG_DATA_DIR;
+  process.env.MIXDOG_DATA_DIR = join(root, 'home', 'data');
+  process.env.MIXDOG_USER_DATA_BACKUP_ROOT = join(root, 'backups');
   t.after(() => {
     if (previous === undefined) delete process.env.MIXDOG_HOME;
     else process.env.MIXDOG_HOME = previous;
+    if (previousData === undefined) delete process.env.MIXDOG_DATA_DIR;
+    else process.env.MIXDOG_DATA_DIR = previousData;
+    if (previousBackups === undefined) delete process.env.MIXDOG_USER_DATA_BACKUP_ROOT;
+    else process.env.MIXDOG_USER_DATA_BACKUP_ROOT = previousBackups;
   });
   const { syncEnvironmentIn, readSyncState } = await import('./environment.mjs');
   const { updateConfig, invalidateConfigReadCache } = await import('../shared/config.mjs');
@@ -103,16 +112,15 @@ test('environment sync writes the Galaxy, then this PC, and remembers the agreem
 
   const up = await syncEnvironmentIn(galaxy, { direction: 'push', dataDir, home: join(root, 'home') });
   const summary = await up.commitLocal();
-  assert.ok(summary.up >= 3);
+  assert.ok(summary.up >= 2);
   const galaxyFile = (rel) => join(galaxy, 'environment', rel);
   assert.equal(readFileSync(galaxyFile('files/skills/review/SKILL.md'), 'utf8'), '# review\n');
   assert.match(readFileSync(galaxyFile('config/agent.profile.json'), 'utf8'), /형님/);
-  assert.match(readFileSync(galaxyFile('config/agent.mcpServers.json'), 'utf8'), /\$\{secret\}/);
-  assert.doesNotMatch(readFileSync(galaxyFile('config/agent.mcpServers.json'), 'utf8'), /pc-secret/);
+  assert.equal(existsSync(galaxyFile('config/agent.mcpServers.json')), false, 'MCP commands only sync when this PC opts in');
   assert.equal(existsSync(galaxyFile('config/agent.providers.json')), false, 'provider sign-ins never sync');
   assert.equal(existsSync(galaxyFile('config/agent.builtins.json')), false, 'install markers never sync');
   assert.equal(existsSync(galaxyFile('files/openai-oauth.json')), false);
-  assert.ok(Object.keys((await readSyncState(join(root, 'home'))).base).length >= 3);
+  assert.ok(Object.keys((await readSyncState(join(root, 'home'))).base).length >= 2);
 
   // Another star changed the profile; pulling brings it down and keeps this PC's secret.
   writeFileSync(galaxyFile('config/agent.profile.json'), `${JSON.stringify({ title: '대표님', language: 'ko' }, null, 2)}\n`);

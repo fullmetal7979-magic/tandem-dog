@@ -11,22 +11,22 @@
 //
 // Each verb runs as ONE Galaxy transaction, so the seat change, environment
 // and conversation land together or not at all.
-import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import { cosmosHome, ensureStar, guestStar, publicStar } from './star.mjs';
 import { planetForRoot } from './planet.mjs';
 import {
   GalaxyError,
   galaxyDir,
+  fetchGalaxy,
+  galaxyReader,
   galaxyReady,
   galaxyRemote,
   publishBeat,
-  pullGalaxy,
   readBeats,
   readGalaxyJson,
   transact,
   writeGalaxyJson,
 } from './galaxy-repo.mjs';
+import { scrubUrl } from './secrets.mjs';
 import {
   holderLastSeen,
   leaveTransition,
@@ -44,15 +44,9 @@ import { bringUpToDate, branchState, rescueDisplacedWork, saveAndPush } from './
 
 const PLANETS_FILE = 'planets.json';
 
-function scrubUrl(url) {
-  try {
-    const parsed = new URL(url);
-    parsed.username = '';
-    parsed.password = '';
-    return parsed.toString();
-  } catch {
-    return String(url || '');
-  }
+/** The planet as callers see it: its remote address never carries credentials. */
+function publicPlanet(planet) {
+  return planet?.remote?.url ? { ...planet, remote: { ...planet.remote, url: scrubUrl(planet.remote.url) } } : planet;
 }
 
 async function requirePlanet(root) {
@@ -69,7 +63,7 @@ async function requirePlanet(root) {
 
 async function requireGalaxy(dir) {
   if (!(await galaxyReady(dir))) {
-    throw new GalaxyError('no_galaxy', '은하수가 아직 연결되지 않았어요. 관제실 → 은하수에서 먼저 연결해 주세요.');
+    throw new GalaxyError('no_galaxy', '은하수가 아직 연결되지 않았어요. 설정 → 은하수에서 먼저 연결해 주세요.');
   }
 }
 
@@ -109,23 +103,16 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
   const via = guest ? 'relay' : 'local';
   const host = guest ? local.id : null;
   const planet = await requirePlanet(root);
-  await pullGalaxy(dir);
-  const beats = await readBeats(dir);
-  const before = normalizeSeat(await readGalaxyJson(dir, seatPath(planet.id)), planet.id);
-  // This star held the seat last time but another MACHINE sat down since:
-  // keep whatever it left unpushed on a rescue branch before catching up. A
-  // phone driving this PC shares its working copy, so nothing to rescue there.
-  const last = before.history.at(-1);
-  const lastMine = before.history.findLast((entry) => entry.star === star.id);
-  const displaced = Boolean(lastMine && last && last.star !== star.id && !sameMachine(last, star, host));
-  const rescue =
-    displaced && !guest && seatState(before, star.id, { beats }) !== 'occupied' ? await rescueDisplacedWork(root, star.name) : null;
 
+  let beats = {};
+  let before = null;
   let env = null;
   let sat = null;
   await transact(
     async ({ dir: galaxy }) => {
+      beats = await readBeats(galaxy);
       const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id);
+      before = seat;
       sat = sitTransition(seat, star, { beats, force, via, host });
       if (sat.refused) return { value: null };
       env = syncEnvironment ? await syncEnvironmentIn(galaxy, { direction: 'pull', home }) : null;
@@ -140,20 +127,29 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
     const holder = sat.seat.holder;
     const lastSeen = holderLastSeen(sat.seat, beats);
     const text = {
-      occupied: `${holder?.name || '다른 별'}에서 조종 중이에요. 교대를 요청해 주세요.`,
+      occupied: `${holder?.name || '다른 기기'}에서 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
       stale: `${holder?.name || '다른 별'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
-      reserved: '다른 별에게 넘겨주기로 예약된 조종석이에요.',
+      reserved: '다른 기기에 넘겨주기로 한 작업 자리예요.',
     }[sat.refused];
-    throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, planet });
+    throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, planet: publicPlanet(planet) });
   }
   const environment = env ? await env.commitLocal() : null;
+  // The seat is ours now. Only then is it safe to keep this star's stale work
+  // on a rescue branch and reset the checkout: this star held the seat last
+  // time but another MACHINE sat down since. A phone driving this PC shares
+  // its working copy, so nothing to rescue there.
+  const last = before.history.at(-1);
+  const lastMine = before.history.findLast((entry) => entry.star === star.id);
+  const displaced = Boolean(lastMine && last && last.star !== star.id && !sameMachine(last, star, host));
+  const rescue =
+    displaced && !guest && seatState(before, star.id, { beats }) !== 'occupied' ? await rescueDisplacedWork(root, star.name) : null;
   // A phone's seat lives on its host PC's beat.
   await publishBeat(local.id, { name: local.name, planets: [planet.id] }, { dir }).catch(() => null);
   const project = await bringUpToDate(root);
-  const conversation = await readConversationIn(dir, planet.id);
+  const conversation = await readConversationIn(await galaxyReader(dir), planet.id);
   return {
     star,
-    planet,
+    planet: publicPlanet(planet),
     seat: sat.seat,
     took: sat.took || null,
     passed: sat.passed || null,
@@ -168,10 +164,25 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
  * 달 — save, sync and get up. `session` (a runtime session object) is the
  * conversation to carry; `handoffTo` names the star the seat is left for.
  */
-export async function moon({ root, note = '', handoffTo = null, session = null, guest = null, dir = galaxyDir(), home = cosmosHome(), syncEnvironment = true } = {}) {
+export async function moon({ root, note = '', handoffTo = null, session = null, guest = null, force = false, dir = galaxyDir(), home = cosmosHome(), syncEnvironment = true } = {}) {
   await requireGalaxy(dir);
   const { star, local } = await actorFor(guest, home);
   const planet = await requirePlanet(root);
+  // Only the star in the seat may leave it. `force` is an explicit override
+  // (e.g. a star that lost track of the seat); nothing else skips the check.
+  const refuseUnlessHeld = (seat) => {
+    if (force || seat.holder?.star === star.id) return;
+    const holder = seat.holder;
+    throw new GalaxyError(
+      holder ? 'seat_occupied' : 'seat_not_held',
+      holder ? `${holder.name || '다른 기기'}이(가) 작업 중이라 이 기기에서는 마무리할 수 없어요.` : '이 프로젝트를 이어받지 않아서 내려놓을 게 없어요. 먼저 이어받기를 눌러 주세요.',
+      { seat, holder, planet: publicPlanet(planet) }
+    );
+  };
+  // Fail fast, before touching the project. The last fetch is good enough
+  // when offline; the transaction below re-checks against the real state.
+  await fetchGalaxy(dir).catch(() => null);
+  refuseUnlessHeld(normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planet.id)), planet.id));
   const message = `cosmos: ${String(note || '').trim() || `${star.name}에서 작업 마무리`}`.slice(0, 200);
   const project = await saveAndPush(root, { message });
   if (!project.ok && project.error === 'secrets') {
@@ -185,6 +196,7 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
   await transact(
     async ({ dir: galaxy }) => {
       const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id);
+      refuseUnlessHeld(seat);
       left = leaveTransition(seat, star, { note, handoffTo });
       env = syncEnvironment ? await syncEnvironmentIn(galaxy, { direction: 'push', home }) : null;
       if (session) {
@@ -205,7 +217,7 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
   await publishBeat(local.id, { name: local.name, planets: [] }, { dir }).catch(() => null);
   return {
     star,
-    planet,
+    planet: publicPlanet(planet),
     seat: left?.seat || null,
     handoffTo: left?.handoffTo || null,
     project,
@@ -230,7 +242,7 @@ export async function requestTurn({ root, note = '', withdraw = false, guest = n
     },
     { dir }
   );
-  return { star, planet, seat: result.seat };
+  return { star, planet: publicPlanet(planet), seat: result.seat };
 }
 
 /** Keep this star's seat alive (desktop: every few minutes while seated). */
@@ -245,27 +257,27 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
   const { star, local } = await actorFor(guest, home);
   const ready = await galaxyReady(dir);
   const sync = await readSyncState(home);
-  const base = { star, ready, remote: ready ? await galaxyRemote(dir) : null, syncedAt: sync.syncedAt || 0 };
+  const remoteUrl = ready ? await galaxyRemote(dir) : null;
+  const base = { star, ready, remote: remoteUrl ? scrubUrl(remoteUrl) : null, syncedAt: sync.syncedAt || 0 };
   if (!ready) return { ...base, stars: [], planets: [], planet: null, seat: null, state: 'no_galaxy', conversations: [] };
+  // Read-only by construction: fetch refs, then read files out of the object
+  // store. The working copy belongs to the transaction holding the lock.
   let offline = null;
   if (fetch) {
     try {
-      await pullGalaxy(dir);
+      await fetchGalaxy(dir);
     } catch (error) {
       offline = error instanceof Error ? error.message : String(error);
     }
   }
+  const reader = await galaxyReader(dir);
   const beats = await readBeats(dir);
-  const registry = (await readGalaxyJson(dir, PLANETS_FILE)) || { planets: {} };
+  const registry = (await reader.json(PLANETS_FILE)) || { planets: {} };
   const stars = [];
-  try {
-    for (const name of await readdir(join(dir, 'stars'))) {
-      if (!name.endsWith('.json')) continue;
-      const record = await readGalaxyJson(dir, `stars/${name}`);
-      if (record?.id) stars.push({ ...record, beat: beats[record.id] || null, me: record.id === star.id });
-    }
-  } catch {
-    /* no stars published yet */
+  for (const name of await reader.names('stars')) {
+    if (!name.endsWith('.json')) continue;
+    const record = await reader.json(`stars/${name}`);
+    if (record?.id) stars.push({ ...record, beat: beats[record.id] || null, me: record.id === star.id });
   }
   if (!stars.some((entry) => entry.id === star.id)) stars.push({ ...publicStar(star), beat: beats[star.id] || null, me: true });
 
@@ -275,11 +287,11 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
   let conversations = [];
   let project = null;
   if (root) {
-    planet = await planetForRoot(root);
+    planet = publicPlanet(await planetForRoot(root));
     if (planet.id) {
-      seat = normalizeSeat(await readGalaxyJson(dir, seatPath(planet.id)), planet.id);
+      seat = normalizeSeat(await reader.json(seatPath(planet.id)), planet.id);
       state = seatState(seat, star.id, { beats });
-      conversations = await listConversationsIn(dir, planet.id);
+      conversations = await listConversationsIn(reader, planet.id);
     } else {
       state = 'no_remote';
     }
@@ -289,7 +301,7 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
     ...base,
     offline,
     stars: stars.sort((a, b) => Number(b.me) - Number(a.me) || (b.beat?.at || 0) - (a.beat?.at || 0)),
-    planets: Object.values(registry.planets || {}),
+    planets: Object.values(registry.planets || {}).map((entry) => (entry?.remote ? { ...entry, remote: scrubUrl(entry.remote) } : entry)),
     planet,
     seat,
     state,

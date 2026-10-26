@@ -36,23 +36,12 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-const profile = {
-  title: 'Before',
-  experienceLevel: 'beginner',
-  language: 'system',
-  languages: [
-    { id: 'system', label: 'System' },
-    { id: 'ko', label: 'Korean' },
-  ],
-};
-
 async function mount(t, { step = 0, reads = {}, ...overrides } = {}) {
   window.localStorage.clear();
   window.localStorage.setItem('mixdog.onboarding.step', String(step));
   const calls = [];
   const values = {
     getProviderSetup: { api: [], oauth: [] },
-    getProfile: profile,
     ...reads,
   };
   const api = {
@@ -97,83 +86,27 @@ async function go(step) {
   await click(document.querySelectorAll('.onboarding-progress-bar')[step]);
 }
 
-async function choose(label, option) {
-  await click(document.querySelector(`[role="combobox"][aria-label="${label}"]`));
-  await click([...document.querySelectorAll('[role="option"]')].find((entry) => entry.textContent.trim() === option));
-}
-
-async function typeTitle(value) {
-  const input = document.querySelector('input[name="title"]');
-  await act(async () => {
-    input.focus();
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value);
-    input.dispatchEvent(new window.Event('input', { bubbles: true }));
-  });
-  return input;
-}
-
-test('profile saving blocks conflicting controls and retains the saved language after failure', async (t) => {
-  const save = deferred();
-  const calls = [];
-  await mount(t, {
-    invokeCapability: async (request) => {
-      calls.push(request);
-      return save.promise;
-    },
-  });
-  await choose('Response language', 'Korean');
-  const language = document.querySelector('[aria-label="Response language"]');
-  assert.equal(language.disabled, true);
-  assert.equal(language.textContent.trim(), 'System');
-  assert.equal(button('Next').disabled, true);
-  await act(async () => save.reject(new Error('Profile save failed')));
-  assert.equal(language.textContent.trim(), 'System');
-  assert.equal(language.disabled, false);
-  assert.match(document.body.textContent, /Profile save failed/);
-  assert.equal(calls.length, 1);
-});
-
-test('Ctrl+Enter commits the focused profile title before leaving the step', async (t) => {
-  const save = deferred();
-  const calls = [];
-  await mount(t, {
-    invokeCapability: async (request) => {
-      calls.push(request);
-      return save.promise;
-    },
-  });
-  const input = await typeTitle('After');
-  await act(async () =>
-    input.dispatchEvent(
-      new window.KeyboardEvent('keydown', {
-        key: 'Enter',
-        ctrlKey: true,
-        bubbles: true,
-        cancelable: true,
-      })
-    )
-  );
-  assert.deepEqual(calls[0], { capability: 'setProfile', args: [{ title: 'After' }] });
-  assert.match(document.querySelector('h1').textContent, /Make it yours/);
-  await act(async () => save.resolve({ value: {} }));
-  await click(button('Next'));
-  await go(0);
-  assert.equal(document.querySelector('input[name="title"]').value, 'After');
-});
-
-test('the wizard is profile, providers, Git, and the Galaxy, and Finish marks onboarding done', async (t) => {
+test('the wizard is providers then the Galaxy, with no profile or language step, and Finish lands on the space home', async (t) => {
+  const homes = [];
+  const onHome = () => homes.push(1);
+  window.addEventListener('cosmos:open-home', onHome);
+  t.after(() => window.removeEventListener('cosmos:open-home', onHome));
   const { calls, completed } = await mount(t);
-  assert.equal(document.querySelectorAll('.onboarding-progress-bar').length, 4);
-  await go(3);
+  assert.equal(document.querySelectorAll('.onboarding-progress-bar').length, 2);
+  assert.doesNotMatch(document.body.textContent, /Response language|Experience level/);
+  assert.ok(!calls.some((call) => call.capability === 'getProfile'));
+  await go(1);
   assert.match(document.querySelector('h1').textContent, /은하수에 연결/);
-  assert.match(document.body.textContent, /☀️ 해 · 앉기/);
+  assert.match(document.body.textContent, /☀️ 이어받기/);
+  assert.match(document.body.textContent, /Git and GitHub connect from the desktop app/);
   await click(button('Finish'));
   assert.deepEqual(calls.at(-1), { capability: 'skipOnboarding', args: [] });
   assert.equal(completed(), 1);
+  assert.equal(homes.length, 1);
 });
 
 test('providers explain the supported local-model installation path', async (t) => {
-  await mount(t, { step: 1 });
+  await mount(t, { step: 0 });
   assert.match(document.body.textContent, /Local models/);
   assert.match(document.body.textContent, /local-provider skill checks your PC/);
   assert.doesNotMatch(document.body.textContent, /local endpoint/);
@@ -192,7 +125,7 @@ test('a finished GitHub sign-in shows the account at once instead of offering Si
   let statusCalls = 0;
   const account = { login: 'tester', name: 'Test User', email: 'test@example.com' };
   await mount(t, {
-    step: 2,
+    step: 1,
     // First probe: signed out. The post-login refresh probe never settles, so
     // only the flow's own success can flip the card.
     githubCliStatus: () =>
@@ -226,7 +159,7 @@ async function mountSignedInGit(t, { config, fail = false }) {
   const writes = [];
   const account = { login: 'tester', name: 'Test User', email: 'test@example.com' };
   await mount(t, {
-    step: 2,
+    step: 1,
     githubCliStatus: async () => ({ installed: true, authenticated: true, login: 'tester' }),
     githubCliAccount: async () => account,
     gitGlobalConfig: async () => config,
@@ -267,17 +200,17 @@ for (const [name, github, git, installs] of [
   ['GitHub signed out', { installed: true, authenticated: false }, { installed: true }, false],
   ['no system Git', { installed: true, authenticated: true }, { installed: false }, false],
 ]) {
-  test(`moving past the Git step with ${name} ${installs ? 'installs' : 'leaves'} the Git built-in`, async (t) => {
+  test(`finishing with ${name} ${installs ? 'installs' : 'leaves'} the Git built-in`, async (t) => {
     const account = { login: 'tester', name: 'Test User', email: 'test@example.com' };
     const { calls } = await mount(t, {
-      step: 2,
+      step: 1,
       githubCliStatus: async () => github,
       gitCliStatus: async () => git,
       githubCliAccount: async () => account,
       gitGlobalConfig: async () => ({ name: account.name, email: account.email, defaultBranch: '' }),
     });
     await settle();
-    await click(button('Next'));
+    await click(button('Finish'));
     await settle();
     assert.deepEqual(
       calls.filter((call) => call.capability === 'setBuiltinToolEnabled').map((call) => call.args),
@@ -292,7 +225,7 @@ test('API provider detail from the backend is shown literally even when it match
   await i18next.changeLanguage('ko');
   t.after(() => i18next.changeLanguage('en'));
   await mount(t, {
-    step: 1,
+    step: 0,
     reads: {
       getProviderSetup: {
         api: [

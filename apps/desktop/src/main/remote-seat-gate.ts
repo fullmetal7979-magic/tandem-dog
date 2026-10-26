@@ -15,6 +15,15 @@ export interface SeatGateResolvers {
   projectDirectory(projectPath: unknown): Promise<string | null>;
   /** The working directory of a session (null when unknown). */
   sessionCwd(sessionId: unknown): Promise<string | null>;
+  /**
+   * The folder a terminal was opened in, as the host knows it: null for a
+   * terminal with no folder, undefined for an id the host has never seen.
+   * Without it, PC-owned terminals (the ▶ 실행 terminal included) are judged
+   * against every registered project instead.
+   */
+  terminalCwd?(terminalId: string): Promise<string | null | undefined> | string | null | undefined;
+  /** Every registered project directory; the fallback judge of an unknown terminal. */
+  projectDirectories?(): Promise<string[]>;
 }
 
 /** Git lanes that change the checkout, the index, refs or the remote. */
@@ -49,6 +58,8 @@ export const SEAT_GATED_GIT_METHODS = [
   'gitCherryPickCommit',
   'gitCheckoutCommit',
   'gitCreateBranchAtCommit',
+  // The GitHub lane creates PRs, issues and comments in the repo's name.
+  'githubRequest',
 ] as const;
 
 /** Lanes whose first argument is a registered project. */
@@ -62,18 +73,42 @@ export const SEAT_GATED_PROJECT_METHODS = [
   'lspApplyWorkspaceEdit',
 ] as const;
 
+/** Lanes whose first argument is a folder that must be one of the host's registered projects. */
+export const SEAT_GATED_PROJECT_CWD_METHODS = ['cosmosContinueConversation'] as const;
+
 export class SeatRefusedError extends Error {
   readonly code = 'seat_refused';
 }
 
+/** Said when the seat could not be checked: a write never goes ahead on a guess. */
+export const SEAT_UNVERIFIED_MESSAGE = '🔒 작업 상태를 확인하지 못해서 안전하게 막았어요. 잠시 뒤 다시 시도해 주세요.';
+
+/** Ask the seat for one folder; a refusal and a failed check both come back as a SeatRefusedError. */
+async function checked(gate: SeatGate, cwd: string | null): Promise<void> {
+  let refusal: string | null;
+  try {
+    refusal = await gate(cwd);
+  } catch {
+    throw new SeatRefusedError(SEAT_UNVERIFIED_MESSAGE);
+  }
+  if (refusal) throw new SeatRefusedError(refusal);
+}
+
 function guarded(method: RemoteMethod, where: (params: unknown[]) => Promise<string | null>, gate: SeatGate): RemoteMethod {
   return async (params) => {
-    const cwd = await where(params).catch(() => null);
-    const refusal = await gate(cwd).catch(() => null);
-    if (refusal) throw new SeatRefusedError(refusal);
+    let cwd: string | null;
+    try {
+      cwd = await where(params);
+    } catch {
+      throw new SeatRefusedError(SEAT_UNVERIFIED_MESSAGE);
+    }
+    await checked(gate, cwd);
     return method(params);
   };
 }
+
+/** A terminal verdict is reused briefly: keystrokes arrive far faster than the seat can change. */
+const TERMINAL_VERDICT_MS = 1_500;
 
 /**
  * Wrap the write lanes of a remote method table in place. Terminal writes are
@@ -89,28 +124,66 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
     wrap(name, async ([cwd]) => (typeof cwd === 'string' && cwd ? cwd : null));
   }
   for (const name of SEAT_GATED_PROJECT_METHODS) wrap(name, ([projectPath]) => projectDirectory(projectPath));
+  for (const name of SEAT_GATED_PROJECT_CWD_METHODS) wrap(name, ([cwd]) => projectDirectory(cwd));
   wrap('submitToSession', ([sessionId]) => sessionCwd(sessionId));
   wrap('submitNewTask', async ([, , draft]) => {
     const projectPath = draft && typeof draft === 'object' ? (draft as { projectPath?: unknown }).projectPath : null;
     return projectPath ? projectDirectory(projectPath) : null;
   });
 
+  // Terminals the phone opened remember their folder here; the rest (the PC's
+  // own, term_cosmos_run_* among them) are looked up host-side, and when even
+  // the host cannot say, every registered project must pass.
   const terminalCwd = new Map<string, string | null>();
+  const verdicts = new Map<string, { at: number; refusal: Promise<string | null> }>();
   const ensure = methods.termEnsure;
   if (ensure) {
     methods.termEnsure = async (params) => {
       const opened = (await ensure(params)) as { id?: unknown } | null;
       if (opened && typeof opened.id === 'string') {
         terminalCwd.set(opened.id, typeof params[1] === 'string' && params[1] ? params[1] : null);
+        verdicts.delete(opened.id);
       }
       return opened;
     };
   }
-  wrap('termWrite', async ([id]) => terminalCwd.get(String(id || '')) ?? null);
+  const terminalRefusal = async (id: string): Promise<string | null> => {
+    try {
+      let cwd: string | null | undefined = terminalCwd.has(id) ? terminalCwd.get(id) : undefined;
+      if (cwd === undefined && resolvers.terminalCwd) cwd = await resolvers.terminalCwd(id);
+      if (cwd !== undefined) return await gate(cwd);
+      const folders = resolvers.projectDirectories ? await resolvers.projectDirectories() : [];
+      if (!folders.length) return await gate(null);
+      for (const folder of folders) {
+        const refusal = await gate(folder);
+        if (refusal) return refusal;
+      }
+      return null;
+    } catch {
+      return SEAT_UNVERIFIED_MESSAGE;
+    }
+  };
+  const write = methods.termWrite;
+  if (write) {
+    methods.termWrite = async (params) => {
+      const id = String(params[0] || '');
+      const now = Date.now();
+      let verdict = verdicts.get(id);
+      if (!verdict || now - verdict.at > TERMINAL_VERDICT_MS) {
+        verdict = { at: now, refusal: terminalRefusal(id) };
+        verdicts.set(id, verdict);
+        if (verdicts.size > 256) verdicts.delete(verdicts.keys().next().value as string);
+      }
+      const refusal = await verdict.refusal;
+      if (refusal) throw new SeatRefusedError(refusal);
+      return write(params);
+    };
+  }
   const dispose = methods.termDispose;
   if (dispose) {
     methods.termDispose = (params) => {
       terminalCwd.delete(String(params[0] || ''));
+      verdicts.delete(String(params[0] || ''));
       return dispose(params);
     };
   }

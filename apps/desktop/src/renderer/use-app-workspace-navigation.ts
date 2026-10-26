@@ -4,6 +4,7 @@ import type { WorkspaceSelection, WorkspaceTab } from './navigation';
 import type { usePaneWorkspace } from './pane-workspace-state';
 import { navigationKey } from './text-format';
 import { useWorkspaceShortcuts } from './app-workspace-shortcuts';
+import { dispatchCosmosSeatAction } from './cosmos/cosmos-store';
 import { useStableEvent } from './use-stable-event';
 
 type PaneWorkspace = ReturnType<typeof usePaneWorkspace>;
@@ -39,7 +40,7 @@ export function useAppWorkspaceNavigation({
   toggleDock(): void;
   toggleBottomPanel(): void;
   setQuickAccessMode: Dispatch<SetStateAction<'files' | 'commands' | null>>;
-  openDockTab(tab: 'search' | 'tandem'): void;
+  openDockTab(tab: 'search' | 'tandem' | 'run'): void;
   navigateEditorHistory(offset: -1 | 1): void;
 }) {
   const tabMruRef = useRef<string[]>([]);
@@ -131,6 +132,11 @@ export function useAppWorkspaceNavigation({
     openSettings,
     openShortcuts: () => (openSettings as (section?: string) => void)('shortcuts'),
     openTandem: () => openDockTab('tandem'),
+    // 이어받기 / 내려놓기 act on the active project through cosmos-store.
+    cosmosSeat: dispatchCosmosSeatAction,
+    // ▶ The Run pane keeps its "last run" in its own state, so the key opens it
+    // (one click on the highlighted last task) rather than re-running blindly.
+    openRun: () => openDockTab('run'),
     toggleSidebar,
     toggleDock,
     togglePanel: toggleBottomPanel,

@@ -17,15 +17,15 @@
 # every install. Replacing an installed Developer ID build asks again either way.
 #
 # Options:
-#   --skip-build    install the existing dist/mac-*/Mixdog.app
+#   --skip-build    install the existing dist/mac-*/COSMOS.app
 #   --no-launch     install, but leave the app and daemon stopped
 #   --keep-daemon   leave the running session daemon alone
 #   --dry-run       print the plan and current state; change nothing
-#   --install-dir   bundle to replace (default /Applications/Mixdog.app)
+#   --install-dir   bundle to replace (default /Applications/COSMOS.app)
 set -euo pipefail
 
 desktop_dir="$(cd "$(dirname "$0")/.." && pwd)"
-install_app="/Applications/Mixdog.app"
+install_app="/Applications/COSMOS.app"
 skip_build=false no_launch=false keep_daemon=false dry_run=false
 
 while [ $# -gt 0 ]; do
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
     --no-launch) no_launch=true ;;
     --keep-daemon) keep_daemon=true ;;
     --dry-run) dry_run=true ;;
-    --install-dir) install_app="$2"; shift ;;
+    --install-dir) [ $# -ge 2 ] || { echo "--install-dir requires a bundle path" >&2; exit 2; }; install_app="$2"; shift ;;
     --install-dir=*) install_app="${1#*=}" ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -42,9 +42,19 @@ while [ $# -gt 0 ]; do
 done
 
 arch="$(uname -m)"
-case "$arch" in arm64) dist_app="$desktop_dir/dist/mac-arm64/Mixdog.app" ;; *) dist_app="$desktop_dir/dist/mac/Mixdog.app" ;; esac
-runtime_root="${MIXDOG_RUNTIME_ROOT:-$(node -e 'const os=require("os");console.log(require("path").join(os.tmpdir(), "mixdog-" + process.getuid()))')}"
-[ -f "$runtime_root/daemon.json" ] || runtime_root="$(node -e 'console.log(require("path").join(require("os").tmpdir(), "mixdog"))')"
+case "$arch" in
+  arm64) dist_app="$desktop_dir/dist/mac-arm64/COSMOS.app" ;;
+  x86_64) arch=x64; dist_app="$desktop_dir/dist/mac/COSMOS.app" ;;
+  *) echo "unsupported macOS architecture: $arch" >&2; exit 2 ;;
+esac
+runtime_root="${MIXDOG_RUNTIME_ROOT:-}"
+if [ -z "$runtime_root" ]; then
+  runtime_root="$(node --input-type=module -e '
+    const { pathToFileURL } = await import("node:url");
+    const { resolveRuntimeRoot } = await import(pathToFileURL(process.argv[1]).href);
+    console.log(resolveRuntimeRoot());
+  ' "$desktop_dir/../../src/runtime/shared/runtime-root.mjs")"
+fi
 daemon_discovery="$runtime_root/daemon.json"
 
 step() { printf '\033[36m==> %s\033[0m\n' "$*"; }
@@ -56,13 +66,20 @@ installed_version() {
 }
 
 # Desktop MAIN processes only (any bundle path, including an App Translocation
-# copy): helpers live under Contents/Frameworks, not Contents/MacOS/Mixdog.
+# copy): helpers live under Contents/Frameworks, not Contents/MacOS/COSMOS.
 app_pids() {
-  ps -axo pid=,command= | awk '$2 ~ /Mixdog\.app\/Contents\/MacOS\/Mixdog$/ { print $1 }'
+  ps -axo pid=,comm= | awk '$0 ~ /COSMOS\.app\/Contents\/MacOS\/COSMOS$/ { print $1 }'
 }
 
 daemon_pids() {
-  ps -axo pid=,command= | awk '/standalone\/daemon\.mjs|runtime\/memory\/index\.mjs|out\/main\/daemon\.cjs/ && !/awk/ { print $1 }'
+  # Only the discovered service belongs to this update. Do not enumerate and
+  # force-stop every developer profile or upstream app's daemon on the Mac.
+  local pid
+  pid="${daemon_before:-$(daemon_field pid)}"
+  case "$pid" in ''|*[!0-9]*) return ;; esac
+  if ps -p "$pid" -o command= 2>/dev/null | grep -Eq 'standalone/daemon\.mjs|out/main/daemon\.cjs'; then
+    echo "$pid"
+  fi
 }
 
 daemon_field() {
@@ -87,12 +104,12 @@ stop_app() {
   local pids
   pids="$(app_pids | join_pids)"
   if [ -z "$pids" ]; then echo "    app is not running"; return; fi
-  echo "    quitting Mixdog pid=$pids"
-  osascript -e 'tell application id "io.mixdog.desktop" to quit' >/dev/null 2>&1 || true
+  echo "    quitting COSMOS pid=$pids"
+  osascript -e 'tell application id "app.cosmos.desktop" to quit' >/dev/null 2>&1 || true
   for _ in $(seq 1 75); do [ -z "$(app_pids)" ] && return; sleep_s 0.2; done
   for pid in $(app_pids); do echo "    forcing pid=$pid"; kill -9 "$pid" 2>/dev/null || true; done
   for _ in $(seq 1 50); do [ -z "$(app_pids)" ] && return; sleep_s 0.2; done
-  fail "Mixdog is still running: $(app_pids | join_pids)"
+  fail "COSMOS is still running: $(app_pids | join_pids)"
 }
 
 # Same /shutdown the client's shutdownDaemon() posts; the daemon owns both
@@ -137,7 +154,7 @@ build() {
         -c.mac.timestamp=none
     else
       echo "    no '$dev_sign_identity' signing identity: building ad-hoc (run scripts/setup-dev-signing-mac.sh to keep privacy grants across rebuilds)" >&2
-      CSC_IDENTITY_AUTO_DISCOVERY=false npx --no-install electron-builder --mac --dir "--$arch" --publish never
+      CSC_IDENTITY_AUTO_DISCOVERY=false npx --no-install electron-builder --mac --dir "--$arch" --publish never -c.mac.identity=-
     fi
   )
 }

@@ -47,6 +47,7 @@ export function buildAgentLoopOptions({
   // (ask-turn-steering-drain.mjs).
   const drainSteering = createAskSteeringDrain({ sessionId, turn, askOpts });
   return {
+    executionBudget: askOpts?.executionBudget,
     effort: turnEffort,
     effortConfiguration,
     // { request, base } when each tool-result step is judged (step-auto-effort.mjs).

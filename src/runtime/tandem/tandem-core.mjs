@@ -1,3 +1,5 @@
+import { configureGitEnvironment, defaultGitTimeoutMs, runGit, repoRoot, oneLine } from '../shared/git-process.mjs';
+export { configureGitEnvironment, defaultGitTimeoutMs, runGit, repoRoot, oneLine };
 // Tandem: one coding session that follows you across PCs and AI accounts.
 //
 // The canonical session lives in the user's repository at .tandem/SESSION.md
@@ -10,7 +12,6 @@
 // The file format and log lines match the shell kit (.tandem/tandem.sh) so
 // both can be used on the same repository.
 
-import { execFile } from 'node:child_process';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -18,39 +19,8 @@ import { join } from 'node:path';
 export const SLOTS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 export const SESSION_REL = '.tandem/SESSION.md';
 const DESK_REF_PREFIX = 'refs/tandem/desks/';
-const MAX_OUTPUT = 8 * 1024 * 1024;
 const SECTIONS = ['목표', '현재 상태', '다음 단계', '결정 사항', '작업 로그'];
 const BLANK = { goal: '(미정)', state: '(기록 없음)', next: '(미정)' };
-
-let baseEnv = () => ({ ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_EDITOR: 'true' });
-
-/**
- * Let a host supply the environment git children run with (the desktop app
- * passes its scrubbed child environment). Returns the previous provider.
- */
-export function configureGitEnvironment(provider) {
-  const prev = baseEnv;
-  baseEnv = () => ({ ...provider(), GIT_TERMINAL_PROMPT: '0', GIT_EDITOR: 'true' });
-  return prev;
-}
-
-/** Run git and resolve {code, stdout, stderr}; never rejects on a non-zero exit. */
-export function runGit(cwd, args, { input, env } = {}) {
-  return new Promise((resolve) => {
-    const child = execFile(
-      'git',
-      args,
-      { cwd, maxBuffer: MAX_OUTPUT, windowsHide: true, env: { ...baseEnv(), ...env } },
-      (error, stdout, stderr) => {
-        const code = error ? (typeof error.code === 'number' ? error.code : 1) : 0;
-        resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-      },
-    );
-    if (input !== undefined) {
-      child.stdin?.end(input);
-    }
-  });
-}
 
 async function git(cwd, args, opts) {
   const r = await runGit(cwd, args, opts);
@@ -63,7 +33,6 @@ async function git(cwd, args, opts) {
   return r.stdout;
 }
 
-export const oneLine = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').trim();
 
 /** A branch name safe to pass to git and to show in shell one-liners. */
 export function isValidBranch(name) {
@@ -166,10 +135,6 @@ export function parseLogLine(line) {
 
 // ---------------------------------------------------------------- repo + config
 
-export async function repoRoot(cwd) {
-  const out = await git(cwd, ['rev-parse', '--show-toplevel']);
-  return out.trim();
-}
 
 async function readText(path) {
   try {

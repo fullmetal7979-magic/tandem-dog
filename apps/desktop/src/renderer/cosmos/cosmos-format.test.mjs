@@ -77,7 +77,7 @@ test('one verdict per relay state, each with one action', () => {
   );
   assert.equal(locked.level, 'warn');
   assert.equal(locked.action, 'request');
-  assert.match(locked.title, /회사 PC가 조종 중이에요 · 1시간째/);
+  assert.match(locked.title, /회사 PC가 작업 중이에요 · 1시간째/);
 
   const stale = cosmosVerdict(
     view({ state: 'stale', holderLastSeen: NOW - 2 * 3_600_000, seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW - 3 * 3_600_000 } } }),

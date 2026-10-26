@@ -1,3 +1,4 @@
+import { matchesWorkbenchShortcut as matches } from './workbench-shortcuts';
 // THE workbench keymap. One table, resolved in the CAPTURE phase, so every
 // surface (xterm, Monaco, composer, Studio prompt) obeys the same bindings
 // instead of swallowing them;
@@ -10,7 +11,8 @@
 // mod+P Quick Open · shift+mod+P Command Palette ·
 // mod+, settings · mod+B left sidebar · alt+mod+B right utility dock ·
 // mod+J panel ·
-// shift+mod+F find in files · mod+W and ctrl+Q close.
+// shift+mod+F find in files · shift+mod+D 은하수 · shift+mod+S 이어받기 ·
+// shift+mod+L 내려놓기 · shift+mod+E ▶ 실행 · mod+W and ctrl+Q close.
 import { useEffect, useRef } from 'react';
 
 import type { WorkspaceTab } from './navigation';
@@ -24,8 +26,12 @@ interface WorkspaceShortcutActions {
   openSettings: () => void;
   /** mod+/ : the keyboard shortcut reference. */
   openShortcuts?: () => void;
-  /** mod+Shift+D : the Tandem dock (multi-PC session). */
+  /** mod+Shift+D : the Galaxy (은하수) dock (multi-PC session). */
   openTandem?: () => void;
+  /** mod+Shift+S 이어받기 (sit) / mod+Shift+L 내려놓기 (leave). */
+  cosmosSeat?: (action: 'sit' | 'leave') => void;
+  /** mod+Shift+E : ▶ the Run pane. (mod+Shift+R is the native Remote Access menu accelerator.) */
+  openRun?: () => void;
   toggleSidebar: () => void;
   toggleDock: () => void;
   togglePanel: () => void;
@@ -69,7 +75,11 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
       const key = event.key.toLowerCase();
       const plain = !event.shiftKey && !event.altKey;
       const target = event.target as Partial<Element> | null;
-      if (plain && event.key.startsWith('Arrow') && target?.closest?.('.monaco-editor')) return null;
+      const inEditor = Boolean(target?.closest?.('.monaco-editor'));
+      const inTextEntry = Boolean(target?.closest?.('input, textarea, [contenteditable]:not([contenteditable="false"])'));
+      // macOS Command+Arrow moves to line/document boundaries in text fields.
+      // Let the focused editor/composer own these native editing commands.
+      if (plain && event.key.startsWith('Arrow') && (inEditor || (event.metaKey && inTextEntry))) return null;
       if (plain && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         const offset = event.key === 'ArrowLeft' ? -1 : 1;
         return () => cycleTab(offset, true);
@@ -82,30 +92,41 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
         const offset = event.key === 'PageDown' ? 1 : -1;
         return () => cycleTab(offset);
       }
-      if (event.key === 'Tab' && !event.altKey) {
+      if (matches(event, 'nextTab') || matches(event, 'previousTab')) {
         const offset = event.shiftKey ? -1 : 1;
         return () => actionsRef.current.openTabSwitcher(offset);
       }
-      if (key === 'p' && !event.altKey) {
+      if (matches(event, 'quickOpen') || matches(event, 'palette')) {
         return event.shiftKey
           ? () => actionsRef.current.openCommandPalette()
           : () => actionsRef.current.openQuickAccess();
       }
-      if (key === 'f' && event.shiftKey && !event.altKey) {
+      if (matches(event, 'find')) {
         return () => actionsRef.current.openFindInFiles();
       }
       // Ctrl+B = left side bar, Ctrl+Alt+B = right utility dock (user).
-      if (key === 'b' && plain) return () => actionsRef.current.toggleSidebar();
-      if (key === 'b' && event.altKey && !event.shiftKey) {
+      if (matches(event, 'leftSidebar')) return () => actionsRef.current.toggleSidebar();
+      if (matches(event, 'rightSidebar')) {
         return () => actionsRef.current.toggleDock();
       }
+      // COSMOS keys. mod+Shift+L is Monaco's "select all occurrences", so the
+      // seat-leave key yields inside a focused code editor.
+      if (event.shiftKey && !event.altKey) {
+        const actions = actionsRef.current;
+        if (matches(event, 'sync') && actions.openTandem) return () => actions.openTandem?.();
+        if (matches(event, 'sit') && actions.cosmosSeat) return () => actions.cosmosSeat?.('sit');
+        if (matches(event, 'leave') && actions.cosmosSeat && !inEditor) return () => actions.cosmosSeat?.('leave');
+        if (matches(event, 'run') && actions.openRun) return () => actions.openRun?.();
+      }
       if (!plain) return null;
-      if (key === 'n') return () => actionsRef.current.startTask();
-      if (key === ',') return () => actionsRef.current.openSettings();
-      if (key === '/' && !event.altKey && actionsRef.current.openShortcuts) return () => actionsRef.current.openShortcuts?.();
-      if (key === 'd' && event.shiftKey && !event.altKey && actionsRef.current.openTandem) return () => actionsRef.current.openTandem?.();
-      if (key === 'j') return () => actionsRef.current.togglePanel();
-      if (key === 'w' || key === 'q') return closeActiveTab;
+      if (matches(event, 'new')) return () => actionsRef.current.startTask();
+      if (matches(event, 'settings')) return () => actionsRef.current.openSettings();
+      // mod+/ is also Monaco's "Toggle line comment": leave it to the editor.
+      if (matches(event, 'help') && !inEditor && actionsRef.current.openShortcuts) return () => actionsRef.current.openShortcuts?.();
+      if (matches(event, 'panel') && !(event.ctrlKey && !event.metaKey && Boolean(target?.closest?.('form.composer textarea')))) return () => actionsRef.current.togglePanel();
+      // Command+Q belongs to the native macOS app menu. Ctrl+Q keeps the
+      // workbench close binding without intercepting the system Quit command.
+      if (matches(event, 'close') || (key === 'q' && event.ctrlKey && !event.metaKey)) return closeActiveTab;
       return null;
     };
     const onShortcutCapture = (event: globalThis.KeyboardEvent) => {

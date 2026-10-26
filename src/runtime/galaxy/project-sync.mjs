@@ -6,7 +6,7 @@
 //    cosmos/rescue-* branch instead of silently overwriting the new holder.
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runGit } from '../tandem/tandem-core.mjs';
+import { runGit } from '../shared/git-process.mjs';
 import { planetRemote } from './planet.mjs';
 import { containsSecret, isSecretFile } from './secrets.mjs';
 

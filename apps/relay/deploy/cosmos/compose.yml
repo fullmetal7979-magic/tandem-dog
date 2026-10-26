@@ -11,7 +11,7 @@ services:
     volumes:
       - relay-data:/data
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.8.4-alpine
     restart: unless-stopped
     depends_on:
       - relay

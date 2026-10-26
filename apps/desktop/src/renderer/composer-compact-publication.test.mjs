@@ -45,6 +45,7 @@ test('a late compact reply cannot reopen a completed pane without a focus change
   const requests = [];
   window.mixdogDesktop = {
     invokeCapability: (request) => {
+      if (request.capability === 'contextStatus') return Promise.resolve({ value: {} });
       if (request.capability === 'getVoiceStatus') {
         return Promise.resolve({ value: { installed: false } });
       }

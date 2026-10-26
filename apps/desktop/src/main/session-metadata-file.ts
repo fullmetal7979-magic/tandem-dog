@@ -12,7 +12,10 @@ import { isSessionId } from './desktop-state';
 
 const FILE_NAME = 'desktop-session-metadata.json';
 
+export type SessionTaskLineage = { taskId: string; previousSessionId: string };
+
 interface SessionMetadataMaps {
+  lineage: Record<string, SessionTaskLineage>;
   titles: Record<string, string>;
   names: Record<string, string>;
   archived: Record<string, number>;
@@ -95,7 +98,16 @@ export async function readSessionMetadata(root: string): Promise<SessionMetadata
       reads[id] = { messageCount, revision };
     }
   }
+  const lineage = emptyMap<SessionTaskLineage>();
+  if (!legacy && parsed.lineage && typeof parsed.lineage === 'object' && !Array.isArray(parsed.lineage)) {
+    for (const [id, value] of Object.entries(parsed.lineage)) {
+      const row = value as Partial<SessionTaskLineage> | null;
+      if (isSessionId(id) && row && isSessionId(row.taskId) && isSessionId(row.previousSessionId) && row.previousSessionId !== id)
+        lineage[id] = { taskId: row.taskId!, previousSessionId: row.previousSessionId! };
+    }
+  }
   return {
+    lineage,
     titles: legacy ? emptyMap<string>() : normalizedMap(parsed.titles, true),
     names: legacy ? emptyMap<string>() : normalizedMap(parsed.names),
     archived,
@@ -115,11 +127,13 @@ export async function writeSessionMetadata(
     archived: Record<string, number>;
     favorites: Record<string, number>;
     reads: Record<string, SessionReadCursor>;
+    lineage?: Record<string, SessionTaskLineage>;
   }
 ): Promise<void> {
   const target = join(root, FILE_NAME);
   const payload = {
     version: 2 as const,
+    ...(Object.keys(maps.lineage || {}).length ? { lineage: maps.lineage } : {}),
     titles: maps.titles,
     names: maps.names,
     ...(Object.keys(maps.archived).length ? { archived: maps.archived } : {}),

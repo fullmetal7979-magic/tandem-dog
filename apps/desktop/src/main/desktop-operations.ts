@@ -6,7 +6,6 @@ import * as editorBackups from './editor-backups';
 import * as gh from './gh-cli';
 import * as git from './git-cli';
 import * as github from './github-cli';
-import * as tandem from './tandem-service';
 import * as cosmos from './cosmos-service';
 import { REPO_SLUG } from '../shared/fork-identity';
 import { createGithubService } from './github-service';
@@ -207,12 +206,6 @@ const STATIC_OPERATIONS = {
   cosmosHeartbeat: cosmos.cosmosHeartbeat,
   cosmosSetPreference: cosmos.cosmosSetPreference,
   cosmosRemoteWriteRefusal: cosmos.cosmosRemoteWriteRefusal,
-  tandemOverview: tandem.tandemOverview,
-  tandemLeave: tandem.tandemLeave,
-  tandemResume: tandem.tandemResume,
-  tandemSetDesk: tandem.tandemSetDesk,
-  tandemContext: tandem.tandemContext,
-  tandemSaveSession: tandem.tandemSaveSession,
   deleteEditorBackup: editorBackups.deleteEditorBackup,
   ghPrCheckout: gh.ghPrCheckout,
   ghPrCreate: gh.ghPrCreate,
@@ -455,6 +448,9 @@ export function createDesktopOperations({
     },
     resize(id: string, cols: number, rows: number): void {
       void invoke('termResize', [id, cols, rows]).catch(() => {});
+    },
+    cwdOf(id: string): string | null {
+      return terminals.cwdOf(id);
     },
   };
 

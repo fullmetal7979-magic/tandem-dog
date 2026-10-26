@@ -111,3 +111,37 @@ export function restoreSecrets(incoming, local) {
   }
   return incoming;
 }
+
+// ------------------------------------------------------------------ URLs
+
+export const URL_SECRET_MARK = 'redacted-secret';
+const URL_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)([^\s/?#@'"]*)@/gi;
+const URL_SECRET_PARAM = /([?&;][\w.%-]*(?:token|key|secret|passw(?:or)?d|pwd|auth|sig|signature|credential|code|session|jwt)[\w.%-]*=)[^&#\s'"]*/gi;
+const SSH_SCHEME = /^(?:git\+)?ssh:\/\/$/i;
+
+/**
+ * Remove credentials from every URL inside `text`: `user:pass@` (or a bare
+ * token as user name) and token-shaped query parameters. Pure text work, so a
+ * plain URL keeps its exact spelling; idempotent. With `mark`, what was
+ * removed leaves a visible marker (`redacted-secret`) so a synced copy can be
+ * told apart from a real value; without it (display) the credential is just gone.
+ */
+export function scrubUrlsInText(text, { mark = false } = {}) {
+  return String(text ?? '')
+    .replace(URL_USERINFO, (match, scheme, userinfo) => {
+      if (SSH_SCHEME.test(scheme) && !userinfo.includes(':')) return match;
+      return mark ? `${scheme}${URL_SECRET_MARK}@` : scheme;
+    })
+    .replace(URL_SECRET_PARAM, `$1${URL_SECRET_MARK}`);
+}
+
+/** A remote URL that is safe to show or return. */
+export function scrubUrl(url) {
+  return scrubUrlsInText(url);
+}
+
+/** True when `text` carries a marker left by this module's redaction (a placeholder, not real content). */
+export function hasRedactionMark(text) {
+  const value = String(text ?? '');
+  return value.includes(REDACTED) || value.includes(URL_SECRET_MARK);
+}

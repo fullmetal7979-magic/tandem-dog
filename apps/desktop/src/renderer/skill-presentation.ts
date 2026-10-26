@@ -5,12 +5,6 @@ import { t } from './i18n';
 const DESCRIPTIONS: Record<string, () => string> = {
   'browser-use': () => t('Browse websites and complete tasks using signed-in sessions.'),
   'computer-use': () => t('Operate desktop apps with the mouse and keyboard.'),
-  docx: () => t('Create, edit, and review Word documents.'),
-  pdf: () => t('Read, create, and edit PDF documents.'),
-  xlsx: () => t('Create and analyze spreadsheets and CSV data.'),
-  pptx: () => t('Create, edit, and review slide presentations.'),
-  image: () => t('Generate and edit still images.'),
-  video: () => t('Generate, extend, and animate videos.'),
   'goal-management': () => t('Set and manage ongoing task goals.'),
   'history-recall': () => t('Find information from previous conversations.'),
   'memory-management': () => t('Manage saved user preferences and constraints.'),

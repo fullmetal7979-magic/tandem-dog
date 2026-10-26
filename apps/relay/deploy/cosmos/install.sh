@@ -5,6 +5,10 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${RELAY_DOMAIN:?RELAY_DOMAIN 을 정해 주세요 (예: relay.example.com)}"
+if ! [[ "$RELAY_DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]]; then
+  echo "⛔ RELAY_DOMAIN 형식이 올바르지 않아요 (영문·숫자·하이픈·점만, 예: relay.example.com)" >&2
+  exit 2
+fi
 
 sudo_cmd=""
 if [ "$(id -u)" -ne 0 ]; then sudo_cmd="sudo"; fi
@@ -25,7 +29,7 @@ RELAY_DOMAIN="$RELAY_DOMAIN" $sudo_cmd docker compose up -d --build --remove-orp
 echo "⏳ 상태 확인 중…"
 for _ in $(seq 1 30); do
   if curl -fsS "https://${RELAY_DOMAIN}/healthz" >/dev/null 2>&1; then
-    echo "✅ 릴레이가 켜졌어요 → 관제실 → 은하수 → 릴레이 주소에 wss://${RELAY_DOMAIN} 을 넣어 주세요."
+    echo "✅ 릴레이가 켜졌어요 → 설정 → 은하수 → 릴레이 주소에 wss://${RELAY_DOMAIN} 을 넣어 주세요."
     exit 0
   fi
   sleep 4

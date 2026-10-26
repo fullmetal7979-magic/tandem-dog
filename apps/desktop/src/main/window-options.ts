@@ -196,7 +196,11 @@ export const DESKTOP_WINDOW_OPTIONS = Object.freeze({
       // Retaining the native frame keeps Windows' DWM maximize/restore path and
       // avoids the white edge exposed by fully frameless BrowserWindows.
       { frame: true, titleBarOverlay: defaultTitleBarOverlay }
-    : { titleBarOverlay: false }),
+    : process.platform === 'darwin'
+      // Expose titlebar-area-x so renderer content clears the native traffic
+      // lights at every zoom level. This leaves the standard macOS buttons intact.
+      ? { titleBarOverlay: true }
+      : { titleBarOverlay: false }),
   backgroundColor: DESKTOP_BACKGROUND_COLOR,
   webPreferences,
 }) satisfies Readonly<BrowserWindowConstructorOptions>;

@@ -4,7 +4,8 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { resolvePluginData } from '../shared/plugin-paths.mjs';
-import { connectGalaxy, galaxyDir } from './galaxy-repo.mjs';
+import { assertSafeRemoteUrl, connectGalaxy, galaxyDir } from './galaxy-repo.mjs';
+import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import { moon, overview, requestTurn, sun } from './cosmos.mjs';
 import { ensureStar, updateStar, STAR_KINDS } from './star.mjs';
 
@@ -28,10 +29,10 @@ export function cosmosVerb(word) {
 
 const HELP = `코스모스 이어달리기 명령
 
-  cosmos 해 [--force]            조종석에 앉기: 최신 작업·환경·교신을 받아 이 기기에서 이어 하기
-  cosmos 달 ["메모"]             조종석에서 내리기: 저장·커밋·푸시하고 환경·교신을 은하수에 올리기
-  cosmos 교대 ["메모"]           지금 조종 중인 기기에 교대 요청 (취소: cosmos 교대 --cancel)
-  cosmos 은하수                  모든 별(기기)과 이 행성의 조종석 상태 보기
+  cosmos 해 [--force]            이어받기: 최신 작업·환경·대화를 받아 이 기기에서 이어 하기
+  cosmos 달 ["메모"]             내려놓기: 저장·커밋·푸시하고 환경·대화를 은하수에 올리기
+  cosmos 교대 ["메모"]           지금 작업 중인 기기에 넘겨 달라고 요청 (취소: cosmos 교대 --cancel)
+  cosmos 은하수                  모든 기기와 이 프로젝트의 작업 상태 보기
   cosmos 연결 <저장소 URL>       은하수(비공개 GitHub 저장소) 연결
   cosmos 별 "<이름>" [pc|mac]    이 기기의 별 이름 정하기
 
@@ -96,8 +97,9 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
     if (verb === 'connect') {
       const url = args[0];
       if (!url) throw new Error('사용법: cosmos 연결 <비공개 저장소 URL>');
+      assertSafeRemoteUrl(url);
       const result = await connectGalaxy({ remoteUrl: url });
-      say(`🌌 은하수 연결됨: ${result.remote}`);
+      say(`🌌 은하수 연결됨: ${scrubUrl(result.remote)}`);
       return 0;
     }
     if (verb === 'star') {
@@ -113,7 +115,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
         say('🌌 은하수가 아직 연결되지 않았어요. `cosmos 연결 <저장소 URL>`로 시작하세요.');
         return 1;
       }
-      say(`🌌 은하수 ${view.remote || '(이 기기에만 있음)'}${view.offline ? `  ⚠️ ${view.offline}` : ''}`);
+      say(`🌌 은하수 ${view.remote ? scrubUrl(view.remote) : '(이 기기에만 있음)'}${view.offline ? `  ⚠️ ${scrubUrlsInText(view.offline)}` : ''}`);
       say('');
       for (const star of view.stars) {
         const beat = star.beat?.at ? ago(star.beat.at) : '신호 없음';
@@ -122,7 +124,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       if (view.planet?.id && view.seat) {
         say('');
         const holder = view.seat.holder;
-        const label = { mine: '🕹️ 내가 조종 중', occupied: `🔒 ${holder?.name} 조종 중`, stale: `⚠️ ${holder?.name} 응답 없음`, empty: '☄️ 조종석 비어 있음' }[view.state];
+        const label = { mine: '🕹️ 내가 작업 중', occupied: `🔒 ${holder?.name} 작업 중`, stale: `⚠️ ${holder?.name} 응답 없음`, empty: '☄️ 아무도 작업하지 않음' }[view.state];
         say(`🪐 ${view.planet.name}: ${label}${holder ? ` · ${ago(holder.since)}부터` : ''}`);
         for (const request of view.seat.requests) say(`   🔁 ${request.name}이(가) 교대를 원해요${request.note ? `: ${request.note}` : ''}`);
       } else if (view.state === 'no_remote') {
@@ -134,13 +136,13 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
     if (verb === 'request') {
       const cancel = flag(args, '--cancel');
       const result = await requestTurn({ root: cwd, note: args.join(' '), withdraw: cancel });
-      say(cancel ? '🔁 교대 요청을 취소했어요.' : `🔁 ${result.seat.holder?.name || '조종 중인 별'}에게 교대를 요청했어요.`);
+      say(cancel ? '🔁 교대 요청을 취소했어요.' : `🔁 ${result.seat.holder?.name || '작업 중인 기기'}에게 넘겨 달라고 요청했어요.`);
       return 0;
     }
     if (verb === 'sun') {
       const force = flag(args, '--force');
       const result = await sun({ root: cwd, force });
-      say(`☀️ ${result.planet.name}의 조종석에 앉았어요 (${result.star.name}).`);
+      say(`☀️ ${result.planet.name}을(를) 이어받았어요 (${result.star.name}).`);
       if (result.took) say(`   ⚠️ 응답이 없던 ${result.took.name}에게서 넘겨받았어요.`);
       if (result.rescue) say(`   🛟 이 기기에 남아 있던 작업을 ${result.rescue.branch} 브랜치에 보관했어요.`);
       const project = result.project;
@@ -157,17 +159,17 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       const note = args.join(' ').trim();
       const session = await latestSessionFor(cwd);
       const result = await moon({ root: cwd, note, session });
-      say(`🌙 ${result.planet.name}의 조종석에서 내렸어요.`);
+      say(`🌙 ${result.planet.name}을(를) 내려놓았어요.`);
       if (result.project?.committed) say('   💾 변경 사항을 커밋했어요.');
       if (result.project?.pushed) say('   ⬆️ 원격 저장소에 올렸어요.');
       if (result.project && !result.project.ok) say(`   ⚠️ 프로젝트를 올리지 못했어요 (${result.project.error}).`);
       if (result.conversation) say(`   💬 교신 ${result.conversation.messageCount}개 메시지를 은하수에 올렸어요.`);
-      if (result.handoffTo) say('   🔁 교대를 요청한 별을 위해 조종석을 비워 두었어요.');
+      if (result.handoffTo) say('   🔁 넘겨 달라고 요청한 기기를 위해 자리를 비워 두었어요.');
       return 0;
     }
     return 1;
   } catch (error) {
-    err.write(`⚠️ ${error instanceof Error ? error.message : String(error)}\n`);
+    err.write(`⚠️ ${scrubUrlsInText(error instanceof Error ? error.message : String(error))}\n`);
     if (error?.secrets?.length) for (const finding of error.secrets) err.write(`   - ${finding.path}\n`);
     return 2;
   }

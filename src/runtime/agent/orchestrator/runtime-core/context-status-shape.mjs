@@ -1,3 +1,4 @@
+import { priceUsage } from '../../../shared/llm/cost.mjs';
 // Pure pieces of the /context gauge: the token counters read off a session,
 // the request budget, the resolved usage gauge and the status record shapes.
 import {
@@ -243,6 +244,11 @@ export function contextStatusValue(session, route, env, { messageSummary, reques
     // consumes this measured-input contract instead of the pressure gauge.
     measurement: sessionContextMeasurement(session, hasConversationActivity),
     currentEstimatedTokens: usedTokens,
+    inputEstimateUsd: priceUsage({
+      provider: session?.provider || route.provider, model: session?.model || route.model,
+      inputTokens: usedTokens, outputTokens: 0,
+      requestServiceTier: session?.fast ? session?.provider?.startsWith('anthropic') ? 'fast' : session?.modelParameters?.serviceTier || 'priority' : '',
+    }).costUsd,
     lastApiRequestTokens: lastContextTokens || 0,
     lastApiRequestStale: lastUsageStale,
     freeTokens: gauge.freeTokens,

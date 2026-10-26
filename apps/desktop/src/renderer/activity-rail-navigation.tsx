@@ -1,4 +1,3 @@
-import { CURRENT_UI_MODE } from './cosmos/ui-mode';
 import { MoreHorizontal } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { ScmContextMenu } from './ScmContextMenu';
@@ -13,8 +12,6 @@ import {
 
 const PIN_DRAG_MIME = 'application/x-mixdog-activity-rail-pin';
 
-const SIMPLE_RAIL = ['sessions', 'projects', 'search', 'run', 'tandem'];
-const SIMPLE_RAIL_LABELS: Record<string, string> = { sessions: '교신', projects: '행성', search: '파일', run: '실행', tandem: '은하수' };
 
 /** Destinations open independently of their pins; new pins append above More. */
 export function ActivityRailNavigation({
@@ -27,9 +24,7 @@ export function ActivityRailNavigation({
   onSelect(id: WorkbenchSideViewId): void;
 }) {
   const { pins: savedPins, savePins } = useActivityRailPins();
-  // 심플 모드: a fixed, labelled rail — 교신 · 행성 · 파일 · 실행 · 은하수.
-  const simple = CURRENT_UI_MODE === 'simple';
-  const pins = simple ? SIMPLE_RAIL : savedPins;
+  const pins = savedPins;
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const [drop, setDrop] = useState<ReturnType<typeof workbenchSideBarDropTarget>>(null);
   const draggingPin = useRef<WorkbenchSideViewId | null>(null);
@@ -111,7 +106,7 @@ export function ActivityRailNavigation({
             onClick={() => onSelect(descriptor.id)}
           >
             <Icon size={24} aria-hidden="true" />
-            {simple && <span className="cosmos-rail-label">{SIMPLE_RAIL_LABELS[id] ?? descriptor.label}</span>}
+
           </button>
         );
       })}

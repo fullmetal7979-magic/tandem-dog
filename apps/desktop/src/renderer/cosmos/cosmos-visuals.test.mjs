@@ -40,11 +40,11 @@ test('the star map names every star and its state in words, and draws the reques
   const { StarMap } = await import('./StarMap.tsx');
   await act(async () => root.render(React.createElement(StarMap, { view: view() })));
   const svg = document.querySelector('.cosmos-starmap svg');
-  assert.match(svg.getAttribute('aria-label'), /my-app 우주 지도: 집 맥북이 조종 중\. 다른 별 2개\./);
+  assert.match(svg.getAttribute('aria-label'), /my-app 우주 지도: 집 맥북이 작업 중\. 다른 기기 2개\./);
   const names = [...document.querySelectorAll('.cosmos-star-name')].map((node) => node.textContent);
   assert.deepEqual(names, ['집 맥북 (이 기기)', '회사 PC', '노트북']);
   const subs = [...document.querySelectorAll('.cosmos-star-sub')].map((node) => node.textContent);
-  assert.match(subs[0], /47분째 조종 중/);
+  assert.match(subs[0], /47분째 작업 중/);
   assert.equal(subs[1], '🔁 교대 요청 중');
   assert.match(subs[2], /💤 3시간 전/);
   assert.equal(document.querySelectorAll('.cosmos-ask-line').length, 1);
@@ -60,8 +60,8 @@ test('the constellation lists turns newest first with their memos', async (t) =>
   assert.equal(document.querySelectorAll('.cosmos-turn.is-live').length, 1);
   assert.equal(document.querySelectorAll('.cosmos-constellation').length, 2);
   const rows = [...document.querySelectorAll('.cosmos-timeline-list li')].map((row) => row.textContent);
-  assert.match(rows[0], /집 맥북조종 중/);
-  assert.match(rows[1], /회사 PC2시간 전 내림API 연결/);
+  assert.match(rows[0], /집 맥북작업 중/);
+  assert.match(rows[1], /회사 PC2시간 전 내려놓음API 연결/);
 });
 
 test('the seat lock covers an occupied planet and offers a hand-over request', async (t) => {
@@ -78,7 +78,7 @@ test('the seat lock covers an occupied planet and offers a hand-over request', a
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   const card = document.querySelector('.cosmos-lock');
   assert.ok(card, 'the lock is shown');
-  assert.match(card.textContent, /회사 PC가 조종 중이에요/);
+  assert.match(card.textContent, /회사 PC가 작업 중이에요/);
   assert.ok([...card.querySelectorAll('button')].some((button) => /교대 요청/.test(button.textContent)));
   store.resetCosmosStore();
 });
@@ -96,7 +96,7 @@ test('a phone driving this PC locks it with a reclaim button', async (t) => {
   await act(async () => root.render(React.createElement(SeatLock, { projectPath: '/work/app' })));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   const card = document.querySelector('.cosmos-lock');
-  assert.match(card.textContent, /내 폰이 이 PC를 원격으로 조종 중이에요/);
+  assert.match(card.textContent, /내 폰이 이 PC에서 원격으로 작업 중이에요/);
   assert.ok([...card.querySelectorAll('button')].some((button) => /이 PC로 되찾기/.test(button.textContent)));
   store.resetCosmosStore();
 });

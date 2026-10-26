@@ -6,6 +6,7 @@ import {
   requiredDesktopCapabilityRequest,
   requiredGitBranchName,
   requiredNewTaskDraft,
+  requiredSubmitOptions,
   requiredTextFileEncoding,
 } from './ipc-validation.ts';
 
@@ -105,7 +106,7 @@ test('desktop IPC still rejects unknown built-in lifecycle names', () => {
         capability: 'installBuiltinFeature',
         args: ['thirdPartyRuntime'],
       }),
-    /git, memory, office, localProvider, or tidy/
+    /git, memory, localProvider, tidy, or autoEffort/
   );
   assert.throws(
     () =>
@@ -113,7 +114,7 @@ test('desktop IPC still rejects unknown built-in lifecycle names', () => {
         capability: 'setBuiltinToolEnabled',
         args: ['thirdPartyRuntime', true],
       }),
-    /git, office, localProvider, or tidy/
+    /git, localProvider, tidy, or autoEffort/
   );
 });
 
@@ -174,4 +175,13 @@ test('git branch validation trims surrounding whitespace without weakening rejec
   for (const value of [' \t\n', 'x'.repeat(513), ' -main ', 'fea\0ture', 'fea\nture', 'fea\rture']) {
     assert.throws(() => requiredGitBranchName(value), { name: 'TypeError', message: 'git branch is invalid.' });
   }
+});
+
+
+test('request budgets validate at IPC before a paid turn can start', () => {
+  const executionBudget = { maxTokens: 1000, maxCostUsd: .05, maxRequests: 3 };
+  assert.deepEqual(requiredSubmitOptions({ executionBudget }).executionBudget, executionBudget);
+  for (const value of [{ maxTokens: -1 }, { maxTokens: 1.5 }, { maxCostUsd: Infinity },
+    { maxRequests: '3' }, { maxRequests: 0 }, { unlimited: true }, [], '100'])
+    assert.throws(() => requiredSubmitOptions({ executionBudget: value }), TypeError);
 });

@@ -6,7 +6,7 @@
 // through transact(), so two stars racing for an empty seat cannot both win:
 // the second push is rejected, the mutation re-runs, and it sees the winner.
 // Liveness comes from beat refs, not from the seat file.
-import { GalaxyError, galaxyDir, readGalaxyJson, transact, writeGalaxyJson } from './galaxy-repo.mjs';
+import { GalaxyError, galaxyDir, galaxyReader, readGalaxyJson, transact, writeGalaxyJson } from './galaxy-repo.mjs';
 import { planetSlug } from './planet.mjs';
 
 export const SEAT_STALE_MS = 30 * 60_000;
@@ -162,7 +162,8 @@ async function mutateSeat(planetId, transition, message, { dir } = {}) {
 }
 
 export async function readSeat(planetId, { dir = galaxyDir() } = {}) {
-  return normalizeSeat(await readGalaxyJson(dir, seatPath(planetId)), planetId);
+  // Out of the object store, not the working copy: a transaction may be writing it.
+  return normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planetId)), planetId);
 }
 
 export async function sit(planetId, star, options = {}) {
@@ -175,9 +176,9 @@ export async function sit(planetId, star, options = {}) {
   if (result.refused) {
     const holder = result.seat.holder;
     const messages = {
-      occupied: `${holder?.name || '다른 별'}이(가) 조종 중이에요. 교대를 요청해 주세요.`,
+      occupied: `${holder?.name || '다른 기기'}이(가) 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
       stale: `${holder?.name || '다른 별'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
-      reserved: '다른 별을 위해 조종석이 예약되어 있어요.',
+      reserved: '다른 기기를 위해 작업 자리를 비워 두었어요.',
     };
     throw new GalaxyError(`seat_${result.refused}`, messages[result.refused], { seat: result.seat });
   }

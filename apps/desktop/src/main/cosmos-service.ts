@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { configureGitEnvironment, oneLine, repoRoot } from '../../../../src/runtime/tandem/tandem-core.mjs';
+import { configureGitEnvironment, oneLine, repoRoot } from '../../../../src/runtime/shared/git-process.mjs';
 import type {
   CosmosGalaxySetupResult,
   CosmosMoonResult,
@@ -19,8 +19,9 @@ import type {
 } from '../shared/contract-cosmos';
 import { childEnvironment } from './child-environment';
 import { requiredRepositoryCwd } from './git-contract.mjs';
-import { scrubGitCredentials } from './git-runner';
+import { publicGitRemoteUrl, scrubGitCredentials } from './git-runner';
 import { ghRun } from './github-cli';
+import { validatedRelayUrl } from './remote-relay-device';
 import { packagedRuntimeSourceRoot } from './runtime-layout';
 
 configureGitEnvironment(() => childEnvironment({ GIT_SEQUENCE_EDITOR: 'true' }) as Record<string, string | undefined>);
@@ -114,6 +115,7 @@ function refusal(error: unknown): CosmosRefusal {
 /** Known, user-facing refusals; anything else is a real error. */
 const REFUSAL_CODES = new Set([
   'seat_occupied',
+  'seat_not_held',
   'seat_stale',
   'seat_reserved',
   'secrets',
@@ -145,13 +147,40 @@ async function resolveRoot(cwd: unknown): Promise<string> {
   }
 }
 
+/** A relay address without userinfo or secret-looking query values, safe to show on screen or send to a phone. */
+export function publicRelayUrl(value: string): string {
+  try {
+    const parsed = new URL(value);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return scrubGitCredentials(value);
+  }
+}
+
+/** Every remote address in an overview, stripped of credentials before it leaves the service. */
+export function publicOverview(view: CosmosOverview): CosmosOverview {
+  return {
+    ...view,
+    remote: view.remote ? publicGitRemoteUrl(view.remote) : view.remote,
+    planets: Array.isArray(view.planets)
+      ? view.planets.map((planet) => ({ ...planet, remote: planet.remote ? publicGitRemoteUrl(planet.remote) : planet.remote }))
+      : view.planets,
+    planet: view.planet?.remote ? { ...view.planet, remote: { ...view.planet.remote, url: publicGitRemoteUrl(view.planet.remote.url) } } : view.planet,
+    relayUrl: view.relayUrl ? publicRelayUrl(view.relayUrl) : view.relayUrl,
+  };
+}
+
 async function sharedPreferences(): Promise<{ relayUrl: string | null; uiMode: 'simple' | 'advanced' | null }> {
   const { readConfig } = await configModule();
   const config = record(readConfig());
   const cosmos = record(config.cosmos);
   const desktop = record(config.desktop);
   return {
-    relayUrl: typeof cosmos.relayUrl === 'string' && cosmos.relayUrl.trim() ? cosmos.relayUrl.trim() : null,
+    relayUrl: typeof cosmos.relayUrl === 'string' && cosmos.relayUrl.trim() ? publicRelayUrl(cosmos.relayUrl.trim()) : null,
     uiMode: desktop.uiMode === 'simple' || desktop.uiMode === 'advanced' ? desktop.uiMode : null,
   };
 }
@@ -165,8 +194,22 @@ export async function cosmosSetPreference(key: unknown, value: unknown): Promise
     return;
   }
   if (key === 'relayUrl') {
-    const url = typeof value === 'string' ? value.trim() : '';
-    if (url && !/^wss?:\/\/[^\s]+$/i.test(url)) throw new TypeError('릴레이 주소는 wss:// 로 시작해야 해요.');
+    const raw = typeof value === 'string' ? value.trim() : '';
+    // Checked when it is saved, not when the relay first dials: a plain ws://
+    // address (anything but this machine) would send pairing traffic in clear.
+    let url = '';
+    if (raw) {
+      try {
+        url = validatedRelayUrl(raw);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '';
+        throw new TypeError(
+          /credentials/.test(detail)
+            ? '릴레이 주소에는 아이디·비밀번호를 넣을 수 없어요.'
+            : '릴레이 주소는 wss:// 로 시작해야 해요. (ws:// 는 이 컴퓨터 안에서 개발할 때만 쓸 수 있어요.)'
+        );
+      }
+    }
     updateConfig((config) => {
       const cosmos = { ...record(config.cosmos) };
       if (url) cosmos.relayUrl = url;
@@ -221,7 +264,7 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
   const run = (async () => {
     const view = (await (await cosmosCore()).overview({ root, fetch, guest })) as CosmosOverview;
     if (fetch && view.ready && !view.offline) lastFetchAt = Date.now();
-    return { ...view, ...(await sharedPreferences()) };
+    return publicOverview({ ...view, ...(await sharedPreferences()) });
   })();
   overviewFlights.set(key, run);
   try {
@@ -334,9 +377,9 @@ export async function cosmosRemoteWriteRefusal(cwd: string | null): Promise<stri
   const view = (await (await cosmosCore()).overview({ root, fetch: false })) as CosmosOverview;
   if (!view.ready || !view.planet?.id || view.state === 'remote') return null;
   const holder = view.seat?.holder;
-  if (view.state === 'mine') return `🔒 이 PC(${holder?.name ?? '이 기기'})가 조종 중이에요. 폰에서 ☀️ 앉기를 누르면 이어서 할 수 있어요.`;
-  if (holder) return `🔒 ${holder.name}이(가) 조종 중이에요. 폰에서 🔁 교대 요청을 보내 주세요.`;
-  return '☄️ 조종석이 비어 있어요. 폰에서 먼저 ☀️ 앉기를 눌러 주세요.';
+  if (view.state === 'mine') return `🔒 이 PC(${holder?.name ?? '이 기기'})가 작업 중이에요. 폰에서 이어받기를 누르면 이어서 할 수 있어요.`;
+  if (holder) return `🔒 ${holder.name}이(가) 작업 중이에요. 폰에서 넘겨 달라고 요청해 주세요.`;
+  return '☄️ 지금은 아무도 작업하지 않아요. 폰에서 먼저 이어받기를 눌러 주세요.';
 }
 
 const STAR_KIND_SET = new Set<CosmosStarKind>(['pc', 'mac', 'phone']);
@@ -355,9 +398,9 @@ export async function cosmosSetStar(request: unknown): Promise<CosmosStar> {
 
 async function ghLogin(): Promise<string> {
   const who = await ghRun(['api', 'user', '--jq', '.login']);
-  if (!who) throw Object.assign(new Error('GitHub CLI(gh)가 필요해요. 관제실 → Git에서 설치하고 로그인해 주세요.'), { code: 'no_gh' });
+  if (!who) throw Object.assign(new Error('GitHub CLI(gh)가 필요해요. 설정 → Git에서 설치하고 로그인해 주세요.'), { code: 'no_gh' });
   if (who.code !== 0 || !who.stdout.trim()) {
-    throw Object.assign(new Error('GitHub에 로그인되어 있지 않아요. 관제실 → Git에서 로그인해 주세요.'), { code: 'no_gh' });
+    throw Object.assign(new Error('GitHub에 로그인되어 있지 않아요. 설정 → Git에서 로그인해 주세요.'), { code: 'no_gh' });
   }
   return who.stdout.trim();
 }
@@ -396,11 +439,11 @@ export async function cosmosSetupGalaxy(request: unknown): Promise<CosmosOutcome
         // Local-only start: still useful on one PC; a remote can be added later.
         const local = await connectGalaxy({});
         invalidateOverview();
-        return { remote: local.remote, created: false };
+        return { remote: local.remote ? publicGitRemoteUrl(local.remote) : null, created: false };
       }
       const result = await connectGalaxy({ remoteUrl: remoteUrl || null });
       invalidateOverview();
-      return { remote: result.remote ? scrubGitCredentials(result.remote) : null, created };
+      return { remote: result.remote ? publicGitRemoteUrl(result.remote) : null, created };
     } catch (error) {
       const code = record(error).code;
       if (typeof code === 'string') return refusal(error);

@@ -5,7 +5,7 @@
 // are the same planet `github.com/me/app`. The remote is the branch upstream's
 // remote, then an explicit `cosmos.remote`, then `origin`, then the first one —
 // never a hard-coded name, because a fork's `origin` is often upstream.
-import { runGit } from '../tandem/tandem-core.mjs';
+import { runGit } from '../shared/git-process.mjs';
 
 /** `github.com/owner/repo` for any https/ssh/scp-style remote URL; '' when unparseable. */
 export function normalizeRemoteUrl(url) {

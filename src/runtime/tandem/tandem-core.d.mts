@@ -4,7 +4,8 @@ export const SESSION_REL: string;
 
 export interface GitResult { code: number; stdout: string; stderr: string }
 export function configureGitEnvironment(provider: () => Record<string, string | undefined>): () => Record<string, string | undefined>;
-export function runGit(cwd: string, args: string[], opts?: { input?: string; env?: Record<string, string> }): Promise<GitResult>;
+export function defaultGitTimeoutMs(args: string[]): number;
+export function runGit(cwd: string, args: string[], opts?: { input?: string; env?: Record<string, string>; timeoutMs?: number }): Promise<GitResult>;
 
 export interface Session {
   goal: string;

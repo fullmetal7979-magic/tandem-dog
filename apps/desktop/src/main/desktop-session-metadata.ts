@@ -5,11 +5,12 @@
 // for an explicit retry instead of reporting an unsaved mutation as success.
 import { createDebouncedWriter, type DebouncedWriter } from '../../../../src/runtime/shared/debounced-writer.mjs';
 import { generatedSessionTitle, isMediaSessionTitlePlaceholder } from '../shared/session-title.mjs';
-import { readSessionMetadata, writeSessionMetadata, type SessionReadCursor } from './session-metadata-file';
+import { readSessionMetadata, writeSessionMetadata, type SessionReadCursor, type SessionTaskLineage } from './session-metadata-file';
 import { isSessionId } from './desktop-state';
 
 export class DesktopSessionMetadata {
   private readonly userDataRoot: () => string;
+  private lineageMap: Record<string, SessionTaskLineage> = {};
   private titleMap: Record<string, string> | null = null;
   private nameMap: Record<string, string> | null = null;
   private archivedMap: Record<string, number> | null = null;
@@ -66,6 +67,7 @@ export class DesktopSessionMetadata {
       this.archivedMap = maps.archived;
       this.favoriteMap = maps.favorites;
       this.readMap = maps.reads;
+      this.lineageMap = maps.lineage;
       // A stored title the current generator would render differently is
       // rewritten in memory; persist it so the next read is stable.
       if (maps.rewritten) await this.queueWrite();
@@ -90,13 +92,15 @@ export class DesktopSessionMetadata {
     await this.load();
     this.archivedMap ??= Object.create(null) as Record<string, number>;
     const map = this.archivedMap;
-    const has = Object.hasOwn(map, sessionId);
-    if (archived === has) {
+    const members = this.taskMembers(sessionId);
+    if (members.every(id => archived === Object.hasOwn(map, id))) {
       await this.flush();
       return false;
     }
-    if (archived) map[sessionId] = Date.now();
-    else delete map[sessionId];
+    for (const id of members) {
+      if (archived) map[id] = Date.now();
+      else delete map[id];
+    }
     await this.queueWrite();
     return true;
   }
@@ -106,12 +110,15 @@ export class DesktopSessionMetadata {
     await this.load();
     this.favoriteMap ??= Object.create(null) as Record<string, number>;
     const map = this.favoriteMap;
-    if (favorite === Object.hasOwn(map, sessionId)) {
+    const members = this.taskMembers(sessionId);
+    if (members.every(id => favorite === Object.hasOwn(map, id))) {
       await this.flush();
       return false;
     }
-    if (favorite) map[sessionId] = Date.now();
-    else delete map[sessionId];
+    for (const id of members) {
+      if (favorite) map[id] = Date.now();
+      else delete map[id];
+    }
     await this.queueWrite();
     return true;
   }
@@ -147,12 +154,14 @@ export class DesktopSessionMetadata {
       Object.hasOwn(this.names, sessionId) ||
       Object.hasOwn(this.archivedMap || {}, sessionId) ||
       Object.hasOwn(this.favoriteMap || {}, sessionId) ||
-      Object.hasOwn(this.readMap || {}, sessionId);
+      Object.hasOwn(this.readMap || {}, sessionId) ||
+      Object.hasOwn(this.lineageMap, sessionId);
     delete this.titleMap?.[sessionId];
     delete this.nameMap?.[sessionId];
     if (this.archivedMap) delete this.archivedMap[sessionId];
     if (this.favoriteMap) delete this.favoriteMap[sessionId];
     if (this.readMap) delete this.readMap[sessionId];
+    delete this.lineageMap[sessionId];
     if (had) await this.queueWrite();
     else await this.flush();
   }
@@ -170,6 +179,25 @@ export class DesktopSessionMetadata {
       /* writer retains and reports the pending save */
     });
     return true;
+  }
+
+  async linkModelContinuation(sourceId: string, targetId: string): Promise<void> {
+    await this.load();
+    if (!isSessionId(sourceId) || !isSessionId(targetId) || sourceId === targetId) throw new TypeError('Invalid continuation identity.');
+    this.lineageMap[targetId] = { taskId: this.lineageMap[sourceId]?.taskId || sourceId, previousSessionId: sourceId };
+    if (this.favoriteMap?.[sourceId]) this.favoriteMap[targetId] = this.favoriteMap[sourceId];
+    if (this.nameMap?.[sourceId]) this.nameMap[targetId] = this.nameMap[sourceId];
+    await this.queueWrite();
+  }
+
+  private taskMembers(sessionId: string): string[] {
+    const taskId = this.lineageMap[sessionId]?.taskId || sessionId;
+    return [...new Set([taskId, sessionId, ...Object.entries(this.lineageMap)
+      .filter(([, value]) => value.taskId === taskId).map(([id]) => id)])];
+  }
+
+  withTaskLineage<T extends { id: string }>(rows: T[]): Array<T & Partial<SessionTaskLineage>> {
+    return rows.map(row => this.lineageMap[row.id] ? { ...row, ...this.lineageMap[row.id] } : row);
   }
 
   /** Mark archived rows in a session listing. */
@@ -209,7 +237,7 @@ export class DesktopSessionMetadata {
     const archived = { ...(this.archivedMap || {}) };
     const favorites = { ...(this.favoriteMap || {}) };
     const reads = { ...this.reads };
-    this.writer.schedule({ titles, names, archived, favorites, reads });
+    this.writer.schedule({ titles, names, archived, favorites, reads, lineage: { ...this.lineageMap } });
     return this.flush();
   }
 }

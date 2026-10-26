@@ -33,6 +33,9 @@ export interface DesktopRemoteClientClaim {
 }
 
 export interface DesktopSessionSummary {
+  /** Stable user task across model continuations. Old session files stay accessible. */
+  taskId?: string;
+  previousSessionId?: string;
   id: string;
   preview: string;
   title: string;

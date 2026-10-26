@@ -1,4 +1,7 @@
+import { ExecutionBudgetControl } from './ExecutionBudgetControl';
+import type { ExecutionBudget } from './execution-budget-settings';
 import type { RefObject } from 'react';
+import { DraftTokenBudget } from './DraftTokenBudget';
 import type { ComposerProps } from './Composer';
 import { ComposerAddMenu } from './ComposerAddMenu';
 import { t } from './i18n';
@@ -24,6 +27,7 @@ type ModelProps = Pick<
   | 'applySnapshot'
   | 'onOpenSettings'
   | 'onDraftModelSelection'
+  | 'onContinueWithModel'
   | 'onRoutePreferenceApplied'
 >;
 
@@ -55,6 +59,8 @@ export function ComposerFooter({
   attachments,
   onStop,
   modelAside,
+  executionBudget = {},
+  onExecutionBudgetChange,
   ...modelProps
 }: ModelProps & {
   attachAccept: string;
@@ -82,9 +88,13 @@ export function ComposerFooter({
   attachments: ComposerAttachment[];
   onStop: () => void;
   modelAside: ComposerProps['modelAside'];
+  executionBudget?: ExecutionBudget;
+  onExecutionBudgetChange?: (value: ExecutionBudget) => void;
 }) {
   const { sessionId, onOpenSettings } = modelProps;
   return (
+    <>
+    <DraftTokenBudget draft={draft} attachments={attachments} turnBusy={turnBusy} sessionId={sessionId} />
     <div className="composer-footer">
       <input
         ref={fileInput}
@@ -123,6 +133,8 @@ export function ComposerFooter({
       />
       <ModelSelector
         {...modelProps}
+        onDraftSelection={modelProps.onDraftModelSelection}
+        hasConversation={hasConversation}
         // Model writes are queued by the session API. A preceding write must
         // not disable the next selection while its acknowledgement travels.
         modelDisabled={transitioning}
@@ -133,6 +145,7 @@ export function ComposerFooter({
         // churn still disables the controls.
         tuningDisabled={commandBusy || transitioning}
       />
+      {onExecutionBudgetChange && <ExecutionBudgetControl key={`budget:${recoveryScope}`} value={executionBudget} disabled={transitioning || turnBusy} onChange={onExecutionBudgetChange} />}
       {modelAside && <span className="composer-model-aside">{modelAside}</span>}
       <span className="composer-primary-actions">
         {/* The mic appears only once the voice runtime is installed
@@ -166,5 +179,6 @@ export function ComposerFooter({
         />
       </span>
     </div>
+    </>
   );
 }

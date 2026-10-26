@@ -5,28 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { installTestDom } from './test-support/test-dom.mjs';
 import { transcriptArtifacts } from './transcript-artifacts.ts';
 import { ToolActivityGroup } from './transcript-tool-ui.tsx';
-import { MarkdownOpenFileContext, MarkdownProjectContext } from './MarkdownLink.tsx';
-
-const office = (path, extra = {}) => ({
-  kind: 'tool',
-  name: 'office',
-  args: { action: 'create' },
-  result: { ok: true, artifacts: [{ path, operation: 'create' }], ...extra },
-});
-
-test('completed Office outputs from older transcripts become deduplicated artifacts, including aggregate envelopes', () => {
-  const document = office('C:/work/report.docx');
-  const items = [
-    document,
-    { ...document, result: { content: [{ type: 'text', text: JSON.stringify(document.result) }] } },
-    { aggregate: true, toolMembers: [document] },
-  ];
-  assert.deepEqual(
-    transcriptArtifacts(items).map(({ kind, name }) => ({ kind, name })),
-    [{ kind: 'document', name: 'report.docx' }]
-  );
-  assert.deepEqual(transcriptArtifacts(JSON.parse(JSON.stringify(items))), transcriptArtifacts(items));
-});
+import { MarkdownProjectContext } from './MarkdownLink.tsx';
 
 test('SVG files written by edit and apply_patch become image artifacts; failed, deleted and other files do not', () => {
   const edit = (file_path, extra = {}) => ({ kind: 'tool', name: 'edit', args: { file_path }, result: 'ok', ...extra });
@@ -54,19 +33,6 @@ test('SVG files written by edit and apply_patch become image artifacts; failed, 
       { kind: 'image', path: 'out/new.svg' },
       { kind: 'image', path: 'moved.svg' },
     ]
-  );
-});
-
-test('input paths, lookup, pending, failed and executable outputs never become result cards', () => {
-  assert.deepEqual(
-    transcriptArtifacts([
-      { ...office('bad.docx'), isError: true },
-      office('bad.pptx', { ok: false }),
-      office('danger.exe'),
-      office('danger.docm'),
-      { ...office('input.docx'), name: 'read' },
-    ]),
-    []
   );
 });
 
@@ -119,30 +85,21 @@ test('artifact images open in the shared lightbox and navigate within the strip'
   }
 });
 
-test('collapsed activity exposes a written image, a document that opens in its conversation Project, and a deleted one as deleted', async () => {
+test('collapsed activity exposes a written image through the file preview lane', async () => {
   const { dom, restore } = installTestDom(null, {
     html: '<!doctype html><div id="root"></div>',
     jsdom: { url: 'http://localhost/' },
     expose: ['navigator'],
   });
-  const opened = [];
-  const launched = [];
   // jsdom has no modal dialogs; the card only needs the dialog to open.
   dom.window.HTMLDialogElement.prototype.showModal = function showModal() {
     this.open = true;
   };
   dom.window.mixdogDesktop = {
-    openLocalFileLink: async (...args) => {
-      launched.push(args);
-    },
-    statProjectFile: async (_project, path) => {
-      if (/gone/.test(path)) throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
-      return { mtimeMs: 0, size: 1 };
-    },
-    resolveLocalPaths: async ([absolutePath]) => {
-      if (/gone/.test(absolutePath)) throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
-      return [{ absolutePath, dir: false, projectPath: 'C:/work', relPath: absolutePath.slice('C:/work/'.length) }];
-    },
+    statProjectFile: async () => ({ mtimeMs: 0, size: 1 }),
+    resolveLocalPaths: async ([absolutePath]) => [
+      { absolutePath, dir: false, projectPath: 'C:/work', relPath: absolutePath.slice('C:/work/'.length) },
+    ],
     previewProjectFile: async (_project, relPath) => ({
       url: `mixdog-media://preview/token/${relPath}`,
       kind: 'image',
@@ -154,39 +111,20 @@ test('collapsed activity exposes a written image, a document that opens in its c
     await act(async () =>
       root.render(
         React.createElement(
-          MarkdownOpenFileContext.Provider,
-          { value: (...args) => opened.push(args) },
-          React.createElement(
-            MarkdownProjectContext.Provider,
-            { value: 'C:/work' },
-            React.createElement(ToolActivityGroup, {
-              items: [
-                office('C:/work/report #1.docx'),
-                office('C:/work/gone.xlsx'),
-                { kind: 'tool', name: 'edit', args: { file_path: 'C:/work/chart.svg' }, result: 'ok' },
-              ],
-            })
-          )
+          MarkdownProjectContext.Provider,
+          { value: 'C:/work' },
+          React.createElement(ToolActivityGroup, {
+            items: [{ kind: 'tool', name: 'edit', args: { file_path: 'C:/work/chart.svg' }, result: 'ok' }],
+          })
         )
       )
     );
     await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-    const gone = dom.window.document.querySelector('.transcript-artifact-file[aria-disabled="true"]');
-    assert.equal(gone.tagName, 'SPAN');
-    assert.equal(gone.querySelector('.transcript-artifact-badge').textContent, 'XLSX');
-    assert.equal(gone.querySelector('.transcript-artifact-caption > span').textContent, 'gone.xlsx');
-    assert.equal(gone.querySelector('small').textContent, 'Deleted');
     assert.equal(dom.window.document.querySelector('.tool-activity-header').getAttribute('aria-expanded'), 'false');
     assert.ok(dom.window.document.querySelector('.transcript-artifacts img'));
     // A written SVG renders as an image through the file preview lane, never inline markup.
     const svg = dom.window.document.querySelector('img[src="mixdog-media://preview/token/chart.svg"]');
     assert.equal(svg?.closest('figure')?.querySelector('figcaption > span')?.textContent, 'chart.svg');
-    const link = dom.window.document.querySelector('a.transcript-artifact-file');
-    await act(async () => link.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })));
-    // The renderer resolves the artifact inside its conversation Project and
-    // opens the document in the in-app preview tab, never the OS app.
-    assert.deepEqual(opened, [['C:/work', 'report #1.docx', undefined]]);
-    assert.deepEqual(launched, []);
   } finally {
     await act(async () => root.unmount());
     restore();

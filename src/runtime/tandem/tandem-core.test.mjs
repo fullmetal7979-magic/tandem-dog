@@ -19,6 +19,8 @@ import {
   readDeskConfig,
   renderSession,
   resume,
+  runGit,
+  defaultGitTimeoutMs,
   writeDeskConfig,
   writeSession,
 } from './tandem-core.mjs';
@@ -140,6 +142,24 @@ test('publishing a desk never touches the working tree or index', async () => {
     assert.equal(sh(a, 'status', '--porcelain'), before);
     assert.equal(sh(a, 'rev-parse', '--abbrev-ref', 'HEAD'), 'main');
     await assert.rejects(publishDesk(a, { desk: 'Z', status: st }), /desk not set/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('runGit kills a command that outlives its timeout and resolves non-zero', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'tandem-timeout-'));
+  try {
+    const started = Date.now();
+    const r = await runGit(dir, ['-c', 'alias.slow=!sleep 5', 'slow'], { timeoutMs: 300 });
+    assert.notEqual(r.code, 0);
+    assert.equal(r.timedOut, true);
+    assert.match(r.stderr, /timed out/);
+    assert.ok(Date.now() - started < 3000, 'did not wait for the grandchild');
+    const ok = await runGit(dir, ['--version']);
+    assert.equal(ok.code, 0);
+    assert.equal(defaultGitTimeoutMs(['-c', 'k=v', 'fetch', '--quiet']), 60_000);
+    assert.equal(defaultGitTimeoutMs(['rev-parse', 'HEAD']), 20_000);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
