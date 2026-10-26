@@ -1,4 +1,4 @@
-// 우주 지도: the planet's session is the sun at the centre; every device is a
+// 기기 지도: the project's session is the sun at the centre; every device is a
 // star. The one star in the seat rides the inner gold "조종석" orbit, the rest
 // rest on the outer orbit, faded by how long they have been silent. A star
 // asking for a turn sends a dashed arrow to the seat; a hand-over flies a
@@ -67,21 +67,24 @@ function place(view: CosmosOverview, now: number): Placed[] {
       seated: false,
       asking: askers.has(star.id),
       label: star.me ? `${star.name} (이 기기)` : star.name,
-      sub: askers.has(star.id) ? '🔁 교대 요청 중' : online ? '🟢 켜져 있음' : `💤 ${ago(star.beat?.at || star.seenAt, now)}`,
+      sub: askers.has(star.id) ? '🔁 넘겨 달라고 요청 중' : online ? '🟢 켜져 있음' : `💤 ${ago(star.beat?.at || star.seenAt, now)}`,
     });
   });
   return out;
 }
 
-export function StarMap({ view, compact = false }: { view: CosmosOverview; compact?: boolean }) {
+export function StarMap({ view, compact = false, active = true }: { view: CosmosOverview; compact?: boolean; active?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
+  // The "47분째" clock ticks only while the map can be seen.
   useEffect(() => {
+    if (!active) return undefined;
+    setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [active]);
   const placed = useMemo(() => place(view, now), [view, now]);
   const seated = placed.find((entry) => entry.seated) ?? null;
-  const planetName = view.planet?.name || '행성';
+  const planetName = view.planet?.name || '프로젝트';
   const motion = !reducedMotion();
   const seatEmpty = !seated;
   const summary = seated
@@ -90,7 +93,7 @@ export function StarMap({ view, compact = false }: { view: CosmosOverview; compa
 
   return (
     <figure className={`cosmos-starmap${compact ? ' cosmos-starmap--compact' : ''}`}>
-      <svg viewBox={compact ? `20 34 ${W - 40} ${H - 64}` : `0 0 ${W} ${H}`} role="img" aria-label={`${planetName} 우주 지도: ${summary}`}>
+      <svg viewBox={compact ? `20 34 ${W - 40} ${H - 64}` : `0 0 ${W} ${H}`} role="img" aria-label={`${planetName} 기기 지도: ${summary}`}>
         <defs>
           <radialGradient id="cosmos-sun-glow">
             <stop offset="0" stopColor="var(--cosmos-sun)" stopOpacity="0.55" />

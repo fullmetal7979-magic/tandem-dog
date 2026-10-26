@@ -131,9 +131,11 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
     return projectPath ? projectDirectory(projectPath) : null;
   });
 
-  // Terminals the phone opened remember their folder here; the rest (the PC's
-  // own, term_cosmos_run_* among them) are looked up host-side, and when even
-  // the host cannot say, every registered project must pass.
+  // Terminals the phone opened remember the folder the host actually opened
+  // them in: never the folder the phone asked for, since ensuring an id that
+  // already runs on the PC reuses that PTY wherever it lives. The rest (the
+  // PC's own, term_cosmos_run_* among them) are looked up host-side, and when
+  // even the host cannot say, every registered project must pass.
   const terminalCwd = new Map<string, string | null>();
   const verdicts = new Map<string, { at: number; refusal: Promise<string | null> }>();
   const ensure = methods.termEnsure;
@@ -141,7 +143,15 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
     methods.termEnsure = async (params) => {
       const opened = (await ensure(params)) as { id?: unknown } | null;
       if (opened && typeof opened.id === 'string') {
-        terminalCwd.set(opened.id, typeof params[1] === 'string' && params[1] ? params[1] : null);
+        let cwd: string | null | undefined;
+        try {
+          cwd = resolvers.terminalCwd ? await resolvers.terminalCwd(opened.id) : undefined;
+        } catch {
+          cwd = undefined;
+        }
+        // Unknown to the host: judged per write by the every-project fallback.
+        if (cwd === undefined) terminalCwd.delete(opened.id);
+        else terminalCwd.set(opened.id, typeof cwd === 'string' && cwd ? cwd : null);
         verdicts.delete(opened.id);
       }
       return opened;

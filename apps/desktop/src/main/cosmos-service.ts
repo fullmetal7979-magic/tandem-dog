@@ -242,14 +242,54 @@ export function cosmosGuest(value: unknown): CosmosGuest | null {
 // ------------------------------------------------------------------ overview
 
 const FETCH_INTERVAL_MS = 20_000;
+/** When the last Galaxy fetch started (0: the next overview fetches). */
 let lastFetchAt = 0;
+/** Bumped by every verb: a fetch started before it may miss what the verb pushed. */
+let fetchEpoch = 0;
+/** The one Galaxy fetch in flight; every watched planet joins it instead of starting its own. */
+let fetchFlight: { epoch: number; done: Promise<string | null> } | null = null;
 const overviewFlights = new Map<string, Promise<CosmosOverview>>();
+
+async function runGalaxyFetch(): Promise<string | null> {
+  const { fetchGalaxy, galaxyDir, galaxyReady } = await galaxyRepo();
+  const dir = galaxyDir();
+  if (!(await galaxyReady(dir))) return null;
+  try {
+    await fetchGalaxy(dir);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+/**
+ * The Galaxy is one repository whatever planet is being looked at, so one
+ * fetch serves every overview. Resolves to the offline reason, or null. The
+ * throttle starts with the fetch: a slow fetch must not let the next poll (or
+ * the next watched planet) start a second one.
+ */
+function sharedGalaxyFetch(): Promise<string | null> {
+  if (fetchFlight && fetchFlight.epoch === fetchEpoch) return fetchFlight.done;
+  // A verb invalidated the running fetch: queue a fresh one behind it, never
+  // two `git fetch`es on one repository at once.
+  const prior = fetchFlight?.done ?? Promise.resolve(null);
+  lastFetchAt = Date.now();
+  const flight = { epoch: fetchEpoch, done: prior.catch(() => null).then(runGalaxyFetch) };
+  fetchFlight = flight;
+  void flight.done
+    .catch(() => null)
+    .then(() => {
+      if (fetchFlight === flight) fetchFlight = null;
+    });
+  return flight.done;
+}
 
 export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput?: unknown): Promise<CosmosOverview> {
   const opts = record(options);
   const guest = cosmosGuest(guestInput);
   const force = opts.force === true;
-  const fetch = opts.fetch !== false && (force || Date.now() - lastFetchAt >= FETCH_INTERVAL_MS);
+  const joinable = fetchFlight !== null && fetchFlight.epoch === fetchEpoch;
+  const fetch = opts.fetch !== false && (force || joinable || Date.now() - lastFetchAt >= FETCH_INTERVAL_MS);
   let root: string | null = null;
   if (typeof cwd === 'string' && cwd.trim()) {
     try {
@@ -262,9 +302,11 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
   const pending = overviewFlights.get(key);
   if (pending) return pending;
   const run = (async () => {
-    const view = (await (await cosmosCore()).overview({ root, fetch, guest })) as CosmosOverview;
-    if (fetch && view.ready && !view.offline) lastFetchAt = Date.now();
-    return publicOverview({ ...view, ...(await sharedPreferences()) });
+    const offline = fetch ? await sharedGalaxyFetch() : null;
+    // The fetch already happened (or was joined) above; the read never fetches.
+    const view = (await (await cosmosCore()).overview({ root, fetch: false, guest })) as CosmosOverview;
+    const merged = fetch && view.ready ? { ...view, offline } : view;
+    return publicOverview({ ...merged, ...(await sharedPreferences()) });
   })();
   overviewFlights.set(key, run);
   try {
@@ -276,6 +318,7 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
 
 function invalidateOverview(): void {
   lastFetchAt = 0;
+  fetchEpoch += 1;
 }
 
 // ------------------------------------------------------------------ verbs

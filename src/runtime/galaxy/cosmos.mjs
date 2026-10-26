@@ -119,7 +119,7 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
       if (sat.changed) await writeGalaxyJson(galaxy, seatPath(planet.id), sat.seat);
       await writeGalaxyJson(galaxy, `stars/${star.id}.json`, publicStar(star));
       await recordPlanetIn(galaxy, planet, { lastSeat: { star: star.id, name: star.name, at: Date.now() } });
-      return { value: null, message: `해: ${star.name} → ${planet.id}${sat.took ? ' (넘겨받음)' : ''}` };
+      return { value: null, message: `이어받기: ${star.name} → ${planet.id}${sat.took ? ' (넘겨받음)' : ''}` };
     },
     { dir }
   );
@@ -128,7 +128,7 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
     const lastSeen = holderLastSeen(sat.seat, beats);
     const text = {
       occupied: `${holder?.name || '다른 기기'}에서 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
-      stale: `${holder?.name || '다른 별'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
+      stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기에 넘겨주기로 한 작업 자리예요.',
     }[sat.refused];
     throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, planet: publicPlanet(planet) });
@@ -141,8 +141,11 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
   const last = before.history.at(-1);
   const lastMine = before.history.findLast((entry) => entry.star === star.id);
   const displaced = Boolean(lastMine && last && last.star !== star.id && !sameMachine(last, star, host));
-  const rescue =
+  const rescued =
     displaced && !guest && seatState(before, star.id, { beats }) !== 'occupied' ? await rescueDisplacedWork(root, star.name) : null;
+  // A rescue that stopped half-way left the work where it was; say so instead of claiming it was kept.
+  const rescue = rescued?.ok === false ? null : rescued;
+  const rescueFailed = rescued?.ok === false ? rescued : null;
   // A phone's seat lives on its host PC's beat.
   await publishBeat(local.id, { name: local.name, planets: [planet.id] }, { dir }).catch(() => null);
   const project = await bringUpToDate(root);
@@ -153,7 +156,9 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
     seat: sat.seat,
     took: sat.took || null,
     passed: sat.passed || null,
+    moved: sat.moved || null,
     rescue,
+    rescueFailed,
     environment,
     project,
     conversation,
@@ -190,6 +195,22 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
       secrets: project.secrets,
     });
   }
+  // The seat only moves on once the work is really on the remote: otherwise
+  // the next device would sit down at an older project and the work forks.
+  // `force` is the explicit override.
+  if (!project.ok && !force) {
+    const reason = {
+      behind: '원격 저장소에 더 새로운 커밋이 있어 올리지 못했어요. 먼저 받아서 합친 뒤 다시 내려놓아 주세요.',
+      push: '프로젝트를 원격 저장소에 올리지 못했어요. 연결을 확인하고 다시 내려놓아 주세요.',
+      commit: '변경 사항을 커밋하지 못했어요. git 상태를 확인하고 다시 내려놓아 주세요.',
+      detached: '지금 브랜치가 아닌 커밋에 있어 올릴 수 없어요. 브랜치로 돌아간 뒤 다시 내려놓아 주세요.',
+    }[project.error] || `프로젝트를 저장하지 못했어요 (${project.error}).`;
+    throw new GalaxyError('push_failed', `${reason} 작업 자리는 이 기기에 그대로 있어요.`, {
+      reason: project.error,
+      project,
+      planet: publicPlanet(planet),
+    });
+  }
   let env = null;
   let left = null;
   let exported = null;
@@ -209,7 +230,7 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
       await recordPlanetIn(galaxy, planet, {
         lastMoon: { star: star.id, name: star.name, at: Date.now(), note: String(note || '').slice(0, 300) },
       });
-      return { value: null, message: `달: ${star.name} ← ${planet.id}` };
+      return { value: null, message: `내려놓기: ${star.name} ← ${planet.id}` };
     },
     { dir }
   );
@@ -238,7 +259,7 @@ export async function requestTurn({ root, note = '', withdraw = false, guest = n
       result = withdraw ? withdrawTransition(seat, star) : requestTransition(seat, star, { note });
       if (!result.changed) return { value: null };
       await writeGalaxyJson(galaxy, seatPath(planet.id), result.seat);
-      return { value: null, message: `교대 ${withdraw ? '취소' : '요청'}: ${star.name} → ${planet.id}` };
+      return { value: null, message: `넘겨 달라는 요청${withdraw ? ' 취소' : ''}: ${star.name} → ${planet.id}` };
     },
     { dir }
   );

@@ -130,9 +130,10 @@
   /* The close target owns the trailing corner; the title stops short of it. */
   padding-right: 30px;
 }
-.mobile-tab-card-head > .codicon {
+.mobile-tab-card-head > .mobile-tab-card-glyph {
   flex: 0 0 auto;
-  font-size: var(--mx-icon-sm);
+  width: var(--mx-icon-sm);
+  height: var(--mx-icon-sm);
   color: var(--mx-text-soft);
 }
 .mobile-tab-card-head > b {

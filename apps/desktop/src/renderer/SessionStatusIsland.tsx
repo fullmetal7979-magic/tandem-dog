@@ -5,6 +5,7 @@ import type { DesktopModelSelection } from '../shared/contract';
 import type { Snapshot } from './desktop-types';
 import { t } from './i18n';
 import { ContextUsageIndicator } from './transcript-status';
+import './desktop/23-route-editor.css';
 
 // ONE translucent capsule pinned to the transcript's top-right corner (user:
 // 아이폰 다이나믹 아일랜드 같은 섬). The gauge used to live inside the composer

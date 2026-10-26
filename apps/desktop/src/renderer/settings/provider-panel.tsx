@@ -12,6 +12,7 @@ import { ProviderAccountsList, PROVIDER_ACCOUNTS_CHANGED } from '../ProviderAcco
 import { ActionButton, Group, ListEmpty, ResourceRow, settingsStatus } from './capability-controls';
 import { CustomProvidersSection, isCustomProvider } from './custom-provider-section';
 import { providerLabel, rows, sectionLoaded, type PanelContext, type RecordValue } from './capability-data';
+import '../desktop/20-automation.css';
 
 export function ProvidersPanel({ api, data, pending, run, confirm }: PanelContext) {
   const host = (window as unknown as { mixdogDesktop?: DesktopApi }).mixdogDesktop;

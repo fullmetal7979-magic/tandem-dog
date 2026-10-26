@@ -244,6 +244,11 @@
 .cosmos-outcome b {
   font-size: 15px;
 }
+.cosmos-outcome p {
+  margin: 0;
+  color: var(--mx-text-muted);
+  overflow-wrap: anywhere;
+}
 .cosmos-steps {
   display: flex;
   flex-wrap: wrap;
@@ -1173,6 +1178,36 @@ form.composer[data-seat-locked='true'] {
   overflow: hidden;
   background: var(--mx-bg-layer-1, var(--mx-bg));
   box-shadow: var(--mx-button);
+}
+.cosmos-run-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+.cosmos-run-tab {
+  min-height: 28px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mx-text-muted);
+  font: inherit;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cosmos-run-tab:focus-visible {
+  outline: 2px solid var(--mx-focus);
+  outline-offset: -2px;
+}
+.cosmos-run-tab.is-on {
+  background: var(--mx-bg-base);
+  color: var(--mx-text);
+  box-shadow: var(--mx-raised);
 }
 .cosmos-run-terminal-bar {
   display: flex;

@@ -2,7 +2,7 @@
 // (PC/모바일 parity rule): desktop opens it from the same strip trigger, and a
 // phone — whose projected 1040px viewport leaves no readable strip — uses it
 // as the primary tab switcher with device-scale compensation.
-import { Plus, X } from 'lucide-react';
+import { FileDiff, FileText, GitPullRequest, MessagesSquare, Plus, SquareTerminal, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -17,21 +17,26 @@ export { isMobileRemoteSurface };
 // Card centerpiece (user: 프레임 안이 검정으로 비어 있다): no page thumbnail
 // exists on this surface, so the tab KIND fills the preview area as a large
 // quiet glyph — Chrome-card composition without the screenshot machinery.
-function tabKindGlyph(tab: WorkspaceTab): string {
+function tabKindGlyph(tab: WorkspaceTab): LucideIcon {
   switch (tab.selection.kind) {
     case 'file':
-      return 'file';
+      return FileText;
     case 'diff':
-      return 'diff';
+      return FileDiff;
     case 'terminal':
-      return 'terminal';
+      return SquareTerminal;
     case 'pull-request':
-      return 'git-pull-request';
+      return GitPullRequest;
     case 'new':
-      return 'add';
+      return Plus;
     default:
-      return 'comment-discussion';
+      return MessagesSquare;
   }
+}
+
+function TabKindIcon({ tab }: { tab: WorkspaceTab }) {
+  const Icon = tabKindGlyph(tab);
+  return <Icon className="mobile-tab-card-glyph" size={14} aria-hidden="true" />;
 }
 
 function tabKindMeta(tab: WorkspaceTab): string {
@@ -212,7 +217,7 @@ export function MobileTabOverview({
                   }}
                 >
                   <span className="mobile-tab-card-head">
-                    <span className={`codicon codicon-${tabKindGlyph(tab)}`} aria-hidden="true" />
+                    <TabKindIcon tab={tab} />
                     <b>{tab.title || t('New task')}</b>
                   </span>
                   <p className="mobile-tab-card-preview">{text}</p>

@@ -40,12 +40,12 @@ test('the star map names every star and its state in words, and draws the reques
   const { StarMap } = await import('./StarMap.tsx');
   await act(async () => root.render(React.createElement(StarMap, { view: view() })));
   const svg = document.querySelector('.cosmos-starmap svg');
-  assert.match(svg.getAttribute('aria-label'), /my-app 우주 지도: 집 맥북이 작업 중\. 다른 기기 2개\./);
+  assert.match(svg.getAttribute('aria-label'), /my-app 기기 지도: 집 맥북이 작업 중\. 다른 기기 2개\./);
   const names = [...document.querySelectorAll('.cosmos-star-name')].map((node) => node.textContent);
   assert.deepEqual(names, ['집 맥북 (이 기기)', '회사 PC', '노트북']);
   const subs = [...document.querySelectorAll('.cosmos-star-sub')].map((node) => node.textContent);
   assert.match(subs[0], /47분째 작업 중/);
-  assert.equal(subs[1], '🔁 교대 요청 중');
+  assert.equal(subs[1], '🔁 넘겨 달라고 요청 중');
   assert.match(subs[2], /💤 3시간 전/);
   assert.equal(document.querySelectorAll('.cosmos-ask-line').length, 1);
   assert.equal(document.querySelectorAll('.cosmos-seat-halo').length, 1);
@@ -79,7 +79,7 @@ test('the seat lock covers an occupied planet and offers a hand-over request', a
   const card = document.querySelector('.cosmos-lock');
   assert.ok(card, 'the lock is shown');
   assert.match(card.textContent, /회사 PC가 작업 중이에요/);
-  assert.ok([...card.querySelectorAll('button')].some((button) => /교대 요청/.test(button.textContent)));
+  assert.ok([...card.querySelectorAll('button')].some((button) => /넘겨 달라고 요청/.test(button.textContent)));
   store.resetCosmosStore();
 });
 
@@ -119,6 +119,6 @@ test('seen from the phone, the PC it drives can be continued without a hand-over
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   const buttons = [...document.querySelectorAll('.cosmos-lock button')].map((button) => button.textContent);
   assert.ok(buttons.some((label) => /폰으로 이어하기/.test(label)));
-  assert.ok(!buttons.some((label) => /교대 요청/.test(label)));
+  assert.ok(!buttons.some((label) => /넘겨 달라고 요청/.test(label)));
   store.resetCosmosStore();
 });

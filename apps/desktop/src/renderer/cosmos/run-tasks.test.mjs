@@ -8,6 +8,7 @@ import {
   orderTasks,
   packageManagerFor,
   packageScriptTasks,
+  projectRuns,
   runTerminalId,
   scriptCommand,
   sha256Hex,
@@ -106,18 +107,46 @@ function fakeTerminals() {
   };
 }
 
-test('every run starts in a fresh PTY and releases the previous one first', async () => {
+test('every run gets a fresh PTY; another task that is still running is left alone', async () => {
   const fake = fakeTerminals();
   const project = '/Users/me/app';
-  const first = await startRun(fake.api, project, { command: 'npm run dev' }, null, 'n1');
-  const second = await startRun(fake.api, project, { command: 'npm test' }, first.terminalId, 'n2');
-  assert.notEqual(first.terminalId, second.terminalId);
-  assert.deepEqual(fake.released, [first.terminalId]);
+  const dev = await startRun(fake.api, project, { id: 'script:dev', command: 'npm run dev' }, null, 'n1');
+  // The caller still hands over its last terminal (dev's): it must survive a test run.
+  const tested = await startRun(fake.api, project, { id: 'script:test', command: 'npm test' }, dev.terminalId, 'n2');
+  assert.notEqual(dev.terminalId, tested.terminalId);
+  assert.deepEqual(fake.released, [], 'running test does not kill the dev server');
+  assert.equal(tested.restarted, null);
   assert.deepEqual(fake.typed, [
-    [first.terminalId, 'npm run dev\r'],
-    [second.terminalId, 'npm test\r'],
+    [dev.terminalId, 'npm run dev\r'],
+    [tested.terminalId, 'npm test\r'],
   ]);
-  assert.deepEqual([...fake.live], [second.terminalId], 'only the newest run stays alive');
+  assert.deepEqual([...fake.live].sort(), [dev.terminalId, tested.terminalId].sort());
+  assert.deepEqual(projectRuns(project), [
+    { taskId: 'script:dev', terminalId: dev.terminalId },
+    { taskId: 'script:test', terminalId: tested.terminalId },
+  ]);
+});
+
+test('re-running the same task restarts it in a fresh PTY', async () => {
+  const fake = fakeTerminals();
+  const project = '/Users/me/restart';
+  const dev = await startRun(fake.api, project, { id: 'script:dev', command: 'npm run dev' }, null, 'n1');
+  const tested = await startRun(fake.api, project, { id: 'script:test', command: 'npm test' }, dev.terminalId, 'n2');
+  const again = await startRun(fake.api, project, { id: 'script:dev', command: 'npm run dev' }, tested.terminalId, 'n3');
+  assert.notEqual(again.terminalId, dev.terminalId);
+  assert.equal(again.restarted, dev.terminalId);
+  assert.deepEqual(fake.released, [dev.terminalId], 'only the same task is restarted; test keeps running');
+  assert.deepEqual([...fake.live].sort(), [tested.terminalId, again.terminalId].sort());
+  assert.deepEqual(projectRuns(project).map((run) => run.terminalId).sort(), [tested.terminalId, again.terminalId].sort());
+  assert.deepEqual(projectRuns('/Users/me/other'), [], 'runs are kept per project');
+});
+
+test('a task without an id keeps the old one-terminal behaviour', async () => {
+  const fake = fakeTerminals();
+  const first = await startRun(fake.api, '/Users/me/legacy', { command: 'npm run dev' }, null, 'n1');
+  const second = await startRun(fake.api, '/Users/me/legacy', { command: 'npm test' }, first.terminalId, 'n2');
+  assert.deepEqual(fake.released, [first.terminalId]);
+  assert.equal(second.restarted, first.terminalId);
 });
 
 test('a failing release of the old PTY never blocks the new run', async () => {

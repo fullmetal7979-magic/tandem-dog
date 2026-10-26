@@ -101,6 +101,7 @@ export function StarterGuide({
   const api = window.mixdogDesktop;
   const [state, setState] = useState(readGuideState);
   const [expanded, setExpanded] = useState(false);
+  const [requestedGuide,setRequestedGuide]=useState(false);
   // Closing retires the guide for good, so X asks once before it does.
   const [confirmClose, setConfirmClose] = useState(false);
   const [tour, setTour] = useState<{ step: StepId; chain: boolean } | null>(null);
@@ -109,7 +110,9 @@ export function StarterGuide({
   const pillRef = useRef<HTMLElement>(null);
   const listId = useId();
   const { values, loading } = useSidebarReferences(api, REFERENCE_KEYS, !state.closed);
-  const galaxy = useCosmos('').view;
+  // The Galaxy steps read the shared '' overview; a retired guide (or a mode
+  // without the Galaxy screen) stops watching it.
+  const galaxy = useCosmos(!state.closed && desktopUtilityDockTabEnabled('tandem') ? '' : null).view;
   const update = (change: (current: GuideState) => GuideState) => setState(persisted(change));
   const visit = (step: StepId) => update(markVisited(step));
 
@@ -321,7 +324,11 @@ export function StarterGuide({
 
   // No pill until the real state is known, so it never paints 0 and jumps.
   // A running tour outlives the pill: its last step may be what finishes it.
-  const hidden = state.closed || finished || loading;
+  useEffect(()=>{
+    const reopen=()=>{setRequestedGuide(true);setExpanded(true);};
+    window.addEventListener('cosmos:open-guide',reopen);return()=>window.removeEventListener('cosmos:open-guide',reopen);
+  },[]);
+  const hidden = loading || (!requestedGuide && (state.closed || finished));
   const welcoming = !hidden && !state.welcomed && !onboardingActive && !tour;
   const answerWelcome = () => update((current) => ({ ...current, welcomed: true }));
   const pill = hidden ? null : (
@@ -424,7 +431,7 @@ export function StarterGuide({
               title: t('Close the getting started guide?'),
               description: t('It will not appear again.'),
               confirmLabel: t('Close'),
-              onConfirm: () => update((current) => ({ ...current, closed: true })),
+              onConfirm: () => {setRequestedGuide(false);update((current) => ({ ...current, closed: true }));},
             }}
             onClose={() => setConfirmClose(false)}
           />,

@@ -81,7 +81,31 @@ export function sameMachine(holder, star, host = null) {
  */
 export function sitTransition(seat, star, { beats, now = Date.now(), force = false, via = 'local', host = null } = {}) {
   const state = seatState(seat, star.id, { beats, now });
-  if (state === 'mine') return { seat, changed: false, state };
+  if (state === 'mine') {
+    // A phone picks its seat up again through ANOTHER PC: the seat moves to
+    // that machine (its gate and beat now carry it), recorded like a handover.
+    const from = seat.holder.host ?? null;
+    const to = host ?? null;
+    if (from === to) return { seat, changed: false, state };
+    const history = [...seat.history];
+    const open = history.findLastIndex((entry) => entry.star === star.id && !entry.to);
+    if (open >= 0) history[open] = { ...history[open], to: now, memo: history[open].memo || '다른 기기로 옮겨 이어감' };
+    history.push({ ...who(star), from: now, to: null, via, ...(to ? { host: to } : {}) });
+    return {
+      seat: {
+        ...seat,
+        holder: { ...seat.holder, ...who(star), since: now, via, host: to },
+        requests: seat.requests.filter((request) => request.star !== star.id),
+        handoffTo: null,
+        history: history.slice(-HISTORY_LIMIT),
+      },
+      changed: true,
+      state,
+      took: null,
+      passed: null,
+      moved: { from, to },
+    };
+  }
   const sibling = sameMachine(seat.holder, star, host);
   if (state === 'occupied' && !sibling) {
     return { seat, changed: false, state, refused: 'occupied' };
@@ -170,14 +194,14 @@ export async function sit(planetId, star, options = {}) {
   const result = await mutateSeat(
     planetId,
     (seat) => sitTransition(seat, star, options),
-    (r) => `seat: ${star.name} ${r.took ? 'took over' : 'sat down at'} ${planetId}`,
+    (r) => `seat: ${star.name} ${r.took ? 'took over' : r.moved ? 'moved' : 'sat down at'} ${planetId}`,
     options
   );
   if (result.refused) {
     const holder = result.seat.holder;
     const messages = {
       occupied: `${holder?.name || '다른 기기'}이(가) 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
-      stale: `${holder?.name || '다른 별'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
+      stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기를 위해 작업 자리를 비워 두었어요.',
     };
     throw new GalaxyError(`seat_${result.refused}`, messages[result.refused], { seat: result.seat });

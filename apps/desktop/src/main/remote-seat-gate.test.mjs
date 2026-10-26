@@ -43,11 +43,29 @@ test('writes ask the seat for the right folder; reads never ask', async () => {
 
 test('a terminal is judged by the folder it was opened in', async () => {
   const calls = [];
-  const methods = gateRemoteWrites(table(calls), {
-    gate: async (cwd) => (cwd === '/locked' ? 'locked' : null),
-    projectDirectory: async () => null,
-    sessionCwd: async () => null,
-  });
+  // The host opened t1 where the phone asked; forgetting it releases the id.
+  const opened = new Map();
+  const base = table(calls);
+  const methods = gateRemoteWrites(
+    {
+      ...base,
+      termEnsure: (params) => {
+        const result = base.termEnsure(params);
+        if (!opened.has(result.id)) opened.set(result.id, params[1] || null);
+        return result;
+      },
+      termDispose: (params) => {
+        opened.delete(params[0]);
+        return base.termDispose(params);
+      },
+    },
+    {
+      gate: async (cwd) => (cwd === '/locked' ? 'locked' : null),
+      projectDirectory: async () => null,
+      sessionCwd: async () => null,
+      terminalCwd: (id) => (opened.has(id) ? opened.get(id) : undefined),
+    }
+  );
   await methods.termEnsure([null, '/locked', null]);
   await assert.rejects(methods.termWrite(['t1', 'rm -rf build\n']), /locked/);
   await methods.termDispose(['t1']);
@@ -150,4 +168,49 @@ test('a terminal the PC opened is judged by the host, or by every project when u
     projectDirectories: async () => ['/free'],
   });
   await assert.rejects(failing.termWrite(['term_cosmos_run_zzz', 'x\r']), (error) => error.code === 'seat_refused');
+});
+
+test('termEnsure on an existing PC terminal with a null cwd is refused while the PC holds the seat', async () => {
+  const calls = [];
+  const asked = [];
+  // Like the real gate: a folder-less write goes ahead, the PC-held planet does not.
+  const gate = async (cwd) => {
+    asked.push(cwd);
+    return cwd === '/locked' ? '🔒 이 PC가 작업 중이에요.' : null;
+  };
+  const methods = gateRemoteWrites(
+    {
+      ...table(calls),
+      // Ensuring an id that already runs on the PC reuses that PTY, whatever folder was asked for.
+      termEnsure: (params) => {
+        calls.push(['termEnsure', ...params]);
+        return { id: 'term_cosmos_run_a', replay: '$ ' };
+      },
+    },
+    {
+      gate,
+      projectDirectory: async () => null,
+      sessionCwd: async () => null,
+      terminalCwd: (id) => (id === 'term_cosmos_run_a' ? '/locked' : undefined),
+    }
+  );
+  await methods.termEnsure(['term_cosmos_run_a', null, null]);
+  await assert.rejects(methods.termWrite(['term_cosmos_run_a', 'rm -rf .\r']), (error) => error.code === 'seat_refused');
+  await methods.termEnsure(['term_cosmos_run_a', '/free', null]);
+  await assert.rejects(methods.termWrite(['term_cosmos_run_a', 'rm -rf .\r']), /작업 중/);
+  assert.equal(asked.includes('/free') || asked.includes(null), false, "the phone's folder is never what the seat is asked about");
+  assert.equal(calls.some(([name]) => name === 'termWrite'), false, 'the refused keystrokes never reached the PTY');
+});
+
+test('termEnsure on a terminal the host cannot place falls back to every project', async () => {
+  const calls = [];
+  const methods = gateRemoteWrites(table(calls), {
+    gate: async (cwd) => (cwd === '/locked' ? 'locked' : null),
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    terminalCwd: () => undefined,
+    projectDirectories: async () => ['/free', '/locked'],
+  });
+  await methods.termEnsure(['t1', '/free', null]);
+  await assert.rejects(methods.termWrite(['t1', 'x\r']), /locked/);
 });

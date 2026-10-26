@@ -25,3 +25,5 @@ export function withFileLock<T>(
   task: () => T | Promise<T>,
   options?: { timeoutMs?: number; staleMs?: number; secret?: boolean }
 ): Promise<T>;
+
+export function updateJsonAtomic<T>(filePath: string, mutate: (current: T | null) => T | undefined, options?: AtomicFileOptions): Promise<T>;

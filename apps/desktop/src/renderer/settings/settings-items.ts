@@ -187,7 +187,8 @@ const REMOTE_SETTINGS_CATEGORIES = LOCAL_SETTINGS_CATEGORIES.filter(
   (category) => !REMOTE_HIDDEN_SETTINGS_CATEGORIES.has(category.value)
 );
 
-export function categoryForSettingsItem(value: SettingsItemValue): SettingsCategory {
+export function categoryForSettingsItem(value: SettingsItemValue | 'cosmos' | 'git'): SettingsCategory {
+  if(value==='cosmos'||value==='git')return value;
   return (
     SETTINGS_CATEGORIES.find((category) => (category.items as readonly SettingsItemValue[]).includes(value))?.value ||
     'general'
@@ -199,7 +200,7 @@ export function settingsCategoryForSurface(category: SettingsCategory, remote: b
   return remote && REMOTE_HIDDEN_SETTINGS_CATEGORIES.has(category) ? 'general' : category;
 }
 
-// 심플 모드 설정: only what everyday relay work needs.
+// All shipped settings remain reachable from the unified workspace.
 
 export function settingsCategoriesForSurface(remote: boolean): ReadonlyArray<SettingsCategoryItem> {
   const categories = remote ? REMOTE_SETTINGS_CATEGORIES : LOCAL_SETTINGS_CATEGORIES;

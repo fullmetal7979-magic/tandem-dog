@@ -3,6 +3,7 @@
 // swap the adjacent panel; creation actions live in the Sessions panel header.
 // Usage and Settings live at the rail foot.
 import type React from 'react';
+import { ChartPie, Settings } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { DESKTOP_SIDEBAR_DEFAULT_WIDTH } from '../shared/window-layout';
@@ -55,7 +56,7 @@ function usagePinGlyph(rows: ReturnType<typeof useUsageRailPin>['usagePinRows'],
     );
   }
   if (loading) return <InitialSurface variant="icon" />;
-  return <span className="codicon codicon-pie-chart" aria-hidden="true" />;
+  return <ChartPie size={24} aria-hidden="true" />;
 }
 
 export function ActivityRail({
@@ -231,7 +232,7 @@ export function ActivityRail({
           }}
           onClick={onOpenSettings}
         >
-          <span className="codicon codicon-settings-gear" aria-hidden="true" />
+          <Settings size={24} aria-hidden="true" />
         </button>
       )}
       {/* The flyout's bottom edge tracks the Usage button itself (user). */}

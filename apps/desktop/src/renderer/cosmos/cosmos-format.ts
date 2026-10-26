@@ -13,6 +13,8 @@ export interface CosmosVerdict {
   title: string;
   detail: string;
   action: CosmosAction;
+  /** What a screen reader hears when the state changes: the title without its ticking clock. */
+  live?: string;
 }
 
 const DIGIT_BATCHIM = new Set(['0', '1', '3', '6', '7', '8']);
@@ -90,7 +92,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       level: 'info',
       icon: '🌌',
       title: '은하수를 연결하면 어느 기기에서든 이어서 일할 수 있어요',
-      detail: '비공개 GitHub 저장소 하나로 설정·스킬·교신이 모든 기기에 따라다녀요.',
+      detail: '비공개 GitHub 저장소 하나로 설정·스킬·세션이 모든 기기에 따라다녀요.',
       action: 'setup',
     };
   }
@@ -101,8 +103,8 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: 'warn',
       icon: '🛰️',
-      title: '이 행성은 원격 저장소가 없어 이 기기에서만 쓸 수 있어요',
-      detail: 'GitHub 등에 저장소를 만들어 올리면 다른 기기와 교대로 이어서 작업할 수 있어요.',
+      title: '이 프로젝트는 원격 저장소가 없어 이 기기에서만 쓸 수 있어요',
+      detail: 'GitHub 등에 저장소를 만들어 올리면 다른 기기에서 이어받아 작업할 수 있어요.',
       action: null,
     };
   }
@@ -120,8 +122,8 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       return {
         level: 'info',
         icon: '⏳',
-        title: `${josa(target?.name || '교대를 요청한 기기', '을를')} 위해 자리를 비워 두었어요`,
-        detail: '잠시 뒤에도 앉지 않으면 누구나 앉을 수 있어요.',
+        title: `${josa(target?.name || '넘겨 달라고 요청한 기기', '을를')} 위해 자리를 비워 두었어요`,
+        detail: '잠시 뒤에도 이어받지 않으면 누구나 이어받을 수 있어요.',
         action: 'sun',
       };
     }
@@ -130,7 +132,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       icon: '☄️',
       title: waitingForMe ? '내 차례예요 · 이어받아서 계속하세요' : '지금은 아무도 작업하지 않아요',
       detail: [
-        lastMoon?.to ? `마지막: ${josa(lastMoon.name, '이가')} ${ago(lastMoon.to, now)} 내렸어요${lastMoon.memo ? ` — “${lastMoon.memo}”` : ''}` : '',
+        lastMoon?.to ? `마지막: ${josa(lastMoon.name, '이가')} ${ago(lastMoon.to, now)} 내려놓았어요${lastMoon.memo ? ` — “${lastMoon.memo}”` : ''}` : '',
         behind ? `새 커밋 ${behind}개를 받아올게요.` : '',
       ]
         .filter(Boolean)
@@ -144,7 +146,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       return {
         level: 'warn',
         icon: '🔁',
-        title: `${josa(request.name, '이가')} 교대를 원해요`,
+        title: `${josa(request.name, '이가')} 넘겨 달라고 요청했어요`,
         detail: request.note ? `“${request.note}” · 마무리하면 바로 넘겨줄게요.` : '마무리하면 바로 넘겨줄게요.',
         action: 'handoff',
       };
@@ -153,6 +155,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       level: unsaved ? 'info' : 'ok',
       icon: '🕹️',
       title: `지금 이 기기에서 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      live: '지금 이 기기에서 작업 중이에요',
       detail: unsaved ? `아직 올리지 않은 변경 ${unsaved}건 · 떠날 때 내려놓기를 누르면 모두 저장돼요.` : '다른 기기로 옮길 때 내려놓기를 누르세요.',
       action: 'moon',
     };
@@ -162,6 +165,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       level: 'warn',
       icon: '📱',
       title: `${josa(who(seat?.holder), '이가')} 이 PC에서 원격으로 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      live: `${josa(who(seat?.holder), '이가')} 이 PC에서 원격으로 작업 중이에요`,
       detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르거나, 지금 이 PC로 되찾을 수 있어요.',
       action: 'reclaim',
     };
@@ -171,7 +175,8 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       level: 'info',
       icon: '💻',
       title: `${josa(who(seat?.holder), '이가')} 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
-      detail: '지금 연결된 바로 그 PC라서 교대 없이 폰으로 이어갈 수 있어요. 그 PC는 잠겨요.',
+      live: `${josa(who(seat?.holder), '이가')} 작업 중이에요`,
+      detail: '지금 연결된 바로 그 PC라서 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있어요. 그 PC는 잠겨요.',
       action: 'carry',
     };
   }
@@ -181,8 +186,9 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       level: asked ? 'info' : 'warn',
       icon: asked ? '📨' : '🔒',
       title: asked
-        ? `교대 요청을 보냈어요 · ${josa(who(seat?.holder), '이가')} 마무리하면 알려 드릴게요`
+        ? `넘겨 달라고 요청했어요 · ${josa(who(seat?.holder), '이가')} 마무리하면 알려 드릴게요`
         : `${josa(who(seat?.holder), '이가')} 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      live: asked ? undefined : `${josa(who(seat?.holder), '이가')} 작업 중이에요`,
       detail: asked ? '확인은 1분마다 해요.' : '겹쳐 고치지 않도록 이 기기에서는 잠겨 있어요.',
       action: asked ? 'withdraw' : 'request',
     };
@@ -191,9 +197,24 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     level: 'bad',
     icon: '⚠️',
     title: `${josa(who(seat?.holder), '이가')} ${ago(view.holderLastSeen, now)}부터 응답이 없어요`,
+    live: `${josa(who(seat?.holder), '이가')} 응답이 없어요`,
     detail: '그 기기가 꺼졌다면 넘겨받을 수 있어요. 그 기기에 남은 작업은 나중에 따로 보관돼요.',
     action: 'force',
   };
+}
+
+/**
+ * A failure as the user should read it. Electron wraps main-process errors as
+ * "Error invoking remote method 'cosmos:sun': Error: …"; only the last part is
+ * meant for people.
+ */
+export function cosmosErrorText(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error ?? '');
+  const plain = text
+    .replace(/^Error invoking remote method '[^']*':\s*/, '')
+    .replace(/^(?:[A-Z][A-Za-z]*)?Error:\s*/, '')
+    .trim();
+  return plain || '알 수 없는 문제가 생겼어요.';
 }
 
 export const ACTION_LABEL: Record<Exclude<CosmosAction, null>, string> = {
@@ -201,7 +222,7 @@ export const ACTION_LABEL: Record<Exclude<CosmosAction, null>, string> = {
   sun: '☀️ 이어받기',
   moon: '🌙 내려놓기',
   handoff: '🌙 내려놓고 넘기기',
-  request: '🔁 교대 요청',
+  request: '🔁 넘겨 달라고 요청',
   withdraw: '요청 취소',
   force: '⚠️ 강제로 넘겨받기',
   reclaim: '↩️ 이 PC로 되찾기',

@@ -37,7 +37,7 @@ import {
 } from './settings-items';
 import './settings.css';
 
-export type SettingsSection = (typeof SETTINGS_ITEMS)[number]['value'];
+export type SettingsSection = (typeof SETTINGS_ITEMS)[number]['value'] | 'cosmos' | 'git';
 
 type SettingsApi = Partial<DesktopApi>;
 

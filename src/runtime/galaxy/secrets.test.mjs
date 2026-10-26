@@ -8,6 +8,7 @@ import {
   redactJson,
   redactText,
   restoreSecrets,
+  scrubUrlsInText,
 } from './secrets.mjs';
 
 test('token-shaped strings are redacted from free text', () => {
@@ -56,4 +57,24 @@ test('credential files are recognised by name', () => {
   for (const path of ['skills/review/SKILL.md', 'hooks.json', 'core-memory.json', 'src/env.ts']) {
     assert.equal(isSecretFile(path), false, path);
   }
+});
+
+test('URL credentials are matched by the whole parameter name only', () => {
+  const scrub = (url) => scrubUrlsInText(url, { mark: true });
+  // Names that merely contain a credential word stay untouched (and so do the files that hold them).
+  for (const url of [
+    'https://h.example/search?keyword=cats&monkey=1',
+    'https://h.example/x?keys=a&tokenizer=bpe&author=me&session_length=3&barcode=9&passage=2',
+    'https://h.example/x?signature_type=pdf&credentialed=no',
+  ]) {
+    assert.equal(scrub(url), url, url);
+  }
+  assert.equal(scrub('https://h.example/x?token=abc&ok=1'), 'https://h.example/x?token=redacted-secret&ok=1');
+  assert.equal(scrub('https://h.example/x?Access_Token=abc#top'), 'https://h.example/x?Access_Token=redacted-secret#top');
+  assert.equal(scrub('https://h.example/x?a=1;api_key=zz'), 'https://h.example/x?a=1;api_key=redacted-secret');
+  assert.equal(
+    scrub('https://b.s3.example/o?X-Amz-Credential=AK%2F1&X-Amz-Signature=ff&v=2'),
+    'https://b.s3.example/o?X-Amz-Credential=redacted-secret&X-Amz-Signature=redacted-secret&v=2'
+  );
+  assert.equal(scrub(scrub('https://h.example/x?sig=1')), 'https://h.example/x?sig=redacted-secret', 'idempotent');
 });

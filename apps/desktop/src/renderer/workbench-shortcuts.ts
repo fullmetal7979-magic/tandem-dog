@@ -19,6 +19,7 @@ export const WORKBENCH_SHORTCUTS = [
   { id: 'sit', keys: 'shift+mod+s', label: 'Continue on this device' },
   { id: 'leave', keys: 'shift+mod+l', label: 'Save and hand off' },
   { id: 'run', keys: 'shift+mod+e', label: 'Open Run (▶ 실행)' },
+  { id: 'taskTools', keys: 'shift+mod+k', label: '작업 도구' },
   { id: 'models', keys: 'shift+mod+m', label: 'Select model' },
 ] as const;
 export type WorkbenchShortcut = typeof WORKBENCH_SHORTCUTS[number]['id'];

@@ -20,12 +20,13 @@
 // per PC and never travels. Whole `env` / `headers` blocks and credentials in
 // URLs are redacted. Files that are too big, credential-named, or symlinks
 // are left alone on both sides: absent from a snapshot never means deleted.
-import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, sep } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { readConfig, updateConfig } from '../shared/config.mjs';
 import { resolvePluginData } from '../shared/plugin-paths.mjs';
-import { SECRET_PLACEHOLDER, hasRedactionMark, isSecretFile, redactJson, redactText, restoreSecrets, scrubUrlsInText } from './secrets.mjs';
+import { SECRET_PLACEHOLDER, hasRedactionMark, isSecretFile, redactJson, redactText, restoreSecrets, scrubUrl, scrubUrlsInText } from './secrets.mjs';
+import { galaxyRemote } from './galaxy-repo.mjs';
 import { cosmosHome } from './star.mjs';
 
 export const SYNCED_CONFIG_KEYS = Object.freeze([
@@ -109,10 +110,47 @@ export function statePath(home = cosmosHome()) {
 export async function readSyncState(home = cosmosHome()) {
   try {
     const state = JSON.parse(await readFile(statePath(home), 'utf8'));
-    return { base: state.base && typeof state.base === 'object' ? state.base : {}, syncedAt: state.syncedAt || 0 };
+    return {
+      base: state.base && typeof state.base === 'object' ? state.base : {},
+      syncedAt: state.syncedAt || 0,
+      galaxyId: typeof state.galaxyId === 'string' ? state.galaxyId : null,
+      remote: typeof state.remote === 'string' ? state.remote : null,
+    };
   } catch {
-    return { base: {}, syncedAt: 0 };
+    return { base: {}, syncedAt: 0, galaxyId: null, remote: null };
   }
+}
+
+// The base is an agreement with ONE Galaxy. The Galaxy carries its own id
+// (galaxy.json, created by the first sync) and the base remembers it with the
+// remote address; a base made against another Galaxy (a remote connected or
+// swapped since) would read that Galaxy's missing files as deletions, so it
+// is dropped and the next sync merges both sides without deleting anything.
+const GALAXY_ID_FILE = 'galaxy.json';
+
+/** This Galaxy's id, created (inside the caller's transaction) when missing. */
+export async function galaxyIdIn(galaxy) {
+  try {
+    const record = JSON.parse(await readFile(join(galaxy, GALAXY_ID_FILE), 'utf8'));
+    if (typeof record?.id === 'string' && record.id) return record.id;
+  } catch {
+    /* none yet */
+  }
+  const id = randomUUID();
+  await writeText(join(galaxy, GALAXY_ID_FILE), canonical({ v: 1, id }));
+  return id;
+}
+
+async function galaxyIdentity(galaxy) {
+  const remote = await galaxyRemote(galaxy).catch(() => null);
+  return { galaxyId: await galaxyIdIn(galaxy), remote: remote ? scrubUrl(remote) : null };
+}
+
+/** The agreed base, or {} when it was made against another Galaxy. */
+export function baseFor(state, identity) {
+  if (!state.galaxyId || state.galaxyId !== identity.galaxyId) return {};
+  if ((state.remote ?? null) !== (identity.remote ?? null)) return {};
+  return state.base;
 }
 
 async function writeSyncState(state, home = cosmosHome()) {
@@ -279,7 +317,7 @@ export function planSync(local, galaxy, base, direction, { skip = new Set() } = 
   const keys = new Set([...local.keys(), ...galaxy.keys(), ...Object.keys(base)]);
   const plan = { down: [], up: [], conflicts: [], base: {} };
   for (const key of [...keys].sort()) {
-    if (skip.has(key)) continue;
+    if (isSkipped(key, skip)) continue;
     const l = local.has(key) ? sha(local.get(key)) : null;
     const g = galaxy.has(key) ? sha(galaxy.get(key)) : null;
     const b = base[key] ?? null;
@@ -325,6 +363,43 @@ async function present(path) {
   }
 }
 
+/** True when `key` or a folder above it is in `skip` (a skipped symlinked folder covers its whole subtree). */
+export function isSkipped(key, skip) {
+  if (skip.has(key)) return true;
+  for (let at = key.indexOf('/'); at > 0; at = key.indexOf('/', at + 1)) {
+    if (skip.has(key.slice(0, at))) return true;
+  }
+  return false;
+}
+
+/**
+ * May `target` be written or removed? Only when no folder between `dataDir`
+ * and it is a symlink, and its nearest existing folder really lies inside
+ * `dataDir`: a write must never go through a link to somewhere else.
+ */
+export async function insideDataDir(dataDir, target) {
+  const rel = relative(dataDir, target);
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return false;
+  const parts = rel.split(sep);
+  let cursor = dataDir;
+  let deepest = dataDir;
+  for (const part of parts.slice(0, -1)) {
+    cursor = join(cursor, part);
+    const info = await present(cursor);
+    if (!info) break;
+    if (info.isSymbolicLink() || !info.isDirectory()) return false;
+    deepest = cursor;
+  }
+  try {
+    const realRoot = await realpath(dataDir);
+    const realDeepest = await realpath(deepest);
+    const inner = relative(realRoot, realDeepest);
+    return !inner.startsWith('..') && !isAbsolute(inner);
+  } catch {
+    return false;
+  }
+}
+
 /** Returns the keys it deliberately did not apply. */
 async function applyDown(plan, { dataDir, risky }) {
   const configChanges = [];
@@ -333,8 +408,8 @@ async function applyDown(plan, { dataDir, risky }) {
     if (!allowedKey(key, risky)) continue;
     if (key.startsWith('files/')) {
       const target = join(dataDir, key.slice('files/'.length));
-      if (relative(dataDir, target).startsWith('..')) continue;
       if (isSecretFile(target)) continue;
+      if (!(await insideDataDir(dataDir, target))) continue;
       const here = await present(target);
       // Never write through a symlink (it could point anywhere).
       if (here?.isSymbolicLink()) continue;
@@ -404,13 +479,15 @@ async function keepLosers(plan, home, dataDir) {
 export async function syncEnvironmentIn(galaxy, { direction, dataDir = resolvePluginData(), home = cosmosHome(), config = readConfig() } = {}) {
   const risky = syncRiskyEnabled(config);
   const state = await readSyncState(home);
+  const identity = await galaxyIdentity(galaxy);
+  const base = baseFor(state, identity);
   const mine = await localSnapshotDetailed({ dataDir, config, risky });
   const theirs = await galaxySnapshotDetailed(galaxy);
   const skip = new Set([...mine.skipped, ...theirs.skipped]);
-  for (const key of [...mine.snapshot.keys(), ...theirs.snapshot.keys(), ...Object.keys(state.base)]) {
+  for (const key of [...mine.snapshot.keys(), ...theirs.snapshot.keys(), ...Object.keys(base)]) {
     if (!allowedKey(key, risky)) skip.add(key);
   }
-  const plan = planSync(mine.snapshot, theirs.snapshot, state.base, direction, { skip });
+  const plan = planSync(mine.snapshot, theirs.snapshot, base, direction, { skip });
   await applyUp(plan, galaxy);
   return {
     plan,
@@ -424,13 +501,15 @@ export async function syncEnvironmentIn(galaxy, { direction, dataDir = resolvePl
         if (mine.snapshot.has(key)) plan.base[key] = sha(mine.snapshot.get(key));
         else delete plan.base[key];
       }
-      await writeSyncState({ base: plan.base, syncedAt: Date.now() }, home);
+      await writeSyncState({ base: plan.base, syncedAt: Date.now(), ...identity }, home);
       return {
         down: plan.down.length - withheld.length,
         up: plan.up.length,
         conflicts: plan.conflicts.map(({ key, kept }) => ({ key, kept })),
         withheld,
         backupDir,
+        // The old base belonged to another Galaxy and was set aside.
+        rebased: base !== state.base && Object.keys(state.base).length > 0,
       };
     },
   };

@@ -7,12 +7,11 @@
 // first-paint bundle: only the resolved language is fetched, and English
 // fetches nothing at all.
 import './process-shim';
+import { installWorkbenchFeedback } from './workbench-feedback';
+installWorkbenchFeedback();
 import { installShellUpdateState, recoverShellBootstrap } from './shell-update-state';
 import { preloadMarkdownBody } from './markdown-body-loader';
-import { applyUiModeAttribute } from './cosmos/ui-mode';
 
-// 심플/고급 mode styles apply from the first paint.
-applyUiModeAttribute();
 // Browser-served remote sessions install a WebSocket-backed DesktopApi before
 // any module reads window.mixdogDesktop; inside Electron the preload bridge
 // already exists and this is a no-op.

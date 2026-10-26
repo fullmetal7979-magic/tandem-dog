@@ -92,29 +92,87 @@ export async function bringUpToDate(root) {
 }
 
 /**
+ * Changed files between two commits that must not leave this machine:
+ * credential-named files, or token-shaped content in the `to` version.
+ */
+export async function secretFindingsInRange(root, from, to) {
+  const r = await runGit(root, ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', '--diff-filter=d', '-z', from, to]);
+  if (r.code !== 0) return null;
+  const findings = [];
+  for (const path of r.stdout.split('\0').filter(Boolean)) {
+    if (isSecretFile(path)) {
+      findings.push({ path, reason: 'file' });
+      continue;
+    }
+    const size = Number(await out(root, ['cat-file', '-s', `${to}:${path}`])) || 0;
+    if (!size || size > 512 * 1024) continue;
+    const blob = await runGit(root, ['cat-file', 'blob', `${to}:${path}`]);
+    if (blob.code === 0 && containsSecret(blob.stdout)) findings.push({ path, reason: 'content' });
+  }
+  return findings;
+}
+
+/**
  * Keep this star's unpushed work on its own branch and line the working
  * branch up with the remote, for a star whose seat was taken while it was away.
+ *
+ * Every step is checked: the hard reset only runs once the rescue branch
+ * provably holds the old HEAD and every change, and the checkout is back on
+ * the working branch. Any failure stops there and leaves the work in place
+ * (`{ ok: false, failed: <step> }`). A rescue that would carry a secret stays
+ * a local branch (`pushed: false, secrets`).
  */
 export async function rescueDisplacedWork(root, starName, now = new Date()) {
   const state = await branchState(root);
-  if (!state.upstream || (state.ahead === 0 && state.dirty === 0)) return null;
+  if (!state.upstream || !state.branch || (state.ahead === 0 && state.dirty === 0)) return null;
   const safeName = String(starName || 'star')
     .replace(/[^\p{L}\p{N}-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 30);
   const stampText = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
   const rescue = `cosmos/rescue-${safeName || 'star'}-${stampText}`;
+  const summary = { branch: rescue, commits: state.ahead, dirty: state.dirty };
+  const fail = (failed, result) => ({ ok: false, failed, detail: String(result?.stderr || result?.stdout || '').trim(), ...summary });
+  const head = await out(root, ['rev-parse', '--verify', 'HEAD']);
+  if (!head) return fail('head');
   const env = (await hasIdentity(root)) ? {} : IDENT_FALLBACK;
-  await runGit(root, ['switch', '--quiet', '-c', rescue]);
+  // Back to the working branch after a failed step; the changes travel along
+  // (both branches point at the same commit until the rescue commit lands).
+  const back = async () => {
+    await runGit(root, ['switch', '--quiet', state.branch]);
+    await runGit(root, ['branch', '--quiet', '-D', rescue]);
+  };
+  const switched = await runGit(root, ['switch', '--quiet', '-c', rescue]);
+  if (switched.code !== 0) return fail('switch', switched);
   if (state.dirty) {
-    await runGit(root, ['add', '-A']);
-    await runGit(root, ['commit', '--quiet', '--no-verify', '-m', `cosmos: ${starName}의 보관된 작업`], { env });
+    const added = await runGit(root, ['add', '-A']);
+    if (added.code !== 0) {
+      await back();
+      return fail('add', added);
+    }
+    const commit = await runGit(root, ['commit', '--quiet', '--no-verify', '--no-gpg-sign', '-m', `cosmos: ${starName}의 보관된 작업`], { env });
+    if (commit.code !== 0) {
+      await back();
+      return fail('commit', commit);
+    }
   }
+  // The rescue branch must hold the old HEAD and leave nothing uncommitted behind.
+  const tip = await out(root, ['rev-parse', '--verify', `refs/heads/${rescue}`]);
+  const holdsHead = tip && (await runGit(root, ['merge-base', '--is-ancestor', head, tip])).code === 0;
+  if (!holdsHead || (await changedPaths(root)).length) return fail('verify');
+  const secrets = await secretFindingsInRange(root, state.upstream, tip);
+  let pushed = false;
   const remote = await planetRemote(root);
-  if (remote) await runGit(root, ['push', '--quiet', '-u', remote.name, rescue]);
-  await runGit(root, ['switch', '--quiet', state.branch]);
-  await runGit(root, ['reset', '--quiet', '--hard', state.upstream]);
-  return { branch: rescue, commits: state.ahead, dirty: state.dirty };
+  if (remote && secrets && !secrets.length) {
+    pushed = (await runGit(root, ['push', '--quiet', '-u', remote.name, rescue])).code === 0;
+  }
+  const returned = await runGit(root, ['switch', '--quiet', state.branch]);
+  if (returned.code !== 0 || (await out(root, ['symbolic-ref', '--quiet', '--short', 'HEAD'])) !== state.branch) {
+    return fail('switch-back', returned);
+  }
+  const reset = await runGit(root, ['reset', '--quiet', '--hard', state.upstream]);
+  if (reset.code !== 0) return fail('reset', reset);
+  return { ok: true, ...summary, pushed, ...(secrets?.length ? { secrets } : {}) };
 }
 
 /** 달: commit everything (gitignore respected) and push. Refuses secrets. */

@@ -196,6 +196,12 @@ export class DesktopSessionMetadata {
       .filter(([, value]) => value.taskId === taskId).map(([id]) => id)])];
   }
 
+  async linkImportedTask(taskId: string, previousSessionId: string, targetId: string): Promise<void> {
+    await this.load();
+    if(![taskId,previousSessionId,targetId].every(isSessionId)||previousSessionId===targetId)return;
+    this.lineageMap[targetId]={taskId,previousSessionId};await this.queueWrite();
+  }
+
   withTaskLineage<T extends { id: string }>(rows: T[]): Array<T & Partial<SessionTaskLineage>> {
     return rows.map(row => this.lineageMap[row.id] ? { ...row, ...this.lineageMap[row.id] } : row);
   }

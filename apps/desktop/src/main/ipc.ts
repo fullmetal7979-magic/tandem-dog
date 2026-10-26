@@ -1,3 +1,4 @@
+import { requiredWorkbenchRequest } from './workbench-service';
 // Explicit handler/preload registration:
 // arbitrary renderer-selected method execution is intentionally absent.
 // Each handler family lives in its own ipc-*.ts module; this file owns the
@@ -249,6 +250,21 @@ export function registerDesktopIpc(
     operations: serviceOperations,
     shell,
     grantedFile,
+  });
+  handle(DESKTOP_IPC.workbench, async (_event, raw) => {
+    const request=requiredWorkbenchRequest(raw);
+    const projectPath=request.projectPath?await host.projectDirectory(request.projectPath):'';
+    const result=await invokeDesktopOperation<Record<string,unknown>>('workbench',[{...request,projectPath}]);
+    if(request.action==='restore-snapshot' && result.restored) {
+      const restored=result.restored as {path:string;conversation?:Record<string,unknown>|null;sessionId?:string;warning?:string};
+      await host.addProject(restored.path);
+      if(Array.isArray(restored.conversation?.messages) && restored.conversation.messages.length) {
+        try { restored.sessionId=(await host.restoreWorkbenchConversation(restored.path,restored.conversation)).sessionId; }
+        catch(error) { restored.warning=error instanceof Error?error.message:String(error); }
+      }
+      delete restored.conversation;
+    }
+    return result;
   });
   registerCosmosIpc({ handle, operations: serviceOperations });
   const eventChannels = new Set<string>([

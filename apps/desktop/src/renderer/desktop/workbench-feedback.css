@@ -1,0 +1,16 @@
+.cosmos-home--focused {gap:12px;padding-block:20px;max-width:760px;animation:workbench-home-enter 180ms ease-out;}
+.cosmos-home--focused .cosmos-home-head {gap:10px;}
+.cosmos-home--focused .cosmos-home-head h1 {font-size:18px;line-height:1.4;letter-spacing:-.025em;}
+.cosmos-home--focused .cosmos-home-head p {font-size:12px;line-height:1.6;}
+.cosmos-home-status {display:flex;align-items:center;gap:7px;margin:0;color:var(--mx-text-muted);font-size:12px;line-height:1.6;}
+.cosmos-home-actions {display:flex;flex-wrap:wrap;align-items:center;gap:7px;}
+.cosmos-home-actions .cosmos-button {min-height:34px;font-size:12px;padding:7px 12px;border-radius:8px;white-space:normal;line-height:1.5;}
+.cosmos-home-actions .cosmos-button:hover:not(:disabled) {box-shadow:0 3px 12px #0002;}
+.cosmos-home-devices {font-size:12px;color:var(--mx-text-muted);}
+.cosmos-home-devices summary {cursor:pointer;padding-block:6px;}
+.cosmos-home-devices .cosmos-home-map {max-width:500px;}
+.cosmos-seat-halo,.cosmos-ask-line,.cosmos-turn.is-live {animation:none;}
+:root[data-app-hidden=true] :is(.cosmos-steps,.cosmos-comet,.workbench-dialog) * {animation-play-state:paused!important;}
+:root[data-workbench-effects=off] :is(.cosmos-home,.cosmos-button,.draft-token-budget) {animation:none!important;transition:none!important;}
+@keyframes workbench-home-enter {from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce) {.cosmos-home--focused,.cosmos-home-actions *{animation:none!important;transition:none!important}}

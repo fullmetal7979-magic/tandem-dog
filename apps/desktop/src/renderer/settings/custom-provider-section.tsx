@@ -8,6 +8,7 @@ import { providerLabel, type PanelContext, type RecordValue } from './capability
 import { record, rows } from '../record-utils';
 import { useMobileBack } from '../mobile-back';
 import { acquireTitleBarDim } from '../titlebar-dim';
+import '../desktop/20-automation.css';
 
 export const CUSTOM_PROTOCOLS = [
   { value: 'openai-chat', label: 'OpenAI Chat Completions' },

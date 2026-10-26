@@ -1,22 +1,9 @@
 /* Desktop layer 20 — Schedules, webhooks, workflows, OAuth panels.
-   Loaded in fixed order from ../desktop.css; the cascade depends on that
-   order, so rules must never move between layers or be re-sorted. */
-.schedules-page {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 720px;
-  min-height: 100%;
-  margin: 0 auto;
-  padding: 40px 32px 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-@container mixdog-pane (max-width: 640px) {
-  .schedules-page {
-    padding: 24px 16px 40px;
-  }
-}
+   Advanced-view rules only: every selector requires a class that only lazily
+   loaded views render, so this file is imported by those views (see the
+   import sites listed in ../desktop.css) and lands after every eager layer.
+   Rules that first paint can reach, or whose order against a later layer
+   matters, live in ./20-automation-eager.css. Never re-sort either file. */
 /* justify-content matters: this inline-flex overrides .session-panel-action's
    centering grid, and an uncentered glyph drifted ~8px left of the ⋯ column
    (user: + 버튼 위치 정렬 잘못됨). */
@@ -47,21 +34,6 @@
   background: var(--mx-text);
   box-shadow: none;
 }
-/* Schedules interact states stay flat (user: no hover wash). */
-.schedules-page .settings-action:hover:not(:disabled) {
-  color: var(--mx-text);
-  background: var(--mx-bg-base);
-}
-/* The scrim layer, the card chrome, the header ladder, the footer plate and
-   the button ladder are declared ONCE for every modal in the dialog system
-   (30-dialogs.css). Only what belongs to the rail editors themselves stays
-   here: how wide the card is, and how its scrolling form body is laid out. */
-.schedules-dialog {
-  /* ONE width ladder for the rail editors: a card with a Markdown body keeps
-     the chat composer's 800, and the short forms step down through
-     --mx-editor-width so three fields never float in an 800px card. */
-  width: min(var(--mx-editor-width, 800px), 100%);
-}
 /* Height ladder for the rail editors (user: 팝업 상하 최대 크기): forms stop
    at 640, Markdown editors at 720, short route/loading cards at 480; the
    form body scrolls past the cap. */
@@ -71,63 +43,6 @@
 }
 .workflows-dialog {
   --mx-dialog-max-height: 720px;
-}
-.workflows-route-dialog,
-.sidebar-loading-dialog {
-  --mx-dialog-max-height: 480px;
-}
-.schedules-dialog > form {
-  container: sidebar-dialog / inline-size;
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  /* One rhythm down the form: 16px between fields, and the body opens right
-     under the header's own 12px so the title never floats away from field
-     one (user: 정렬이 마음에 들지 않는다). */
-  gap: 16px;
-  padding: 4px var(--mx-dialog-inset) var(--mx-dialog-inset);
-}
-.schedules-field {
-  min-width: 0;
-  display: grid;
-  gap: 8px;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-minor);
-  font-weight: var(--mx-weight-regular);
-}
-/* A field title and its note are ONE block: they close to 4px, and only the
-   control opens the full 8px step — grown from 2/6 with the 15px label
-   (user: 제목·설명·텍스트상자 사이가 좁다). */
-.schedules-field > span + small,
-.projects-edit-field > div > span + small {
-  margin-top: -4px;
-}
-.schedules-field > span,
-.projects-edit-field > div > span {
-  /* Labels align with the control edge; values keep their internal inset.
-     The dialog walks the rail's type ramp (user: 사이드탭 폰트 규칙처럼):
-     title 16 > field label 15 > item/control text 14 > note 13. */
-  color: var(--mx-text);
-  font-size: var(--mx-font-category);
-  font-weight: var(--mx-weight-semibold);
-  line-height: var(--mx-line-emphasis);
-}
-/* The field plate itself (32px, 8px text inset, hairline, focus ring) is
-   declared once in the dialog system; only the read-only tone lives here. */
-/* The switch's native checkbox stays out: this unlayered opacity outranked the
-   layered `.mixdog-settings__switch input { opacity: 0 }` and flashed the
-   hidden box while a toggle's write held the dialog busy. */
-.schedules-dialog input:not([type="checkbox"]):disabled {
-  color: var(--mx-text-muted);
-  -webkit-text-fill-color: var(--mx-text-muted);
-  cursor: default;
-  opacity: 1;
-}
-.schedules-dialog input:not([type="checkbox"]):disabled:focus {
-  box-shadow: var(--mx-button);
 }
 .schedules-composer {
   display: grid;
@@ -185,31 +100,6 @@
   flex-wrap: wrap;
   padding: 8px 12px 0;
 }
-/* Automations group: the header row is a PURE disclosure button — clicking
-   anywhere toggles the run list. The chevron leads in the fixed status cell
-   so every group's disclosure sits in ONE column (user: 정렬이 안 맞는다);
-   expanded runs indent one step and read one size smaller. */
-.automation-group-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.automation-group-header .session-row-status svg {
-  color: var(--mx-icon-muted);
-}
-.automation-group-past {
-  padding-left: 14px;
-}
-/* Past runs are CHILD items: one size and one ink step under their group,
-   so the group names carry the list (importance = ink, user rule). */
-.automation-group-past .session-row-copy b {
-  font-size: var(--mx-font-meta);
-  color: var(--mx-text-soft);
-}
 /* The editor's composer-footer clone uses the same flat chip skin as the
    chat composer (model/effort/fast/workflow read as quiet text triggers). */
 .schedules-composer-footer .mx-select-trigger,
@@ -226,11 +116,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.schedules-field > .mx-select-root .mx-select-trigger,
-.schedules-frequency .mx-select-trigger {
-  height: 32px;
-  border-radius: var(--mx-radius-md);
 }
 .schedules-frequency input {
   flex: 1;
@@ -296,66 +181,10 @@
 .webhook-connection-copy:disabled {
   opacity: var(--mx-op-disabled);
 }
-.schedules-dialog footer {
-  /* Pinned to the card floor while the form scrolls beneath it. It wears the
-     CARD's own tone with no hairline (user: 확인/취소 구역이 분리돼 보이는 게
-     별로다) — opaque only so scrolled fields vanish seamlessly under it. Its
-     inline inset stays the form's 20px, so Save closes on the fields' right
-     edge. */
-  position: sticky;
-  bottom: calc(-1 * var(--mx-dialog-inset));
-  z-index: 1;
-  margin: 0 calc(-1 * var(--mx-dialog-inset)) calc(-1 * var(--mx-dialog-inset));
-  padding: 12px var(--mx-dialog-inset) var(--mx-dialog-inset);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  /* The CARD's plate, not a raised layer: layer-1 painted a lighter band under
-     the form so the floor read as a separate, empty strip (user: 배경도 한 색이
-     아니라 아래가 비어 보인다). */
-  background: var(--mx-popup-bg);
-}
-/* The button ladder (quiet plate, contrast submit, ghost, danger) is the
-   dialog system's; this family only places its destructive action. */
-.schedules-list {
-  display: grid;
-  gap: 8px;
-}
 /* Common guidance is global rather than a project: preserve the normal page
    rhythm above it, then open a full section break before project rows. */
 .projects-common-instructions {
   margin-bottom: 16px;
-}
-.schedules-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: var(--mx-radius-lg);
-  background: transparent;
-  box-shadow: inset 0 0 0 var(--mx-hairline) var(--mx-border-muted);
-}
-.compact-switch {
-  cursor: pointer;
-}
-.compact-switch:has(input:disabled) {
-  opacity: var(--mx-op-disabled);
-  cursor: default;
-}
-.schedules-row > .compact-switch {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-.schedules-dialog-header-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.schedules-dialog-header-actions > .compact-switch {
-  flex: 0 0 auto;
 }
 .schedules-row-spinner {
   width: 12px;
@@ -364,164 +193,6 @@
   transform-box: view-box;
   transform-origin: center;
   animation: var(--mx-motion-spin);
-}
-/* Single column pinned to the copy box: a bare `auto` track let a long name
-   or route line size the column past the row and shove the trailing status. */
-.schedules-row-copy {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-}
-.schedules-row-copy b {
-  overflow: hidden;
-  color: var(--mx-text);
-  font-size: var(--mx-font-item);
-  font-weight: var(--mx-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.schedules-row-copy small {
-  overflow: hidden;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-meta);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-overflow {
-  position: relative;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-.row-overflow-trigger {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--mx-radius-md);
-  color: var(--mx-icon-muted);
-  background: transparent;
-  cursor: pointer;
-}
-/* Open-menu state carries NO wash (user: ⋯ 눌렀을 때 강조 없도록 — the
-   menu itself already marks the state); hover keeps the quiet ink lift. */
-.row-overflow-trigger:hover {
-  color: var(--mx-text);
-  background: var(--mx-hover);
-}
-.row-overflow-trigger[aria-expanded="true"] {
-  color: var(--mx-text);
-  background: transparent;
-}
-.row-overflow-menu {
-  position: fixed;
-  /* Body portals must clear the mobile drawer as well as dialog cards. */
-  z-index: var(--mx-menu-z-index);
-  display: grid;
-  gap: 0;
-  /* Content-sized on the same 160px floor as .mx-menu: per-caller fixed
-     widths (132/180/188/232) left one-item menus hollow and clipped long
-     labels (user: ⋯ 팝업 너비가 제각각). The inline max-width from
-     positionRowMenu keeps the panel inside the viewport. */
-  width: max-content;
-  min-width: 160px;
-  max-height: calc(100vh - 16px);
-  overflow-y: auto;
-  padding: var(--mx-menu-inset);
-  box-sizing: border-box;
-  border: var(--mx-popup-border);
-  border-radius: var(--mx-popup-radius);
-  color: var(--mx-text);
-  background: var(--mx-popup-bg);
-  box-shadow: var(--mx-popup-shadow);
-}
-.row-overflow-menu button.menu-separator {
-  margin-top: 4px;
-  box-shadow: inset 0 1px var(--mx-border-muted);
-}
-/* Menu metrics (2em check gutter, 1em solid glyph):
-   the old 14px box with a 13px hairline check was HALF that scale and the
-   state disappeared (user: 선택·미선택이 잘 안 보인다). A 20px gutter with a
-   16px/1.75px check, plus ink + weight on the row, reads at a glance. */
-.row-overflow-check {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  display: grid;
-  place-items: center;
-}
-.row-overflow-check svg {
-  width: var(--mx-icon-md);
-  height: var(--mx-icon-md);
-  stroke-width: 1.75px;
-}
-.row-overflow-menu button[role="menuitemcheckbox"][aria-checked="false"] {
-  color: var(--mx-text-muted);
-}
-.row-overflow-menu button[role="menuitemcheckbox"][aria-checked="true"] {
-  color: var(--mx-text);
-  font-weight: var(--mx-weight-semibold);
-}
-.row-overflow-label {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-overflow-submenu {
-  flex: 0 0 auto;
-  color: var(--mx-text-muted);
-}
-.row-overflow-menu .row-overflow-back {
-  color: var(--mx-text-muted);
-}
-.row-overflow-menu .row-overflow-back > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-overflow-menu button.danger {
-  color: var(--mx-danger);
-}
-.schedules-empty {
-  flex: 1;
-  display: grid;
-  align-content: center;
-  gap: 10px;
-  justify-items: center;
-  padding: 24px 0 48px;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-ui);
-}
-.schedules-empty svg {
-  color: var(--mx-icon-muted);
-}
-.schedules-empty p {
-  margin: 0;
-}
-/* Agent settings (sidebar → Agents → Settings): Schedules-page grammar — pack rows
-   with a popup WORKFLOW.md editor, plus the default maintainer/search model
-   routes every workflow relies on. */
-.workflows-models {
-  display: grid;
-  gap: 8px;
-}
-.workflows-models h2 {
-  margin: 12px 0 0;
-  color: var(--mx-text);
-  font-size: var(--mx-font-body);
-  font-weight: var(--mx-weight-semibold);
-  letter-spacing: var(--mx-tracking-tight);
-}
-.workflows-models > p {
-  margin: 0 0 4px;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-minor);
 }
 .workflows-route-controls {
   width: max-content;
@@ -560,16 +231,6 @@
 }
 .workflows-md-field textarea::placeholder {
   color: var(--mx-text-faint);
-}
-.workflows-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 12px;
-}
-.workflows-section-head h2 {
-  margin: 0;
 }
 /* A built-in model row is two read-only lines and one route — it does not
    need the Markdown editors' 800px card. */
@@ -620,15 +281,6 @@
   opacity: var(--mx-op-disabled);
   cursor: default;
 }
-/* The destructive action sits alone on the footer's left edge; its ink and
-   plate come from the shared danger variant. */
-.schedules-dialog footer button.danger {
-  margin-right: auto;
-}
-.schedules-dialog footer button.danger.confirming {
-  color: var(--mx-grey-50);
-  background: var(--mx-danger);
-}
 /* Phone-width agent dialog: the Model field is a max-content nowrap cluster,
    which overflows the dialog card horizontally once the viewport shrinks. */
 @media (max-width: 640px) {
@@ -641,19 +293,6 @@
   .workflows-dialog-route .workflows-route-controls .model-trigger {
     max-width: 100%;
   }
-}
-/* The Projects dialogs ride the Extensions card (extension-dialog.css):
-   compact width for Add, editor width for the per-project editor. */
-/* Field note grammar (user: 팝업 제목 아래 설명을 메모리 쪽과 맞춰): every
-   dialog field title may carry one muted meta-sized line under it. */
-.schedules-field > small,
-.projects-edit-field > small,
-.projects-edit-field > div > small {
-  display: block;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-meta);
-  font-weight: var(--mx-weight-regular);
-  line-height: var(--mx-line-meta);
 }
 /* Memories inside the project editor: the section head (title, note, Add)
    is the Extensions section's; the list is the same divided card the
@@ -791,31 +430,6 @@
   font-size: var(--mx-font-minor);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.settings-metric-grid > div {
-  border: 0;
-  border-radius: var(--mx-radius-md);
-  background: transparent;
-  box-shadow: inset 0 0 0 var(--mx-hairline) var(--mx-border-muted);
-}
-.settings-metric-grid span {
-  color: var(--mx-text-faint);
-  font-size: var(--mx-font-meta);
-}
-.settings-metric-grid b {
-  color: var(--mx-text);
-  font-size: var(--mx-font-ui);
-  font-weight: var(--mx-weight-semibold);
-}
-.settings-empty,
-.settings-loading {
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-ui);
-}
-.settings-oauth-layer {
-  z-index: 80;
-  padding: 16px;
-  background: var(--mx-scrim);
 }
 .settings-oauth-dialog {
   width: min(440px, calc(100vw - 32px));
@@ -1051,133 +665,12 @@
   outline: 2px solid var(--mx-focus);
   outline-offset: 2px;
 }
-.settings-confirm-dialog {
-  width: min(400px, calc(100vw - 32px));
-  overflow: hidden;
-  border: var(--mx-popup-border);
-  border-radius: var(--mx-popup-radius-card);
-  color: var(--mx-text);
-  background: var(--mx-popup-bg);
-  box-shadow: var(--mx-popup-shadow);
-}
-.settings-confirm-dialog > header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 16px 12px 20px;
-}
-.settings-confirm-dialog > header h3 {
-  min-width: 0;
-  flex: 1;
-  margin: 0;
-  font-size: var(--mx-font-body);
-  font-weight: var(--mx-weight-semibold);
-  line-height: var(--mx-line-ui);
-}
-.settings-confirm-dialog > header button {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--mx-radius-sm);
-  color: var(--mx-icon-muted);
-  background: transparent;
-  cursor: pointer;
-}
-.settings-confirm-dialog > header button:hover {
-  color: var(--mx-icon);
-  background: var(--mx-hover);
-}
-.settings-confirm-dialog > p {
-  margin: 0;
-  padding: 0 20px 20px;
-  color: var(--mx-text-muted);
-  font-size: var(--mx-font-ui);
-  font-weight: var(--mx-weight-regular);
-  line-height: var(--mx-line-ui);
-}
-@keyframes voice-install-indeterminate {
-  from {
-    transform: translateX(-110%);
-  }
-  to {
-    transform: translateX(330%);
-  }
-}
-.settings-confirm-dialog > footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  /* No seam over the buttons: the card is one frameless plate (user: 아래
-     선 하나 굳이 넣어야 되냐 — 프레임리스로). */
-  padding: 4px 16px 16px;
-  border-top: 0;
-  background: var(--mx-bg-base);
-}
-.settings-confirm-dialog > footer button {
-  min-height: 28px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: var(--mx-radius-md);
-  color: var(--mx-text);
-  background: var(--mx-action-bg);
-  box-shadow: none;
-  font-size: var(--mx-font-ui);
-  font-weight: var(--mx-weight-regular);
-  cursor: pointer;
-}
-.settings-confirm-dialog > footer button:hover:not(:disabled) {
-  background: linear-gradient(var(--mx-hover), var(--mx-hover)), var(--mx-action-bg);
-}
-.settings-confirm-dialog > footer button.primary {
-  color: var(--mx-grey-100);
-  background: var(--mx-bg-contrast);
-  box-shadow: var(--mx-button-contrast);
-  /* Flat contrast buttons: solid plate, plain label, hairline boundary. */
-}
-.settings-confirm-dialog > footer button.danger {
-  color: var(--mx-danger);
-  background: var(--mx-danger-bg);
-  box-shadow: none;
-}
-/* Each variant owns its feedback: the neutral hover above cannot reach
-   .primary or .danger (both outrank it). */
-.settings-confirm-dialog > footer button:active:not(:disabled) {
-  background: linear-gradient(var(--mx-pressed), var(--mx-pressed)), var(--mx-action-bg);
-}
-.settings-confirm-dialog > footer button.primary:hover:not(:disabled) {
-  background: var(--mx-flat-hover-contrast);
-}
-.settings-confirm-dialog > footer button.primary:active:not(:disabled) {
-  background: var(--mx-flat-press-contrast);
-}
-.settings-confirm-dialog > footer button.danger:hover:not(:disabled) {
-  background: linear-gradient(var(--mx-hover), var(--mx-hover)), var(--mx-danger-bg);
-}
-/* The solid pressed plate carries the danger read — drop the resting ring. */
-.settings-confirm-dialog > footer button.danger:active:not(:disabled) {
-  background: var(--mx-flat-press-danger);
-  box-shadow: none;
-}
-.settings-confirm-dialog > footer button:disabled {
-  opacity: var(--mx-op-disabled);
-  cursor: default;
-}
-.settings-confirm-dialog > footer button:focus-visible,
-.settings-confirm-dialog > header button:focus-visible {
-  outline: 2px solid var(--mx-focus);
-  outline-offset: 2px;
-}
-
 /* An agent switched on without a model: the note under the picker says why
    Save is held back. */
 .schedules-field > small.workflows-route-required {
   margin-top: 6px;
   color: var(--mx-warning);
 }
-
 /* Built-in agent editor: the fixed "when to use" reads as a sentence under its
    label, on the field's text ink, instead of a greyed-out input. */
 .workflows-route-dialog .workflows-route-usage {

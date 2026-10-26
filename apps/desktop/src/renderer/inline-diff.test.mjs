@@ -135,7 +135,7 @@ test('split mode leaves the inline renderer', async () => {
 });
 
 test('code lines wrap inside the code column (no horizontal scroll)', () => {
-  const css = readFileSync(new URL('./desktop/25-scm-dock.css', import.meta.url), 'utf8');
+  const css = (readFileSync(new URL('./desktop/25-scm-dock-eager.css', import.meta.url), 'utf8') + readFileSync(new URL('./desktop/25-scm-dock.css', import.meta.url), 'utf8'));
   const rule = css.match(/\.inline-diff-code\s*\{([^}]*)\}/u)?.[1] ?? '';
   assert.match(rule, /white-space:\s*pre-wrap/u);
   assert.match(rule, /overflow-wrap:\s*anywhere/u);
@@ -223,7 +223,7 @@ test('the dock draws no second header row for Changes; the header never wraps at
   assert.match(summary, /flex-wrap:\s*nowrap/u);
   assert.match(summary, /overflow:\s*hidden/u);
   assert.match(css.match(/\.session-diff-header\s*\{([^}]*)\}/u)?.[1] ?? '', /white-space:\s*nowrap/u);
-  const scm = readFileSync(new URL('./desktop/25-scm-dock.css', import.meta.url), 'utf8');
+  const scm = (readFileSync(new URL('./desktop/25-scm-dock-eager.css', import.meta.url), 'utf8') + readFileSync(new URL('./desktop/25-scm-dock.css', import.meta.url), 'utf8'));
   assert.match(scm.match(/\.diff-header-controls\s*\{[^}]*flex-wrap:\s*nowrap/u)?.[0] ?? '', /nowrap/u);
 });
 

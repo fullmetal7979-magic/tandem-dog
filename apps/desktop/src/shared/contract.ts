@@ -1,3 +1,5 @@
+import type { DesktopWorkbenchApi } from './contract-workbench';
+export type { WorkbenchRequest, WorkbenchResult } from './contract-workbench';
 import type { GithubRequest, GithubResult } from '../../../../src/runtime/github/contract.mjs';
 import type { FileLaunchConfirmation, LocalLinkOpened } from './local-files';
 import type {
@@ -108,7 +110,7 @@ export type { GithubRequest, GithubResult } from '../../../../src/runtime/github
 
 /** Small, last-writer-wins UI projection shared by Electron and paired web
  * clients. Pane geometry remains local; `selection` is the first visual pane. */
-export interface DesktopApi extends DesktopCosmosApi {
+export interface DesktopApi extends DesktopCosmosApi, DesktopWorkbenchApi {
   /** Immutable process timeline identity injected before renderer modules run. */
   readonly bootContext?: DesktopBootContext;
   chooseProject(): Promise<string | null>;

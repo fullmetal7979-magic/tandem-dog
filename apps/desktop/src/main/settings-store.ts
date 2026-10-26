@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url';
 import type { DesktopSettingKey, DesktopSettings } from '../shared/contract';
 import {
   normalizeActivityRailPins,
+  DEFAULT_ACTIVITY_RAIL_PINS,
+  LEGACY_ACTIVITY_RAIL_PINS,
   readActivityRailPinsState,
   type ActivityRailPinsState,
 } from '../shared/activity-rail-pins';
@@ -95,7 +97,12 @@ export class DesktopSettingsStore {
 
   async readActivityRailPins(): Promise<ActivityRailPinsState | null> {
     const config = await this.loadConfig();
-    return readActivityRailPinsState(record(record(config.readConfig()).desktop).activityRailPins);
+    const state=readActivityRailPinsState(record(record(config.readConfig()).desktop).activityRailPins);
+    // Revision 1 is the untouched automatic initial preset. Explicit user
+    // edits have later revisions and are preserved.
+    if(state?.revision===1 && JSON.stringify(state.pins)===JSON.stringify(LEGACY_ACTIVITY_RAIL_PINS))
+      return this.updateActivityRailPins(DEFAULT_ACTIVITY_RAIL_PINS);
+    return state;
   }
 
   async updateActivityRailPins(value: unknown, initializeIfMissing = false): Promise<ActivityRailPinsState> {

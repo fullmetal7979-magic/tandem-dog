@@ -15,6 +15,7 @@ import { desktopUtilityDockTabEnabled, type DesktopUtilityDockTab } from './desk
 import { t } from './i18n';
 import { useUtilityDockGit } from './use-utility-dock-git';
 import { useUtilityDockProject } from './use-utility-dock-project';
+import './desktop/25-scm-dock.css';
 
 export { prewarmUtilityDockGitState } from './utility-dock-git-state';
 export type UtilityDockTab = DesktopUtilityDockTab;

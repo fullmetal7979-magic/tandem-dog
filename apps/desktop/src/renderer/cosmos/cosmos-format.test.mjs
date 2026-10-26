@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ago, cosmosVerdict, endsWithBatchim, josa, since } from './cosmos-format.ts';
+import { ACTION_LABEL, ago, cosmosErrorText, cosmosVerdict, endsWithBatchim, josa, since } from './cosmos-format.ts';
 
 const NOW = Date.UTC(2026, 9, 13, 12, 0, 0);
 const me = { id: 'me', name: '집 맥북', kind: 'mac', color: '#fbbf24' };
@@ -56,6 +56,7 @@ test('one verdict per relay state, each with one action', () => {
   );
   assert.equal(mine.action, 'moon');
   assert.match(mine.title, /47분째/);
+  assert.equal(mine.live, '지금 이 기기에서 작업 중이에요', 'the live text has no ticking clock');
 
   const asked = cosmosVerdict(
     view({
@@ -69,7 +70,7 @@ test('one verdict per relay state, each with one action', () => {
     NOW
   );
   assert.equal(asked.action, 'handoff');
-  assert.equal(asked.title, '회사 PC가 교대를 원해요');
+  assert.equal(asked.title, '회사 PC가 넘겨 달라고 요청했어요');
 
   const locked = cosmosVerdict(
     view({ state: 'occupied', seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW - 3_600_000 } } }),
@@ -78,6 +79,7 @@ test('one verdict per relay state, each with one action', () => {
   assert.equal(locked.level, 'warn');
   assert.equal(locked.action, 'request');
   assert.match(locked.title, /회사 PC가 작업 중이에요 · 1시간째/);
+  assert.equal(locked.live, '회사 PC가 작업 중이에요');
 
   const stale = cosmosVerdict(
     view({ state: 'stale', holderLastSeen: NOW - 2 * 3_600_000, seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW - 3 * 3_600_000 } } }),
@@ -88,5 +90,31 @@ test('one verdict per relay state, each with one action', () => {
 
   const waiting = cosmosVerdict(view({ seat: { ...view().seat, handoffTo: 'me', history: [{ star: 'work', name: '회사 PC', kind: 'pc', from: NOW - 7_200_000, to: NOW - 60_000, memo: 'API 완료' }] } }), NOW);
   assert.equal(waiting.level, 'ok');
-  assert.match(waiting.detail, /회사 PC가 1분 전 내렸어요 — “API 완료”/);
+  assert.match(waiting.detail, /회사 PC가 1분 전 내려놓았어요 — “API 완료”/);
+});
+
+test('no retired relay words reach the screen', () => {
+  const texts = [
+    ...Object.values(ACTION_LABEL),
+    ...[
+      view({ ready: false }),
+      view({ state: 'no_remote', planet: { id: null, name: 'app' } }),
+      view({ seat: { ...view().seat, handoffTo: 'work' } }),
+      view({ seat: { ...view().seat, history: [{ star: 'work', name: '회사 PC', kind: 'pc', from: NOW - 7_200_000, to: NOW - 60_000 }] } }),
+      view({ state: 'mine', seat: { ...view().seat, holder: { star: 'me', name: '집 맥북', kind: 'mac', since: NOW }, requests: [{ star: 'work', name: '회사 PC', kind: 'pc', at: NOW }] } }),
+      view({ state: 'occupied', seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW }, requests: [{ star: 'me', name: '집 맥북', kind: 'mac', at: NOW }] } }),
+      view({ state: 'occupied', here: true, seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW } } }),
+    ].flatMap((v) => {
+      const verdict = cosmosVerdict(v, NOW);
+      return [verdict.title, verdict.detail];
+    }),
+  ];
+  for (const text of texts) assert.doesNotMatch(text, /교대|우주 지도|우주 홈|행성|교신|앉지 않으면|내렸어요/, text);
+});
+
+test('errors read without the IPC wrapper', () => {
+  assert.equal(cosmosErrorText(new Error("Error invoking remote method 'mixdog:cosmos-sun': Error: 은하수에 연결하지 못했어요")), '은하수에 연결하지 못했어요');
+  assert.equal(cosmosErrorText(new Error("Error invoking remote method 'x': TypeError: boom")), 'boom');
+  assert.equal(cosmosErrorText('plain'), 'plain');
+  assert.equal(cosmosErrorText(new Error('')), '알 수 없는 문제가 생겼어요.');
 });

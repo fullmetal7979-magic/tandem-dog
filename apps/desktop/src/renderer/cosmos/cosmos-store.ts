@@ -14,7 +14,7 @@
 // beat is also sent as soon as the window becomes visible again after a gap.
 // Every beat is fire-and-forget: errors are swallowed (the next tick retries)
 // and beats never overlap.
-import { useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type {
   CosmosMoonResult,
   CosmosOverview,
@@ -23,40 +23,46 @@ import type {
   CosmosSunResult,
 } from '../../shared/contract-cosmos';
 import { isCosmosRefusal } from '../../shared/contract-cosmos';
-import { josa } from './cosmos-format';
+import { cosmosErrorText, josa } from './cosmos-format';
 
 export type CosmosBusy = 'sun' | 'moon' | 'request' | 'withdraw' | 'setup' | 'star' | 'continue' | null;
 
 export interface CosmosEntry {
   view: CosmosOverview | null;
+  /** A forced refresh (↻, after an action) is running. Background polls stay quiet. */
   loading: boolean;
-  error: string;
+  /** The last overview read failed; the next good read clears it. */
+  pollError: string;
+  /** The last seat action failed; it stays until dismissed or the next action, polls never cover it. */
+  actionError: string;
   busy: CosmosBusy;
   refusal: CosmosRefusal | null;
   lastSun: CosmosSunResult | null;
   lastMoon: CosmosMoonResult | null;
-  /** Seat changed hands since the last look: drives the comet animation. */
-  comet: { from: string | null; to: string | null; at: number } | null;
-  loadedAt: number;
 }
 
 const POLL_MS = 60_000;
 const HEARTBEAT_MS = 5 * 60_000;
+/** A surface that (re)appears with older data than this asks again. */
+const STALE_MS = 15_000;
 const EMPTY: CosmosEntry = {
   view: null,
   loading: false,
-  error: '',
+  pollError: '',
+  actionError: '',
   busy: null,
   refusal: null,
   lastSun: null,
   lastMoon: null,
-  comet: null,
-  loadedAt: 0,
 };
 
 const entries = new Map<string, CosmosEntry>();
 const listeners = new Map<string, Set<() => void>>();
 const watchers = new Map<string, number>();
+/** When each key's overview was last read successfully (kept apart so a quiet poll re-renders nothing). */
+const checkedAt = new Map<string, number>();
+/** One background read per key at a time; a forced read always goes through. */
+const inFlight = new Map<string, Promise<void>>();
 let pollTimer: number | null = null;
 let heartbeatTimer: number | null = null;
 let beating = false;
@@ -83,32 +89,45 @@ function subscribe(key: string, listener: () => void): () => void {
   return () => group?.delete(listener);
 }
 
-function holderOf(view: CosmosOverview | null): string | null {
-  return view?.seat?.holder?.star ?? null;
+function sameView(a: CosmosOverview | null, b: CosmosOverview | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
-export async function refreshCosmos(projectPath: string | null | undefined, { force = false } = {}): Promise<void> {
+export function refreshCosmos(projectPath: string | null | undefined, { force = false } = {}): Promise<void> {
   const key = keyOf(projectPath);
-  const desktop = api();
-  if (!desktop?.cosmosOverview) return;
-  const before = get(key);
-  set(key, { loading: true });
-  try {
-    const view = await desktop.cosmosOverview(key || null, { force });
-    const previous = holderOf(before.view);
-    const next = holderOf(view);
-    const changed = before.view && before.view.planet?.id === view.planet?.id && previous !== next;
-    set(key, {
-      view,
-      loading: false,
-      error: '',
-      loadedAt: Date.now(),
-      comet: changed ? { from: previous, to: next, at: Date.now() } : before.comet,
+  const read = api()?.cosmosOverview;
+  if (!read) return Promise.resolve();
+  const running = inFlight.get(key);
+  if (running && !force) return running;
+  if (force) set(key, { loading: true });
+  const task = (async () => {
+    try {
+      const view = await read(key || null, { force });
+      checkedAt.set(key, Date.now());
+      const before = get(key);
+      const changed = !sameView(before.view, view);
+      // An unchanged answer to a background poll touches nothing on screen.
+      if (changed || before.pollError || (force && before.loading)) {
+        set(key, { ...(changed ? { view } : {}), pollError: '', ...(force ? { loading: false } : {}) });
+      }
+      syncHeartbeat();
+    } catch (error) {
+      set(key, { pollError: cosmosErrorText(error), ...(force ? { loading: false } : {}) });
+    }
+  })();
+  if (!force) {
+    inFlight.set(key, task);
+    void task.finally(() => {
+      if (inFlight.get(key) === task) inFlight.delete(key);
     });
-    syncHeartbeat();
-  } catch (error) {
-    set(key, { loading: false, error: error instanceof Error ? error.message : String(error) });
   }
+  return task;
 }
 
 function startPolling(): void {
@@ -129,10 +148,12 @@ function stopPolling(): void {
   window.removeEventListener(COSMOS_SEAT_ACTION_EVENT, onSeatAction);
 }
 
+function isStale(key: string): boolean {
+  return Date.now() - (checkedAt.get(key) ?? 0) > STALE_MS;
+}
+
 function onFocus(): void {
-  for (const key of watchers.keys()) {
-    if (Date.now() - get(key).loadedAt > 15_000) void refreshCosmos(key);
-  }
+  for (const key of watchers.keys()) if (isStale(key)) void refreshCosmos(key);
 }
 
 /**
@@ -195,7 +216,9 @@ function watch(key: string): () => void {
     watchOrder.push(key);
   }
   startPolling();
-  if (!get(key).loadedAt && !get(key).loading) void refreshCosmos(key);
+  // A surface that comes back (a dock tab reopened) shows the cached view at
+  // once and asks again only when that view is getting old.
+  if (isStale(key)) void refreshCosmos(key);
   return () => {
     const count = (watchers.get(key) ?? 1) - 1;
     if (count <= 0) {
@@ -207,22 +230,38 @@ function watch(key: string): () => void {
   };
 }
 
-/** Live Galaxy state for a project ('' = no project open). */
+const noop = () => undefined;
+
+/**
+ * Live Galaxy state for a project ('' = no project open). `null` (or
+ * undefined) watches nothing: a hidden surface passes it so it stops polling,
+ * and gets an empty entry until it watches again.
+ */
 export function useCosmos(projectPath: string | null | undefined): CosmosEntry {
+  const off = projectPath === null || projectPath === undefined;
   const key = keyOf(projectPath);
-  useEffect(() => watch(key), [key]);
-  return useSyncExternalStore(
-    (listener) => subscribe(key, listener),
-    () => get(key),
-    () => get(key)
-  );
+  useEffect(() => (off ? undefined : watch(key)), [key, off]);
+  const listen = useCallback((listener: () => void) => (off ? noop : subscribe(key, listener)), [key, off]);
+  const read = () => (off ? EMPTY : get(key));
+  return useSyncExternalStore(listen, read, read);
+}
+
+/** The open project's seat is not known yet (first read still running): seat-bound controls wait. */
+export function cosmosSeatUnknown(entry: CosmosEntry, projectPath: string | null | undefined): boolean {
+  return Boolean(projectPath) && !entry.view && !entry.pollError && Boolean(api()?.cosmosOverview);
+}
+
+/** Another device (or the phone driving this PC) holds the seat: this device must not edit. */
+export function cosmosSeatHeldElsewhere(view: CosmosOverview | null): boolean {
+  const state = view?.state;
+  return state === 'occupied' || state === 'stale' || state === 'remote';
 }
 
 // ------------------------------------------------------------------ actions
 
 async function run<T>(key: string, busy: Exclude<CosmosBusy, null>, call: () => Promise<T | CosmosRefusal | undefined> | undefined) {
   if (get(key).busy) return null;
-  set(key, { busy, refusal: null, error: '' });
+  set(key, { busy, refusal: null, actionError: '' });
   try {
     const result = await call();
     if (result === undefined) throw new Error('이 화면에서는 은하수를 쓸 수 없어요.');
@@ -235,7 +274,7 @@ async function run<T>(key: string, busy: Exclude<CosmosBusy, null>, call: () => 
     await refreshCosmos(key, { force: true });
     return result as T;
   } catch (error) {
-    set(key, { busy: null, error: error instanceof Error ? error.message : String(error) });
+    set(key, { busy: null, actionError: cosmosErrorText(error) });
     return null;
   }
 }
@@ -338,12 +377,14 @@ async function onSeatAction(event: Event): Promise<void> {
 }
 
 export function clearCosmosNotice(projectPath: string | null | undefined): void {
-  set(keyOf(projectPath), { refusal: null, error: '', lastSun: null, lastMoon: null });
+  set(keyOf(projectPath), { refusal: null, actionError: '', lastSun: null, lastMoon: null });
 }
 
 /** Test seam: forget every cached entry. */
 export function resetCosmosStore(): void {
   entries.clear();
+  checkedAt.clear();
+  inFlight.clear();
   stopPolling();
   if (heartbeatTimer !== null && typeof window !== 'undefined') {
     window.clearInterval(heartbeatTimer);

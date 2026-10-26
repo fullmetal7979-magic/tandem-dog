@@ -1,6 +1,8 @@
 import { t } from './i18n';
 
 export type SettingsSection =
+  | 'cosmos'
+  | 'git'
   | 'profile'
   | 'autoclear'
   | 'autocompact'

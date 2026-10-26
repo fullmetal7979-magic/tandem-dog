@@ -246,11 +246,13 @@ export class TerminalManager {
     return { id: nextId, replay: '' };
   }
 
-  /** The working directory a live terminal was spawned in (the remote seat
-   *  gate uses it to scope PC-owned terminals). Null when unknown or gone. */
-  cwdOf(id: string): string | null {
+  /** The working directory a terminal was spawned in (the remote seat gate
+   *  uses it to scope terminals): null for a known terminal opened with no
+   *  folder, undefined for an id this manager has never seen or has released.
+   *  An exited PTY still answers with its folder; a write to it is a no-op. */
+  cwdOf(id: string): string | null | undefined {
     const entry = this.terminals.get(id);
-    return entry && !entry.disposed ? entry.cwd : null;
+    return entry ? entry.cwd : undefined;
   }
 
   /** Read-only: the tabs of one session's terminal, ordered by tab number.

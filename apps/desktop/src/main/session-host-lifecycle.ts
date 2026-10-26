@@ -576,6 +576,7 @@ export class SessionHostLifecycle {
     this.owner.applySessionResult(sessionId, created);
     try {
       const inherited = await this.owner.invokeSession(sessionId, 'inheritFromExport', [doc]);
+      if(typeof doc.taskId==='string'&&typeof doc.id==='string')await this.owner.sessionMetadata.linkImportedTask(doc.taskId,doc.id,sessionId);
       await this.owner.sessionMetadata.load();
       this.owner.pendingCatalogSessionIds.delete(sessionId);
       void this.owner.publishCatalogs();
@@ -586,6 +587,25 @@ export class SessionHostLifecycle {
     } finally {
       this.owner.pendingCatalogSessionIds.delete(sessionId);
     }
+  }
+
+  async restoreWorkbenchConversation(cwd: string, doc: Record<string, unknown>): Promise<{sessionId: string; snapshot: SessionSnapshot | null}> {
+    if (!Array.isArray(doc.messages) || !doc.messages.length) throw new TypeError('복원할 대화가 없습니다.');
+    const workspace = await this.owner.resolveSessionWorkspace(cwd);
+    const created = await this.owner.client.create({cwd:workspace.cwd,desktopSession:workspace.desktopSession,
+      ...(typeof doc.provider==='string'?{provider:doc.provider}:{}),...(typeof doc.model==='string'?{model:doc.model}:{})},
+      this.owner.callOptions(`workbench-restore:${process.pid}:${randomUUID()}`));
+    const sessionId=sessionIdOf(created.sessionId);
+    this.owner.pendingCatalogSessionIds.add(sessionId);
+    this.owner.applySessionResult(sessionId,created);
+    try {
+      const inherited=await this.owner.invokeSession(sessionId,'inheritFromExport',[{...doc,localRecovery:true}]);
+      if(typeof doc.taskId==='string' && typeof doc.id==='string') await this.owner.sessionMetadata.linkImportedTask(doc.taskId,doc.id,sessionId);
+      this.owner.pendingCatalogSessionIds.delete(sessionId);
+      void this.owner.publishCatalogs();
+      return {sessionId,snapshot:inherited.snapshot??null};
+    }catch(error){await this.unsubscribeQuietly(sessionId);throw error;}
+    finally{this.owner.pendingCatalogSessionIds.delete(sessionId);}
   }
 
   async submitToSession(

@@ -737,6 +737,10 @@ export class DesktopServiceClient implements DesktopService {
   ): Promise<DesktopNewTaskSubmitResult> {
     return this.invoke<DesktopNewTaskSubmitResult>('submitNewTask', [prompt, options, draft]);
   }
+  restoreWorkbenchConversation(cwd: string, document: Record<string, unknown>): Promise<{sessionId:string;snapshot:SessionSnapshot|null}> {
+    return this.invoke('restoreWorkbenchConversation',[cwd,document],INHERIT_SESSION_TIMEOUT_MS);
+  }
+
   inheritSession(
     sourceSessionId: string,
     route?: DesktopModelSelection | null

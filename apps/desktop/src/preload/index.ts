@@ -56,6 +56,7 @@ function subscribeIpc<Args extends unknown[]>(channel: string, listener: (...arg
 }
 
 const api: DesktopApi = {
+  workbench: (request) => ipcRenderer.invoke(DESKTOP_IPC.workbench, request),
   ...(bootContext ? { bootContext } : {}),
   chooseProject: () => ipcRenderer.invoke(DESKTOP_IPC.chooseProject),
   chooseFile: (defaultPath) => ipcRenderer.invoke(DESKTOP_IPC.chooseFile, defaultPath),

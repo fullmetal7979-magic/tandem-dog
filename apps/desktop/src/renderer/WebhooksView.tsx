@@ -34,6 +34,8 @@ import { copyTextToClipboard } from './text-format';
 import { useSidebarCapabilityRunner } from './use-sidebar-capability-runner';
 import { CompactSwitch } from './settings/capability-controls';
 import type { RecordValue } from './desktop-types';
+import './desktop/20-automation.css';
+import './desktop/23-route-editor.css';
 
 type WebhooksApi = Partial<Pick<DesktopApi, 'invokeCapability' | 'listProviderModels' | 'listProjects'>>;
 

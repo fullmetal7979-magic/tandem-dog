@@ -1,6 +1,9 @@
+import type { SavedComposerDraft } from './composer-draft-store';
 import type { ComposerAttachment } from './composer-support';
 import React, {
   memo,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -262,6 +265,9 @@ export type ComposerProps = {
   paneActive?: boolean;
 };
 
+const ModelContinuationPreview = lazy(() => import('./ModelContinuationPreview'));
+const WorkbenchTaskCenter = lazy(() => import('./WorkbenchTaskCenter'));
+
 export const Composer = memo(function Composer(props: ComposerProps) {
   const {
     turnBusy,
@@ -302,6 +308,10 @@ export const Composer = memo(function Composer(props: ComposerProps) {
   const [modelHandoffPending, setModelHandoffPending] = useState(false);
   const modelHandoffGuard = useRef(false);
   const [hydratedDraftScope, setHydratedDraftScope] = useState('');
+  const [taskCenterOpen,setTaskCenterOpen]=useState(false);
+  const [pendingModel,setPendingModel]=useState<{selection:DesktopModelSelection;resolve:(value:boolean)=>void}|null>(null);
+  const pendingModelRef=useRef(pendingModel);pendingModelRef.current=pendingModel;
+  useEffect(()=>()=>{pendingModelRef.current?.resolve(false);},[]);
   const transitioning = parentTransitioning || modelHandoffPending || hydratedDraftScope !== identityScope;
   const [draft, setDraft] = useState('');
   const [executionBudget, setExecutionBudget] = useState<ExecutionBudget>(() => readExecutionBudget(identityScope));
@@ -511,22 +521,45 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     return () => { window.removeEventListener('pagehide', flush); flush(); };
   }, [identityScope]);
 
-  const continueWithModel = async (selection: DesktopModelSelection) => {
+  useEffect(()=>{
+    setTaskCenterOpen(false);
+    if(!modelHandoffGuard.current || !modelHandoffPending){pendingModelRef.current?.resolve(false);setPendingModel(null);modelHandoffGuard.current=false;}
+  },[identityScope]);
+  const restoreWorkbenchDraft = async (saved: SavedComposerDraft) => {
+    if(draftRef.current.trim() || attachmentsRef.current.length)
+      await saveComposerDraft(`replaced:${identityScope}:${Date.now()}`,{text:draftRef.current,attachments:attachmentsRef.current});
+    replaceAttachments(saved.attachments);draftRef.current=saved.text;setDraft(saved.text);
+  };
+  const openTaskCenter = () => {
+    void saveComposerDraft(identityScope,{text:draftRef.current,attachments:attachmentsRef.current}).catch(()=>{});
+    setTaskCenterOpen(true);
+  };
+  useEffect(()=>{
+    if(!paneActive || !window.mixdogDesktop?.workbench)return;
+    const handler=(event:KeyboardEvent)=>{if(event.defaultPrevented || (event.target instanceof Element && event.target.closest('.monaco-editor,.xterm,[role=dialog]')))return;if((event.metaKey||event.ctrlKey)&&event.shiftKey&&!event.altKey&&event.key.toLowerCase()==='k'){
+      event.preventDefault();setTaskCenterOpen(true);
+    }};
+    window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
+  },[paneActive]);
+
+  const cancelModelContinuation=()=>{pendingModel?.resolve(false);modelHandoffGuard.current=false;setPendingModel(null);};
+  const continueWithModel = async (selection: DesktopModelSelection): Promise<boolean> => {
     if (!props.onContinueWithModel || !sessionId || modelHandoffGuard.current) return false;
     if (turnBusy || commandBusy || submittingRef.current || (queued?.length ?? 0) > 0 || parentTransitioning) {
       showComposerNotice(t('Finish or stop the current turn and clear queued messages before switching models.'), 'info');
       return false;
     }
-    modelHandoffGuard.current = true;
-    transitioningRef.current = true;
-    setModelHandoffPending(true);
+    modelHandoffGuard.current=true;
+    return new Promise(resolve=>setPendingModel({selection,resolve}));
+  };
+  const confirmModelContinuation=async():Promise<boolean>=>{
+    if(!pendingModel||!props.onContinueWithModel||!sessionId)return false;
+    transitioningRef.current=true;setModelHandoffPending(true);
     try {
-      return await withComposerModelHandoff(sessionId, { text: draftRef.current, attachments },
-        () => props.onContinueWithModel!(selection));
-    } finally {
-      modelHandoffGuard.current = false;
-      if (mountedRef.current) setModelHandoffPending(false);
-    }
+      const ok=await withComposerModelHandoff(sessionId,{text:draftRef.current,attachments:attachmentsRef.current},()=>props.onContinueWithModel!(pendingModel.selection));
+      if(ok){pendingModel.resolve(true);modelHandoffGuard.current=false;if(mountedRef.current)setPendingModel(null);}
+      return ok;
+    }finally{if(mountedRef.current)setModelHandoffPending(false);}
   };
 
   const placeholder = composerPlaceholder({
@@ -617,6 +650,9 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     selectedSkill: skillSelection.name,
     onSkillSubmitted: skillSelection.submitted,
   });
+  const stopRequested=useRef(false);
+  useEffect(()=>{if(stopRequested.current&&!turnBusy&&!commandBusy){stopRequested.current=false;showComposerNotice('현재 응답이 중지되었습니다. 이미 완료된 코드 변경은 유지됩니다. 백그라운드 실행은 실행 화면에서 확인하세요.','info');}},[turnBusy,commandBusy,showComposerNotice]);
+  const stopWithFeedback=async()=>{if(stopRequested.current)return;stopRequested.current=true;showComposerNotice('중지 요청을 보내는 중입니다. 진행 중인 도구가 정리될 때까지 잠시 기다려 주세요.','info');try{await stop();}catch(error){stopRequested.current=false;showComposerNotice(error instanceof Error?error.message:String(error),'error');}};
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     void send('', 'form-submit');
@@ -854,7 +890,8 @@ export const Composer = memo(function Composer(props: ComposerProps) {
           voiceSend={voiceSend}
           draft={draft}
           attachments={attachments}
-          onStop={() => void stop()}
+          onStop={() => void stopWithFeedback()}
+          onOpenTaskCenter={window.mixdogDesktop?.workbench ? openTaskCenter : undefined}
           executionBudget={executionBudget}
           onExecutionBudgetChange={(value) => { setExecutionBudget(value); saveExecutionBudget(identityScope, value); }}
           modelAside={modelAside}
@@ -874,6 +911,13 @@ export const Composer = memo(function Composer(props: ComposerProps) {
           onRoutePreferenceApplied={onRoutePreferenceApplied}
         />
       </form>
+      {pendingModel && <Suspense fallback={null}><ModelContinuationPreview anchor={paletteAnchor} sessionId={sessionId||''} sourceModel={model} target={pendingModel.selection} attachmentCount={attachments.length} onCancel={cancelModelContinuation} onContinue={confirmModelContinuation}/></Suspense>}
+      {taskCenterOpen && <Suspense fallback={<span role="status" className="workbench-opening">작업 도구를 여는 중…</span>}>
+        <WorkbenchTaskCenter anchor={paletteAnchor} projectPath={projectScope} sessionId={sessionId||''} scope={identityScope}
+          draft={draft} attachments={attachments} provider={provider} model={model} turnBusy={turnBusy||commandBusy}
+          onClose={()=>setTaskCenterOpen(false)} onRestoreDraft={restoreWorkbenchDraft} onRemoveAttachment={id=>{const item=attachmentsRef.current.find(item=>item.id===id);if(item)removeAttachment(item);}}
+          onResumeSession={props.onResumeSession} onOpenProjects={props.onOpenProjects} onOpenSettings={props.onOpenSettings}/>
+      </Suspense>}
     </>
   );
 });

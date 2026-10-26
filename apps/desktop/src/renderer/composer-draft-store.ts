@@ -92,3 +92,21 @@ export function saveComposerDraft(scope: string, draft: SavedComposerDraft): Pro
   writes = job.catch(() => {});
   return job;
 }
+
+export type ComposerDraftSummary = { scope: string; updatedAt: number; chars: number; preview: string; attachmentCount: number };
+export async function listComposerDrafts(): Promise<ComposerDraftSummary[]> {
+  await writes; const db=await openDatabase();
+  return new Promise((resolve,reject)=>{
+    const request=db.transaction(STORE).objectStore(STORE).getAll();
+    request.onsuccess=()=>resolve((request.result as StoredDraft[]).filter(row=>Date.now()-row.updatedAt<=MAX_AGE)
+      .sort((a,b)=>b.updatedAt-a.updatedAt).map(row=>({scope:row.scope,updatedAt:row.updatedAt,chars:row.chars,
+        preview:row.text.slice(0,140),attachmentCount:row.attachments.length})));
+    request.onerror=()=>reject(request.error);
+  });
+}
+export function deleteComposerDraft(scope: string): Promise<void> {
+  memory.delete(scope);
+  const job=writes.catch(()=>{}).then(async()=>{const db=await openDatabase();await new Promise<void>((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(scope);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+  });});writes=job.catch(()=>{});return job;
+}

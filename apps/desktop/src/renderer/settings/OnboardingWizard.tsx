@@ -2,7 +2,7 @@
 // with clickable progress bars, per-step hero titles, and Ctrl+Enter to
 // advance. The capability wiring (completeOnboarding / skipOnboarding and the
 // provider/model reads) is shared with Settings and stays authoritative.
-import { GalaxySetup, RelayOutcome, StarIdentity } from '../cosmos/CosmosParts';
+import { CosmosPending, GalaxySetup, RelayOutcome, StarIdentity } from '../cosmos/CosmosParts';
 import { useCosmos } from '../cosmos/cosmos-store';
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Github, X } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -908,8 +908,8 @@ function GalaxyStep({ api }: { api: DesktopApi }) {
           <span>자리를 뜰 때 누르면 저장·커밋·푸시하고 세션을 은하수에 올려요.</span>
         </li>
         <li>
-          <b>🔁 교대</b>
-          <span>한 번에 한 기기만 작업해요. 다른 기기는 교대를 요청해 넘겨받아요.</span>
+          <b>🔁 넘겨 달라고 요청</b>
+          <span>한 번에 한 기기만 작업해요. 다른 기기는 넘겨 달라고 요청한 뒤 이어받아요.</span>
         </li>
       </ol>
       {view ? (
@@ -923,7 +923,7 @@ function GalaxyStep({ api }: { api: DesktopApi }) {
           <RelayOutcome projectPath="" entry={entry} />
         </>
       ) : (
-        <p className="cosmos-empty-note">✨ 은하수를 살펴보는 중이에요…</p>
+        <CosmosPending projectPath="" entry={entry} />
       )}
     </div>
   );

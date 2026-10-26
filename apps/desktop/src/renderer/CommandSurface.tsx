@@ -17,6 +17,8 @@ import { ContextReading } from './ContextBody';
 import { UsageSkeleton } from './command-surface-usage';
 import { UsageModeTabs } from './UsageSurface';
 import { useUsageSurfaceMode } from './usage-surface-mode';
+import './desktop/23-route-editor.css';
+import './desktop/28-usage-explorer.css';
 import './settings/settings.css';
 
 export function commandSurfaceTitle(surface: CommandSurfaceName): string {

@@ -406,7 +406,7 @@ export async function transact(mutate, { dir = galaxyDir(), attempts = 5, squash
         }
         // Lost the race: the next attempt starts from the winner's state.
       }
-      throw new GalaxyError('contended', '다른 별이 동시에 은하수를 바꾸고 있어요. 잠시 후 다시 시도해 주세요.');
+      throw new GalaxyError('contended', '다른 기기가 동시에 은하수를 바꾸고 있어요. 잠시 후 다시 시도해 주세요.');
     },
     lock
   );

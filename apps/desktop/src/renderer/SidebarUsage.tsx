@@ -24,6 +24,7 @@ import { ProviderAccountPicker } from './ProviderAccountPicker';
 import { focusQuotaUsage } from './usage-surface-mode';
 import { prefetchQuotaUsage } from './quota-usage-cache';
 import { SUBSCRIPTIONS, type Subscription } from './subscription-providers';
+import './desktop/28-usage-explorer.css';
 
 const SIDEBAR_CODEX_RESET_ATTEMPT_KEY = 'mixdog.desktop.codex-reset-attempt.v1';
 const SIDEBAR_CODEX_RESET_TIMEOUT_MS = 90_000;

@@ -22,3 +22,8 @@
 .execution-budget-panel input { width: 100%; min-width: 0; background: var(--mx-bg-base); color: var(--mx-text); border: 1px solid var(--mx-border); border-radius: 5px; padding: 6px; }
 .execution-budget-panel small { color: var(--mx-text-muted); line-height: 1.6; font-size: 11px; }
 @media(max-width:520px) { .execution-budget-panel { position: fixed; left: 16px; right: 16px; bottom: 120px; width: auto; } }
+
+.workbench-open-button {display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;border:0;border-radius:6px;padding:4px 7px;background:transparent;color:var(--mx-text-muted);font:inherit;font-size:11px;cursor:pointer;transition:background 120ms,color 120ms;}
+.workbench-open-button:hover {background:var(--mx-bg-layer-2);color:var(--mx-text);}
+.workbench-open-button:focus-visible {outline:2px solid var(--mx-focus);outline-offset:2px;}
+.workbench-opening {font-size:11px;color:var(--mx-text-muted);padding:4px;}

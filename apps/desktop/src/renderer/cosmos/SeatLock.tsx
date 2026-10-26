@@ -7,14 +7,17 @@
 // Esc or "읽기만 볼게요" folds it back into the banner.
 //
 // Three shapes of "someone else is seated":
-//  · another machine        → 🔁 교대 요청 (or ⚠️ 넘겨받기 when it went silent)
+//  · another machine        → 🔁 넘겨 달라고 요청 (or ⚠️ 넘겨받기 when it went silent)
+//
+// Until the seat is known at all (first read still running) the composer is
+// held the same way, with a one-line "확인 중" banner.
 //  · a phone driving THIS PC → ↩️ 되찾기 (state 'remote')
 //  · seen from that phone, the PC it drives holds the seat → 📱 폰으로 이어하기
 import { useEffect, useRef, useState } from 'react';
 import { ago, josa, kindGlyph, since } from './cosmos-format';
 import { ActionNote, RelayOutcome, runCosmosAction } from './CosmosParts';
 import { openCosmosGalaxy } from './CosmosHome';
-import { cosmosAskTurn, cosmosSit, cosmosWithdraw, useCosmos } from './cosmos-store';
+import { cosmosAskTurn, cosmosSeatHeldElsewhere, cosmosSeatUnknown, cosmosSit, cosmosWithdraw, useCosmos } from './cosmos-store';
 
 export function SeatLock({ projectPath }: { projectPath: string }) {
   const entry = useCosmos(projectPath);
@@ -23,14 +26,17 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
   const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const locked = Boolean(view && (view.state === 'occupied' || view.state === 'stale' || view.state === 'remote'));
+  const locked = cosmosSeatHeldElsewhere(view);
+  const checking = cosmosSeatUnknown(entry, projectPath);
+  const hold = locked || checking;
   // The card (note form included) needs room: asking always opens it.
   const open = expanded || asking;
 
-  // Input stays disabled while another device holds the seat: this pane's
-  // composer becomes inert (no focus, no clicks, no typing).
+  // Input stays disabled while another device holds the seat (or while that is
+  // still being checked): this pane's composer becomes inert (no focus, no
+  // clicks, no typing).
   useEffect(() => {
-    if (!locked) return undefined;
+    if (!hold) return undefined;
     const pane = rootRef.current?.parentElement;
     const composers = pane ? [...pane.querySelectorAll<HTMLElement>('form.composer')] : [];
     for (const composer of composers) {
@@ -43,7 +49,7 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
         delete composer.dataset.seatLocked;
       }
     };
-  }, [locked]);
+  }, [hold]);
 
   // Dialog behaviour for the expanded card: focus moves in, Tab wraps, Esc folds.
   useEffect(() => {
@@ -82,7 +88,20 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
     };
   }, [open, locked]);
 
-  if (!view || (view.state !== 'occupied' && view.state !== 'stale' && view.state !== 'remote')) return null;
+  if (checking) {
+    return (
+      <div ref={rootRef} className="cosmos-lock cosmos-lock--banner cosmos-lock--checking" role="status">
+        <div className="cosmos-lock-card">
+          <span className="cosmos-lock-icon" aria-hidden="true">
+            ⏳
+          </span>
+          <h2>작업 자리를 확인하는 중이에요</h2>
+          <p>다른 기기가 작업 중인지 확인되면 바로 입력할 수 있어요.</p>
+        </div>
+      </div>
+    );
+  }
+  if (!view || !locked) return null;
   const holder = view.seat?.holder;
   const holderName = holder?.name || '다른 기기';
   const asked = view.seat?.requests.some((request) => request.star === view.star.id);
@@ -101,7 +120,7 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
     detail = `${since(holder?.since)} · 폰과 이 PC가 동시에 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르면 풀려요.`;
   } else if (here) {
     icon = '💻';
-    detail = `작업 시작: ${ago(holder?.since)} · 지금 연결된 바로 그 PC예요. 교대 없이 폰으로 이어갈 수 있고, 그 PC는 잠겨요.`;
+    detail = `작업 시작: ${ago(holder?.since)} · 지금 연결된 바로 그 PC예요. 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있고, 그 PC는 잠겨요.`;
   } else if (stale) {
     icon = '⚠️';
     title = `${kindGlyph(holder?.kind)} ${josa(holderName, '이가')} 응답이 없어요`;
@@ -163,18 +182,18 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
               </button>
             ) : asked ? (
               <>
-                <p className="cosmos-lock-waiting">📨 교대 요청을 보냈어요 · 응답을 기다리는 중</p>
+                <p className="cosmos-lock-waiting">📨 넘겨 달라고 요청했어요 · 응답을 기다리는 중</p>
                 <button type="button" className="cosmos-link" disabled={busy} onClick={() => void cosmosWithdraw(projectPath)}>
                   요청 취소
                 </button>
               </>
             ) : (
               <button type="button" className="cosmos-button cosmos-button--sun cosmos-button--large" disabled={busy} onClick={() => setAsking(true)}>
-                🔁 교대 요청
+                🔁 넘겨 달라고 요청
               </button>
             )}
             <button type="button" className="cosmos-link" onClick={openCosmosGalaxy}>
-              우주 지도 보기 →
+              은하수 보기 →
             </button>
             {open ? (
               <button type="button" className="cosmos-link" onClick={() => setExpanded(false)}>

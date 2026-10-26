@@ -1,3 +1,4 @@
+import { workbenchOperation } from './workbench-service';
 import { execFile } from 'node:child_process';
 import { watch, type FSWatcher } from 'node:fs';
 
@@ -197,6 +198,7 @@ export function createFolderWatchRegistry(
 }
 
 const STATIC_OPERATIONS = {
+  workbench: workbenchOperation,
   cosmosOverview: cosmos.cosmosOverview,
   cosmosSun: cosmos.cosmosSun,
   cosmosMoon: cosmos.cosmosMoon,
@@ -449,7 +451,8 @@ export function createDesktopOperations({
     resize(id: string, cols: number, rows: number): void {
       void invoke('termResize', [id, cols, rows]).catch(() => {});
     },
-    cwdOf(id: string): string | null {
+    /** null: a terminal with no folder; undefined: an id the host does not know. */
+    cwdOf(id: string): string | null | undefined {
       return terminals.cwdOf(id);
     },
   };

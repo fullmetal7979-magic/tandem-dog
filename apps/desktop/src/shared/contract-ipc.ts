@@ -3,6 +3,7 @@
 import { COSMOS_IPC } from './contract-cosmos';
 
 export const DESKTOP_IPC = {
+  workbench: 'cosmos:workbench',
   ...COSMOS_IPC,
   chooseProject: 'mixdog:choose-project',
   chooseFile: 'mixdog:choose-file',

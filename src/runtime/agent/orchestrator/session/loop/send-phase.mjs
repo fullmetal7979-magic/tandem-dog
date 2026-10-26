@@ -1,3 +1,4 @@
+import { applyProjectContext } from '../../../../workbench/project-policy.mjs';
 /**
  * send-phase.mjs — one provider round of the agent loop: open the iteration
  * (steering drain, request boundary, eager dispatcher), send with recovery,
@@ -32,6 +33,7 @@ export async function beginIteration(state) {
   const iterT0 = Date.now();
   state.throwIfAborted();
   assertBudgetRequestAllowed(state);
+  await applyProjectContext(state);
   // Drain queued steering/prompts BEFORE the pre-send compact check, but only
   // immediately after a tool batch has completed: queued entries are attached
   // after tool results and before the continuation, not on arbitrary

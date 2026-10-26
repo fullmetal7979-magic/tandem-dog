@@ -1,3 +1,4 @@
+import { admitWorkbenchRequest, settleWorkbenchRequest } from '../../../workbench/usage-meter.mjs';
 // provider.send wrapper with stall/overflow recovery.
 // Returns { action } so the loop keeps control of the
 // while-loop: proceed carries the response, retry signals a reactive
@@ -216,14 +217,19 @@ export async function sendWithRecovery(ctx) {
     retryAttemptNumber: Math.max(0, Number(transportRetriesUsed) || 0),
     retryMaxForDisplay,
   });
+  let ticket;
   try {
+    ticket = admitWorkbenchRequest({ownerSessionId:ctx.sessionRef?.ownerSessionId || ctx.sessionRef?.parentSessionId || opts.session?.ownerSessionId || opts.session?.parentSessionId || '',cwd:ctx.sessionRef?.cwd || opts.session?.cwd || opts.cwd || '',sessionId,
+    provider:ctx.sessionRef?.provider || provider.name || '',model,fast:opts.fast,modelParameters:opts.modelParameters});
     let response;
     try {
       const { timedOpts } = hooks;
       const admittedOpts = timedOpts?.admissionOwner ? timedOpts : { ...(timedOpts || {}), admissionOwner: sessionId };
       response = await provider.send(messages, model, sendTools.length ? sendTools : undefined, admittedOpts);
+      settleWorkbenchRequest(ticket, response?.usage);
       hooks.logTurnTiming('ok');
     } catch (sendErr) {
+      settleWorkbenchRequest(ticket, sendErr?.usage, {failed:true,exposed:hooks.relayWitness?.textEmitted===true || Number(hooks.relayWitness?.toolCallsDispatched)>0});
       hooks.logTurnTiming(`err:${sendErr?.code || sendErr?.name || 'unknown'}`);
       return await recoverFromSendError(sendErr, { ...ctx, relayWitness: hooks.relayWitness });
     }

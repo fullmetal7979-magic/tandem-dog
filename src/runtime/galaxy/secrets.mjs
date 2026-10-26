@@ -116,7 +116,19 @@ export function restoreSecrets(incoming, local) {
 
 export const URL_SECRET_MARK = 'redacted-secret';
 const URL_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)([^\s/?#@'"]*)@/gi;
-const URL_SECRET_PARAM = /([?&;][\w.%-]*(?:token|key|secret|passw(?:or)?d|pwd|auth|sig|signature|credential|code|session|jwt)[\w.%-]*=)[^&#\s'"]*/gi;
+// Query parameters that carry credentials, matched by their WHOLE name (any
+// case): `?token=` goes, `?keyword=` or `?monkey=` stays.
+export const URL_SECRET_PARAM_NAMES = Object.freeze([
+  'token', 'access_token', 'refresh_token', 'id_token', 'auth_token', 'oauth_token', 'private_token', 'bearer_token',
+  'sas_token', 'session_token', 'security_token', 'api_token',
+  'key', 'apikey', 'api_key', 'api-key', 'access_key', 'secret_key', 'private_key', 'account_key',
+  'secret', 'client_secret', 'password', 'passwd', 'pwd',
+  'auth', 'authorization', 'sig', 'signature', 'credential', 'credentials', 'code',
+  'session', 'session_id', 'sessionid', 'sid', 'jwt',
+  'x-amz-signature', 'x-amz-credential', 'x-amz-security-token', 'x-goog-signature', 'x-goog-credential',
+]);
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const URL_SECRET_PARAM = new RegExp(`([?&;](?:${URL_SECRET_PARAM_NAMES.map(escapeRegExp).join('|')})=)[^&#\\s'"]*`, 'gi');
 const SSH_SCHEME = /^(?:git\+)?ssh:\/\/$/i;
 
 /**

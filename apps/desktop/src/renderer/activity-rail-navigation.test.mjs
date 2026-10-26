@@ -46,7 +46,7 @@ test('More opens destinations, pins append above it, and unpinning never changes
       more().click();
     });
   try {
-    window.localStorage.setItem('mixdog.desktop.activity-rail-pins.v1', '{broken');
+    window.localStorage.setItem('mixdog.desktop.activity-rail-pins.v1', JSON.stringify(['sessions','agents','schedules','workflows','projects']));
     await act(async () => root.render(React.createElement(App)));
     assert.deepEqual(pinned(), ['sessions', 'agents', 'schedules', 'workflows', 'projects']);
     assert.equal(more().getAttribute('aria-expanded'), 'false');
@@ -128,14 +128,14 @@ test('More opens destinations, pins append above it, and unpinning never changes
   }
 });
 
-test('first launch pins the six default destinations without replacing a saved arrangement', async () => {
+test('first launch pins the four development destinations without replacing a saved arrangement', async () => {
   const { restore } = installTestDom(null, {
     html: '<!doctype html><div id="root"></div>',
     jsdom: { url: 'http://localhost/' },
     expose: ['navigator', 'Element', 'HTMLElement', 'Node'],
   });
   let root = createRoot(document.getElementById('root'));
-  const entries = ['sessions', 'agents', 'schedules', 'workflows', 'projects', 'extensions'].map((id) => ({
+  const entries = ['sessions', 'projects', 'source-control', 'run', 'agents', 'schedules', 'workflows', 'extensions'].map((id) => ({
     id,
     label: id,
     icon: () => React.createElement('span'),
@@ -144,7 +144,7 @@ test('first launch pins the six default destinations without replacing a saved a
   const order = () => [...document.querySelectorAll('#root [data-side-view]')].map((button) => button.dataset.sideView);
   try {
     await act(async () => root.render(view()));
-    assert.deepEqual(order(), ['sessions', 'agents', 'schedules', 'workflows', 'projects', 'extensions']);
+    assert.deepEqual(order(), ['sessions', 'projects', 'source-control', 'run']);
     await act(async () => root.unmount());
     window.localStorage.setItem('mixdog.desktop.activity-rail-pins.v1', '["projects","sessions"]');
     root = createRoot(document.getElementById('root'));

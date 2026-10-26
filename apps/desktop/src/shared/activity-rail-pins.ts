@@ -12,7 +12,8 @@ export const ACTIVITY_RAIL_PIN_IDS = [
   'tandem',
   'webhooks',
 ] as const;
-export const DEFAULT_ACTIVITY_RAIL_PINS = ['sessions', 'agents', 'schedules', 'workflows', 'projects', 'extensions'];
+export const LEGACY_ACTIVITY_RAIL_PINS = ['sessions', 'agents', 'schedules', 'workflows', 'projects', 'extensions'];
+export const DEFAULT_ACTIVITY_RAIL_PINS = ['sessions', 'projects', 'source-control', 'run'];
 
 export interface ActivityRailPinsState {
   pins: string[];

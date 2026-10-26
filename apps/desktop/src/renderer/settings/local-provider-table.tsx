@@ -8,6 +8,7 @@ import { ExtensionAction } from './extension-detail';
 import type { LocalProviderActions } from './local-provider-actions';
 import { LocalProviderContext, contextSize } from './local-provider-context';
 import { installationActive, installationPercent, localProviderFileSize } from './local-provider-status';
+import '../desktop/28-usage-explorer.css';
 
 type Confirmation = Parameters<typeof SettingsConfirmDialog>[0]['options'];
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';

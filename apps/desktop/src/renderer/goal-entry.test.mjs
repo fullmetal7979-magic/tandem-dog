@@ -47,7 +47,10 @@ test('/goal and the add menu open the same goal editor without creating or faili
     const outfile = join(directory, 'composer.mjs');
     await build({
       entryPoints: [fileURLToPath(new URL('./Composer.tsx', import.meta.url))],
-      outfile,
+      outdir: directory,
+      entryNames: 'composer',
+      outExtension: { '.js': '.mjs' },
+      splitting: true,
       bundle: true,
       platform: 'node',
       format: 'esm',

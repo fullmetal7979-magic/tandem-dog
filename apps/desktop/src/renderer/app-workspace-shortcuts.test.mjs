@@ -261,3 +261,37 @@ test('Command+Arrow stays with macOS text editing while non-input panes keep nav
   assert.equal(event.defaultPrevented, true);
   assert.deepEqual(calls, ['pane']);
 });
+
+test('mod+Shift+M opens the model picker everywhere except Monaco’s Ctrl chord', async (t) => {
+  const host = document.createElement('main');
+  const editor = document.createElement('div');
+  editor.className = 'monaco-editor';
+  const editorInput = document.createElement('textarea');
+  editor.append(editorInput);
+  document.body.append(host, editor);
+  const root = createRoot(host);
+  const calls = [];
+  const noop = () => {};
+  t.after(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    editor.remove();
+  });
+  await act(async () => root.render(React.createElement(Harness, { actions: {
+    tabs: [], activeTabKey: '', navigateTab: noop, startTask: noop, openSettings: noop,
+    openModelPicker: () => calls.push('models'),
+    toggleSidebar: noop, toggleDock: noop, togglePanel: noop, openQuickAccess: noop,
+    openCommandPalette: noop, openFindInFiles: noop, openTabSwitcher: noop,
+    focusSiblingPane: noop, focusVerticalPane: noop, navigateBack: noop, navigateForward: noop,
+  } })));
+  const press = async (target, modifiers) => {
+    const event = new window.KeyboardEvent('keydown', { key: 'M', shiftKey: true, ...modifiers, bubbles: true, cancelable: true });
+    await act(async () => target.dispatchEvent(event));
+    return event.defaultPrevented;
+  };
+  assert.equal(await press(host, { ctrlKey: true }), true);
+  assert.equal(await press(host, { metaKey: true }), true);
+  assert.equal(await press(editorInput, { metaKey: true }), true);
+  assert.equal(await press(editorInput, { ctrlKey: true }), false);
+  assert.deepEqual(calls, ['models', 'models', 'models']);
+});

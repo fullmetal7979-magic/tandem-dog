@@ -24,6 +24,7 @@ import {
   splitPrDiff,
 } from './pull-requests-model';
 import type { PullRequestDetailTab, PullRequestViewMode } from './pull-requests-model';
+import './desktop/25-scm-dock.css';
 
 export function PullRequestEditor({
   projectPath,

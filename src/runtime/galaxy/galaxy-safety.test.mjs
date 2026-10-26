@@ -17,7 +17,7 @@ import {
 } from './galaxy-repo.mjs';
 import { moon, overview, sun } from './cosmos.mjs';
 import { buildConversationExport, safeConversationId, writeConversationIn, readConversationIn, CONVERSATION_LIMIT_BYTES } from './conversations.mjs';
-import { planSync, redactConfigValue, syncEnvironmentIn } from './environment.mjs';
+import { baseFor, insideDataDir, isSkipped, planSync, readSyncState, redactConfigValue, syncEnvironmentIn } from './environment.mjs';
 import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import { runCosmosCli } from './cosmos-cli.mjs';
 import { updateStar } from './star.mjs';
@@ -367,6 +367,66 @@ test('a redacted Galaxy copy is never written over a real local file', async (t)
   assert.deepEqual(again.plan.up, []);
 });
 
+test('the sync base belongs to one Galaxy: another Galaxy never turns local files into deletions', async (t) => {
+  const w = envWorld(t);
+  mkdirSync(join(w.dataDir, 'skills'), { recursive: true });
+  writeFileSync(join(w.dataDir, 'skills', 'mine.md'), 'mine\n');
+  const first = await syncEnvironmentIn(w.galaxy, { direction: 'push', dataDir: w.dataDir, home: w.home });
+  await first.commitLocal();
+  const state = await readSyncState(w.home);
+  assert.ok(state.base['files/skills/mine.md']);
+  assert.equal(state.galaxyId, JSON.parse(readFileSync(join(w.galaxy, 'galaxy.json'), 'utf8')).id);
+
+  // A different (say, newly connected) Galaxy that never had the file.
+  const other = join(w.root, 'other-galaxy');
+  mkdirSync(join(other, 'environment', 'files', 'skills'), { recursive: true });
+  writeFileSync(join(other, 'environment', 'files', 'skills', 'theirs.md'), 'theirs\n');
+  const down = await syncEnvironmentIn(other, { direction: 'pull', dataDir: w.dataDir, home: w.home });
+  assert.deepEqual(down.plan.down.filter((entry) => entry.text === null), [], 'no deletion planned');
+  const summary = await down.commitLocal();
+  assert.equal(summary.rebased, true);
+  assert.equal(readFileSync(join(w.dataDir, 'skills', 'mine.md'), 'utf8'), 'mine\n');
+  assert.equal(readFileSync(join(w.dataDir, 'skills', 'theirs.md'), 'utf8'), 'theirs\n');
+  assert.equal(readFileSync(join(other, 'environment', 'files', 'skills', 'mine.md'), 'utf8'), 'mine\n');
+
+  // Same Galaxy id but another remote address: the base is dropped as well.
+  const agreed = { base: { k: 'x' }, galaxyId: 'g1', remote: 'https://h.example/a.git' };
+  assert.deepEqual(baseFor(agreed, { galaxyId: 'g1', remote: 'https://h.example/a.git' }), { k: 'x' });
+  assert.deepEqual(baseFor(agreed, { galaxyId: 'g1', remote: 'https://h.example/b.git' }), {});
+  assert.deepEqual(baseFor(agreed, { galaxyId: 'g2', remote: 'https://h.example/a.git' }), {});
+  assert.deepEqual(baseFor({ base: { k: 'x' }, galaxyId: null, remote: null }, { galaxyId: 'g1', remote: null }), {}, 'a base from before ids is not trusted');
+});
+
+test('a symlinked folder hides its whole subtree from the sync and is never written through', async (t) => {
+  const w = envWorld(t);
+  const outside = join(w.root, 'outside-skills');
+  mkdirSync(outside, { recursive: true });
+  writeFileSync(join(outside, 'a.md'), 'a\n');
+  mkdirSync(join(w.dataDir, 'skills'), { recursive: true });
+  writeFileSync(join(w.dataDir, 'skills', 'a.md'), 'a\n');
+  const first = await syncEnvironmentIn(w.galaxy, { direction: 'push', dataDir: w.dataDir, home: w.home });
+  await first.commitLocal();
+
+  // skills/ becomes a link to a folder kept elsewhere (dotfiles repo, say).
+  rmSync(join(w.dataDir, 'skills'), { recursive: true, force: true });
+  symlinkSync(outside, join(w.dataDir, 'skills'));
+  writeFileSync(join(w.galaxy, 'environment', 'files', 'skills', 'new.md'), 'from galaxy\n');
+  const push = await syncEnvironmentIn(w.galaxy, { direction: 'push', dataDir: w.dataDir, home: w.home });
+  assert.deepEqual(push.plan.up, [], 'files under the link are not read as deleted');
+  await push.commitLocal();
+  const pull = await syncEnvironmentIn(w.galaxy, { direction: 'pull', dataDir: w.dataDir, home: w.home });
+  assert.deepEqual(pull.plan.down, []);
+  await pull.commitLocal();
+  assert.equal(existsSync(join(w.galaxy, 'environment', 'files', 'skills', 'a.md')), true);
+  assert.equal(existsSync(join(outside, 'new.md')), false, 'nothing was written through the link');
+
+  assert.equal(isSkipped('files/skills/x/y.md', new Set(['files/skills'])), true);
+  assert.equal(isSkipped('files/skills-old/y.md', new Set(['files/skills'])), false);
+  assert.equal(await insideDataDir(w.dataDir, join(w.dataDir, 'skills', 'new.md')), false);
+  assert.equal(await insideDataDir(w.dataDir, join(w.dataDir, 'agents', 'deep', 'new.md')), true);
+  assert.equal(await insideDataDir(w.dataDir, join(w.root, 'elsewhere.md')), false);
+});
+
 // ------------------------------------------------------------------ 4. moon needs the seat
 
 function planetWorld(t) {
@@ -447,6 +507,40 @@ test('a refused sun does not touch the checkout (rescue runs only after the seat
   await as(w.a, () => assert.rejects(sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }), (error) => error.code === 'seat_occupied'));
   assert.equal(readFileSync(join(w.a.project, 'local-only.txt'), 'utf8'), 'precious\n');
   assert.equal(git(w.a.project, 'branch', '--show-current'), 'main');
+});
+
+test('moon keeps the seat when the project could not be pushed (force overrides)', async (t) => {
+  const w = planetWorld(t);
+  for (const s of [w.a, w.b]) {
+    await as(s, async () => {
+      await updateStar({ name: s.name, kind: 'pc' }, s.home);
+      await connectGalaxy({ dir: s.dir, remoteUrl: w.galaxyRemote });
+    });
+  }
+  await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
+  // Somebody pushed to the project behind the seat's back; a's push is rejected.
+  const seed = join(w.root, 'seed');
+  writeFileSync(join(seed, 'elsewhere.txt'), 'x\n');
+  git(seed, 'add', '.');
+  git(seed, 'commit', '--quiet', '-m', 'elsewhere');
+  git(seed, 'push', '--quiet', 'origin', 'HEAD:main');
+  writeFileSync(join(w.a.project, 'a-work.txt'), 'work\n');
+  const session = { id: 'sess_a', title: 'a', cwd: w.a.project, messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'yo' }] };
+  await as(w.a, () =>
+    assert.rejects(
+      moon({ root: w.a.project, dir: w.a.dir, home: w.a.home, session }),
+      (error) => error.code === 'push_failed' && error.reason === 'behind' && /그대로/.test(error.message)
+    )
+  );
+  const slug = (id) => id.toLowerCase().replace(/[^a-z0-9._-]+/g, '__').replace(/^_+|_+$/g, '').slice(0, 120);
+  const planetId = Object.keys(JSON.parse(git(w.galaxyRemote, 'show', 'main:planets.json')).planets)[0];
+  assert.match(git(w.galaxyRemote, 'show', `main:planets/${slug(planetId)}/seat.json`), /"name": "a"/, 'a still holds the seat');
+  assert.doesNotMatch(git(w.galaxyRemote, 'ls-tree', '-r', '--name-only', 'main'), /conversations\//);
+  await as(w.b, () => assert.rejects(sun({ root: w.b.project, dir: w.b.dir, home: w.b.home }), (error) => error.code === 'seat_occupied'));
+
+  const forced = await as(w.a, () => moon({ root: w.a.project, dir: w.a.dir, home: w.a.home, force: true }));
+  assert.equal(forced.project.ok, false);
+  assert.equal(forced.seat.holder, null);
 });
 
 // ------------------------------------------------------------------ 6. conversations + squash

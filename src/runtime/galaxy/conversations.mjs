@@ -69,6 +69,7 @@ export function buildConversationExport(session, { planetId, planetRoot, star, n
   return {
     v: 1,
     id: String(session?.id || ''),
+    taskId: String(session?.cosmosTaskId || session?.inheritedFromSessionId || session?.id || ''),
     planet: planetId,
     title: String(session?.title || '').slice(0, 200),
     provider: String(session?.provider || ''),

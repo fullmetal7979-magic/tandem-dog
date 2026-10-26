@@ -299,6 +299,9 @@ export class CaptureService implements DesktopService {
     throw new Error('Capture host has no Galaxy.');
   }
 
+  async restoreWorkbenchConversation(): Promise<{sessionId:string;snapshot:SessionSnapshot|null}> {
+    throw new Error('복원은 실제 데스크톱 서비스에서 사용할 수 있습니다.');
+  }
   async inheritSession(): Promise<{ sessionId: string; snapshot: SessionSnapshot | null }> {
     const sessionId = `capture_inherit_${Date.now()}`;
     return { sessionId, snapshot: { ...this.snapshot, sessionId } };

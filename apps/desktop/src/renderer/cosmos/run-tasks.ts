@@ -2,7 +2,8 @@
 // scripts (with the package manager its lockfile names) and Makefile targets
 // become big buttons; each run types its command into a fresh terminal of its
 // own, so the output and Ctrl+C stay where a developer expects them and a
-// command never lands in a shell that is still busy.
+// command never lands in a shell that is still busy. Each task keeps its own
+// terminal: starting one never stops another that is still running.
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
 
@@ -216,22 +217,43 @@ export interface RunTerminalApi {
   release(id: string): Promise<void>;
 }
 
+/** The PTY of each task's latest run, per project: `test` must not take `dev` down with it. */
+const taskRuns = new Map<string, Map<string, string>>();
+
+/** The latest run terminal of every task of a project, oldest first. */
+export function projectRuns(projectPath: string): Array<{ taskId: string; terminalId: string }> {
+  return [...(taskRuns.get(projectPath) ?? new Map<string, string>())].map(([taskId, terminalId]) => ({ taskId, terminalId }));
+}
+
 /**
- * Start a task in a brand-new PTY. The previous run's PTY is released first
- * (a dev server that is still up would otherwise swallow the typed command as
- * input), and the command is typed only once the fresh shell exists, so it
- * never goes into a process that is already running in the foreground.
+ * Start a task in a brand-new PTY of its own, and type the command only once
+ * that fresh shell exists, so it never goes into a process that is already
+ * running in the foreground.
+ *
+ * Each task keeps its own PTY: running `test` leaves a `dev` server that is
+ * still up alone. Re-running the same task restarts it, releasing that task's
+ * previous PTY first. `previousId` is kept for older callers: it is released
+ * only when it is this same task's earlier run, or when the task carries no
+ * id (the old one-terminal-per-project behaviour); another task's terminal is
+ * never killed on its behalf.
  */
 export async function startRun(
   api: RunTerminalApi,
   projectPath: string,
-  task: Pick<RunTask, 'command'>,
+  task: Pick<RunTask, 'command'> & Partial<Pick<RunTask, 'id'>>,
   previousId: string | null,
   nonce: string
-): Promise<{ terminalId: string }> {
-  if (previousId) await api.release(previousId).catch(() => undefined);
+): Promise<{ terminalId: string; restarted: string | null }> {
+  const runs = taskRuns.get(projectPath) ?? new Map<string, string>();
+  const ownPrevious = task.id ? (runs.get(task.id) ?? null) : previousId;
+  if (ownPrevious) await api.release(ownPrevious).catch(() => undefined);
+  if (task.id) runs.delete(task.id);
   const wanted = runTerminalId(projectPath, nonce);
   const opened = await api.termEnsure(wanted, projectPath, null);
+  if (task.id) {
+    runs.set(task.id, opened.id);
+    taskRuns.set(projectPath, runs);
+  }
   api.termWrite(opened.id, `${task.command}\r`);
-  return { terminalId: opened.id };
+  return { terminalId: opened.id, restarted: ownPrevious };
 }

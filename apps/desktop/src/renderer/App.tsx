@@ -373,12 +373,14 @@ export function App() {
       if (sessionId) openSession(sessionId);
     };
     window.addEventListener('cosmos:open-galaxy', openGalaxy);
+    window.addEventListener('cosmos:open-projects', openProjects);
     window.addEventListener('cosmos:open-session', openContinued);
     return () => {
       window.removeEventListener('cosmos:open-galaxy', openGalaxy);
+      window.removeEventListener('cosmos:open-projects', openProjects);
       window.removeEventListener('cosmos:open-session', openContinued);
     };
-  }, [sideDocks, openSession]);
+  }, [sideDocks, openSession, openProjects]);
   openSessionRef.current = openSession;
   const prefetchSession = useCallback((sessionId: string) => requestSessionRead(sessionId), []);
   const { openSettings } = useAppSettingsRouter({
@@ -395,7 +397,7 @@ export function App() {
   useEffect(() => {
     const open = (event: Event) => {
       const section = (event as CustomEvent<{ section?: string }>).detail?.section;
-      openSettings(section === 'providers' || section === 'connection' ? section : undefined);
+      openSettings(section === 'providers' || section === 'connection' || section === 'cosmos' || section === 'git' ? section : undefined);
     };
     const home = () => startTask();
     window.addEventListener('cosmos:open-settings', open);

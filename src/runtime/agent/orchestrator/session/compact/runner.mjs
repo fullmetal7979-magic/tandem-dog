@@ -1,3 +1,4 @@
+import { admitWorkbenchRequest, settleWorkbenchRequest } from '../../../../workbench/usage-meter.mjs';
 // Rule-based Compact preserves conversation verbatim by default. A bounded
 // cumulative handoff replaces only the conversation part when requested by
 // its independent threshold policy.
@@ -289,7 +290,10 @@ async function summarizeInBatches({ provider, model, sendOpts, fit, head, previo
     if (!prompt || (end === offset && offset < head.length)) {
       throw new Error(`generateFreshHandoffSummary: complete source cannot fit call budget=${callBudget}`);
     }
-    const response = await provider.send(compactionPromptMessages(prompt), model, undefined, sendOpts);
+    const ticket=admitWorkbenchRequest({ownerSessionId:sendOpts.session?.ownerSessionId || sendOpts.session?.parentSessionId || '',cwd:sendOpts.session?.cwd || sendOpts.cwd || '',sessionId:sendOpts.sessionId || '',provider:provider.name || '',model,fast:sendOpts.fast,modelParameters:sendOpts.modelParameters});
+    let response;
+    try { response=await provider.send(compactionPromptMessages(prompt), model, undefined, sendOpts); settleWorkbenchRequest(ticket,response?.usage); }
+    catch(error) { settleWorkbenchRequest(ticket,error?.usage,{failed:true}); throw error; }
     sendOpts.signal?.throwIfAborted();
     run.rawSummary = extractResponseText(response);
     if (!run.rawSummary) {

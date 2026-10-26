@@ -22,6 +22,7 @@ import type {
 import type { SessionFinalAnswer } from './session-final-answer';
 
 export interface DesktopService {
+  restoreWorkbenchConversation(cwd: string, document: Record<string, unknown>): Promise<{sessionId: string; snapshot: SessionSnapshot | null}>;
   subscribe(listener: (snapshot: SessionSnapshot) => void): () => void;
   subscribeSessions(listener: (sessions: DesktopSessionSummary[]) => void): () => void;
   subscribeAgentPool(listener: (agents: DesktopAgentPoolRow[]) => void): () => void;
@@ -153,6 +154,7 @@ export const DESKTOP_SERVICE_METHODS = [
   'searchProjectFiles',
   'submitNewTask',
   'inheritSession',
+  'restoreWorkbenchConversation',
   'continueGalaxyConversation',
   'submitToSession',
   'abortSession',

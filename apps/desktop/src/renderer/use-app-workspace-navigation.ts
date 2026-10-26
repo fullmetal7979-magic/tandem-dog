@@ -6,6 +6,7 @@ import { navigationKey } from './text-format';
 import { useWorkspaceShortcuts } from './app-workspace-shortcuts';
 import { dispatchCosmosSeatAction } from './cosmos/cosmos-store';
 import { useStableEvent } from './use-stable-event';
+import { requestOpenModelPicker } from './model-picker-event';
 
 type PaneWorkspace = ReturnType<typeof usePaneWorkspace>;
 
@@ -137,6 +138,11 @@ export function useAppWorkspaceNavigation({
     // ▶ The Run pane keeps its "last run" in its own state, so the key opens it
     // (one click on the highlighted last task) rather than re-running blindly.
     openRun: () => openDockTab('run'),
+    // The composer hint (DraftTokenBudget) advertises this key. Binding it in
+    // the capture table makes it work from the terminal and editor too.
+    openModelPicker: () => {
+      requestOpenModelPicker();
+    },
     toggleSidebar,
     toggleDock,
     togglePanel: toggleBottomPanel,

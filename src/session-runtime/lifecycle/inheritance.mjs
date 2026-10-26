@@ -174,6 +174,7 @@ export function createInheritance(deps, { compactConversation, saveSession }) {
     );
     invalidateContextStatusCache();
     target.inheritedFromSessionId = source.id;
+    target.cosmosTaskId = clean(source.cosmosTaskId || source.inheritedFromSessionId || source.id);
     target.updatedAt = Date.now();
     recordInheritanceBoundary(target, source);
     if (!clean(target.title) && clean(source.title)) target.title = source.title;
@@ -221,12 +222,16 @@ export function createInheritance(deps, { compactConversation, saveSession }) {
       throw new Error('inheritFromExport: the export has no conversation to carry');
     }
     const fit = inheritanceFit(carried, target);
-    if (fit.known && !fit.fits) carried = await fitConversationForHeir(source, target, carried, fit);
+    if (fit.known && !fit.fits) {
+      if (exported.localRecovery === true) throw new Error('저장된 대화가 이 모델의 컨텍스트를 초과합니다. 코드는 별도 폴더에 복원했습니다. 대화를 자동 압축하거나 AI에 전송하지 않았습니다.');
+      carried = await fitConversationForHeir(source, target, carried, fit);
+    }
     target.messages.push(
       ...stripEffortConfiguration(inheritedCompatReplayMessages(structuredClone(carried), source.provider))
     );
     invalidateContextStatusCache();
     target.inheritedFromSessionId = source.id;
+    target.cosmosTaskId = clean(exported.taskId || source.id);
     target.updatedAt = Date.now();
     recordInheritanceBoundary(target, source);
     if (!clean(target.title) && source.title) target.title = source.title;

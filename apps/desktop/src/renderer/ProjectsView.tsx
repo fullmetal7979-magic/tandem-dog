@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { ProjectListSection, type ProjectListSectionProps } from './ProjectListSection';
+import './desktop/20-automation.css';
 
 // Projects and Workflow are independent rail destinations. Retaining this
 // panel across navigation preserves the warmed project memory catalog.

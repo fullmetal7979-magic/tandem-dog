@@ -5,10 +5,9 @@
  * earlier ones, so this import order is behaviour, not style. Add a new rule to
  * the layer that owns its surface; never re-sort the list.
  */
-/* KaTeX layer for worker-rendered $$ display math. Imported from CSS (not
-   the markdown chunks) because the tsx test loader cannot evaluate css
-   module imports outside the DOM harness. */
-@import "../../node_modules/katex/dist/katex.min.css";
+/* KaTeX's stylesheet (and its ~20 font faces) is no longer eager: the
+   Markdown renderer imports ./katex-styles on the first AST that carries
+   math, and keeps math hidden until it lands (see MarkdownAstBody.tsx). */
 
 @import "./desktop/01-tokens.css";
 @import "./desktop/02-base.css";
@@ -28,17 +27,32 @@
 @import "./desktop/16-overlays.css";
 @import "./desktop/17-settings.css";
 @import "./desktop/18-surface-states.css";
-@import "./desktop/20-automation.css";
+/* Layers 20, 23, 25 and 28 are split. Each `-eager` part below holds the
+   rules first paint and simple mode can reach, in their original slot. The
+   advanced-only remainder keeps the layer's own file name and is imported by
+   the lazy views that render it, the same way as layers 21 and 31:
+     20 automation      SchedulesView, WebhooksView, WorkflowsView,
+                        ProjectsView, settings provider-panel,
+                        custom-provider-section, skill-editor
+     23 route editor    CommandSurface, SchedulesView, WebhooksView,
+                        SessionStatusIsland
+     25 SCM dock        UtilityDock, PullRequestEditor
+     28 usage explorer  CommandSurface, SidebarUsage, local-provider-table
+   A rule stays eager when any class it needs is rendered by an eager module,
+   or when a later layer sets the same property on the same selector at equal
+   specificity (lazy CSS lands after every eager layer, so moving it would
+   flip that tie). */
+@import "./desktop/20-automation-eager.css";
 /* Layer 21 is imported by the lazy OnboardingWizard module. Its selectors are
    wizard-scoped, and Vite loads the chunk stylesheet before rendering it. The
    shell rules that used to trail it live in shell-overrides.css below. */
 @import "./desktop/22-markdown.css";
-@import "./desktop/23-route-editor.css";
+@import "./desktop/23-route-editor-eager.css";
 @import "./desktop/24-context-dock.css";
-@import "./desktop/25-scm-dock.css";
+@import "./desktop/25-scm-dock-eager.css";
 @import "./desktop/26-editor.css";
 @import "./desktop/27-search-review.css";
-@import "./desktop/28-usage-explorer.css";
+@import "./desktop/28-usage-explorer-eager.css";
 @import "./desktop/30-dialogs.css";
 @import "./desktop/date-range-picker.css";
 @import "./desktop/error-notice.css";

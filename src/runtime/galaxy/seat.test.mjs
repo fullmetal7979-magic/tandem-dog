@@ -67,6 +67,34 @@ test('a silent holder turns stale and can only be replaced on purpose', () => {
   assert.equal(forced.seat.history.at(-2).forced, true);
 });
 
+test('a phone that picks its seat up through another PC moves the seat to that PC', () => {
+  const phone = { id: 'browser-1', name: '내 폰', kind: 'phone', color: '#fff' };
+  let seat = sitTransition(emptySeat(PLANET), phone, { now: 1_000, via: 'relay', host: home.id }).seat;
+  assert.equal(seatState(seat, home.id, { now: 2_000 }), 'remote');
+  assert.equal(seatState(seat, work.id, { now: 2_000 }), 'occupied');
+
+  // Same PC again: nothing changes.
+  assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: home.id }).changed, false);
+
+  // Through 회사 PC now: the seat follows, so 회사 PC's gate accepts the phone.
+  const moved = sitTransition(seat, phone, { now: 3_000, via: 'relay', host: work.id });
+  assert.equal(moved.changed, true);
+  assert.deepEqual(moved.moved, { from: home.id, to: work.id });
+  assert.equal(moved.took, null);
+  seat = moved.seat;
+  assert.equal(seat.holder.host, work.id);
+  assert.equal(seat.holder.since, 3_000);
+  assert.equal(seatState(seat, work.id, { now: 4_000 }), 'remote');
+  assert.equal(seatState(seat, home.id, { now: 4_000 }), 'occupied');
+  assert.deepEqual(
+    seat.history.map((entry) => [entry.host, entry.to, entry.memo ?? null]),
+    [
+      [home.id, 3_000, '다른 기기로 옮겨 이어감'],
+      [work.id, null, null],
+    ]
+  );
+});
+
 function galaxyFixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'cosmos-galaxy-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

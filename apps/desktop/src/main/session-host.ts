@@ -588,6 +588,10 @@ export class SessionHost implements DesktopService {
     return this.lifecycle.submitNewTask(prompt, options, draft);
   }
 
+  async restoreWorkbenchConversation(cwd: string, document: Record<string, unknown>): Promise<{sessionId: string; snapshot: SessionSnapshot | null}> {
+    return this.lifecycle.restoreWorkbenchConversation(cwd,document);
+  }
+
   async inheritSession(
     sourceSessionId: string,
     route?: DesktopModelSelection | null

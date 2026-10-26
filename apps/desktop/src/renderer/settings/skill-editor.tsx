@@ -10,6 +10,7 @@ import { CompactSwitch } from './capability-controls';
 import { rows, type PanelContext, type RecordValue } from './capability-data';
 import { ExtensionDetailDialog, ExtensionField, ExtensionNote } from './extension-detail';
 import { ToolNameInput } from './tool-name-input';
+import '../desktop/20-automation.css';
 
 type Dependency = { type: string; value: string; [key: string]: unknown };
 const dependenciesOf = (value: unknown): Dependency[] =>

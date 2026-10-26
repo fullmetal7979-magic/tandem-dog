@@ -17,6 +17,7 @@ import { usePersistedListOrder } from './use-persisted-list-order';
 import { useSidebarCapabilityRunner } from './use-sidebar-capability-runner';
 import { AgentEditorDialog, RouteEditorDialog, WorkflowEditorDialog, type RouteEditorTarget } from './workflow-dialogs';
 import type { RecordValue } from './desktop-types';
+import './desktop/20-automation.css';
 
 type WorkflowsApi = Partial<Pick<DesktopApi, 'invokeCapability' | 'listProviderModels'>>;
 

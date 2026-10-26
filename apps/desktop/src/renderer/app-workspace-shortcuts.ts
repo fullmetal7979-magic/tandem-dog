@@ -12,7 +12,8 @@ import { matchesWorkbenchShortcut as matches } from './workbench-shortcuts';
 // mod+, settings · mod+B left sidebar · alt+mod+B right utility dock ·
 // mod+J panel ·
 // shift+mod+F find in files · shift+mod+D 은하수 · shift+mod+S 이어받기 ·
-// shift+mod+L 내려놓기 · shift+mod+E ▶ 실행 · mod+W and ctrl+Q close.
+// shift+mod+L 내려놓기 · shift+mod+E ▶ 실행 · shift+mod+M model picker ·
+// mod+W and ctrl+Q close.
 import { useEffect, useRef } from 'react';
 
 import type { WorkspaceTab } from './navigation';
@@ -32,6 +33,8 @@ interface WorkspaceShortcutActions {
   cosmosSeat?: (action: 'sit' | 'leave') => void;
   /** mod+Shift+E : ▶ the Run pane. (mod+Shift+R is the native Remote Access menu accelerator.) */
   openRun?: () => void;
+  /** mod+Shift+M : the focused composer's route picker, on its model pane. */
+  openModelPicker?: () => void;
   toggleSidebar: () => void;
   toggleDock: () => void;
   togglePanel: () => void;
@@ -117,6 +120,11 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
         if (matches(event, 'sit') && actions.cosmosSeat) return () => actions.cosmosSeat?.('sit');
         if (matches(event, 'leave') && actions.cosmosSeat && !inEditor) return () => actions.cosmosSeat?.('leave');
         if (matches(event, 'run') && actions.openRun) return () => actions.openRun?.();
+        // Ctrl+Shift+M is Monaco's "toggle Tab key moves focus" on macOS, so a
+        // focused code editor keeps the Ctrl chord; Cmd+Shift+M still opens.
+        if (matches(event, 'models') && actions.openModelPicker && !(inEditor && event.ctrlKey && !event.metaKey)) {
+          return () => actions.openModelPicker?.();
+        }
       }
       if (!plain) return null;
       if (matches(event, 'new')) return () => actionsRef.current.startTask();

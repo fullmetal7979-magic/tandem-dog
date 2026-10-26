@@ -9,13 +9,15 @@ import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import { moon, overview, requestTurn, sun } from './cosmos.mjs';
 import { ensureStar, updateStar, STAR_KINDS } from './star.mjs';
 
+// The first Korean word of each verb is what the help shows; the older words
+// (해/달/교대/별) keep working for anyone who learned them.
 const VERBS = {
-  sun: ['해', 'sun', 'start', 'sit'],
-  moon: ['달', 'moon', 'finish', 'leave'],
-  request: ['교대', 'request', 'handover'],
+  sun: ['이어받기', '해', 'sun', 'start', 'sit'],
+  moon: ['내려놓기', '달', 'moon', 'finish', 'leave'],
+  request: ['요청', '교대', 'request', 'handover'],
   status: ['은하수', 'status', 'galaxy'],
   connect: ['연결', 'connect'],
-  star: ['별', 'star'],
+  star: ['기기', '별', 'star'],
   help: ['help', '--help', '-h', '도움말'],
 };
 
@@ -27,16 +29,16 @@ export function cosmosVerb(word) {
   return null;
 }
 
-const HELP = `코스모스 이어달리기 명령
+const HELP = `코스모스 이어받기 명령
 
-  cosmos 해 [--force]            이어받기: 최신 작업·환경·대화를 받아 이 기기에서 이어 하기
-  cosmos 달 ["메모"]             내려놓기: 저장·커밋·푸시하고 환경·대화를 은하수에 올리기
-  cosmos 교대 ["메모"]           지금 작업 중인 기기에 넘겨 달라고 요청 (취소: cosmos 교대 --cancel)
-  cosmos 은하수                  모든 기기와 이 프로젝트의 작업 상태 보기
-  cosmos 연결 <저장소 URL>       은하수(비공개 GitHub 저장소) 연결
-  cosmos 별 "<이름>" [pc|mac]    이 기기의 별 이름 정하기
+  cosmos 이어받기 [--force]        최신 작업·환경·세션을 받아 이 기기에서 이어서 작업하기
+  cosmos 내려놓기 ["메모"]         저장·커밋·푸시하고 환경·세션을 은하수에 올린 뒤 작업 자리 비우기
+  cosmos 요청 ["메모"]             지금 작업 중인 기기에 넘겨 달라고 요청 (취소: cosmos 요청 --cancel)
+  cosmos 은하수                    모든 기기와 이 프로젝트의 작업 상태 보기
+  cosmos 연결 <저장소 URL>         은하수(비공개 GitHub 저장소) 연결
+  cosmos 기기 "<이름>" [pc|mac]    이 기기 이름 정하기
 
-영어 이름도 됩니다: start, finish, request, status, connect, star.`;
+영어 이름도 됩니다: sit, leave, request, status, connect, star. 예전 명령어도 그대로 쓸 수 있어요.`;
 
 const ago = (at) => {
   if (!at) return '기록 없음';
@@ -106,7 +108,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       const kind = args.find((arg) => STAR_KINDS.includes(arg));
       const name = args.filter((arg) => arg !== kind).join(' ').trim();
       const star = name || kind ? await updateStar({ ...(name ? { name } : {}), ...(kind ? { kind } : {}) }) : await ensureStar();
-      say(`${kindIcon(star.kind)} 이 기기의 별: ${star.name}`);
+      say(`${kindIcon(star.kind)} 이 기기 이름: ${star.name}`);
       return 0;
     }
     if (verb === 'status') {
@@ -124,9 +126,9 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       if (view.planet?.id && view.seat) {
         say('');
         const holder = view.seat.holder;
-        const label = { mine: '🕹️ 내가 작업 중', occupied: `🔒 ${holder?.name} 작업 중`, stale: `⚠️ ${holder?.name} 응답 없음`, empty: '☄️ 아무도 작업하지 않음' }[view.state];
+        const label = { mine: '🕹️ 이 기기에서 작업 중', remote: '📱 폰이 이 기기를 통해 작업 중', occupied: `🔒 ${holder?.name} 작업 중`, stale: `⚠️ ${holder?.name} 응답 없음`, empty: '☄️ 아무도 작업하지 않음' }[view.state];
         say(`🪐 ${view.planet.name}: ${label}${holder ? ` · ${ago(holder.since)}부터` : ''}`);
-        for (const request of view.seat.requests) say(`   🔁 ${request.name}이(가) 교대를 원해요${request.note ? `: ${request.note}` : ''}`);
+        for (const request of view.seat.requests) say(`   🔁 ${request.name}이(가) 넘겨 달라고 요청했어요${request.note ? `: ${request.note}` : ''}`);
       } else if (view.state === 'no_remote') {
         say('');
         say('🪐 이 폴더는 원격 저장소가 없어 이어달리기에 쓸 수 없어요.');
@@ -136,7 +138,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
     if (verb === 'request') {
       const cancel = flag(args, '--cancel');
       const result = await requestTurn({ root: cwd, note: args.join(' '), withdraw: cancel });
-      say(cancel ? '🔁 교대 요청을 취소했어요.' : `🔁 ${result.seat.holder?.name || '작업 중인 기기'}에게 넘겨 달라고 요청했어요.`);
+      say(cancel ? '🔁 넘겨 달라는 요청을 취소했어요.' : `🔁 ${result.seat.holder?.name || '작업 중인 기기'}에게 넘겨 달라고 요청했어요.`);
       return 0;
     }
     if (verb === 'sun') {
@@ -144,14 +146,22 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       const result = await sun({ root: cwd, force });
       say(`☀️ ${result.planet.name}을(를) 이어받았어요 (${result.star.name}).`);
       if (result.took) say(`   ⚠️ 응답이 없던 ${result.took.name}에게서 넘겨받았어요.`);
-      if (result.rescue) say(`   🛟 이 기기에 남아 있던 작업을 ${result.rescue.branch} 브랜치에 보관했어요.`);
+      if (result.moved) say('   📱 폰 작업을 이 기기로 옮겨 이어받았어요.');
+      if (result.rescue) {
+        say(`   🛟 이 기기에 남아 있던 작업을 ${result.rescue.branch} 브랜치에 보관했어요.`);
+        if (!result.rescue.pushed) say('      이 브랜치는 이 기기에만 있어요 (원격 저장소에 올리지 않았어요).');
+        for (const finding of result.rescue.secrets || []) say(`      - 비밀 정보가 있어 올리지 않음: ${finding.path}`);
+      }
+      if (result.rescueFailed) {
+        say(`   ⚠️ 이 기기에 남아 있던 작업을 보관하지 못해 그대로 두었어요 (${result.rescueFailed.failed}). 직접 확인해 주세요.`);
+      }
       const project = result.project;
       if (project?.pulled) say(`   ⬇️ 새 커밋 ${project.pulled}개를 받았어요.`);
       if (project && !project.ok) say(`   ⚠️ 프로젝트를 최신으로 맞추지 못했어요 (${project.error}). 직접 확인해 주세요.`);
       if (result.environment) say(`   🌌 환경: ${result.environment.down}개 받음, ${result.environment.up}개 올림`);
       if (result.conversation) {
-        say(`   💬 이어갈 교신: "${result.conversation.title || '제목 없음'}" (${result.conversation.messageCount}개 메시지, ${result.conversation.star?.name || '?'})`);
-        say('      코스모스 데스크톱에서 열면 이 교신을 그대로 이어서 진행해요.');
+        say(`   💬 이어갈 세션: "${result.conversation.title || '제목 없음'}" (${result.conversation.messageCount}개 메시지, ${result.conversation.star?.name || '?'})`);
+        say('      코스모스 데스크톱에서 열면 이 세션을 그대로 이어서 진행해요.');
       }
       return 0;
     }
@@ -163,8 +173,8 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       if (result.project?.committed) say('   💾 변경 사항을 커밋했어요.');
       if (result.project?.pushed) say('   ⬆️ 원격 저장소에 올렸어요.');
       if (result.project && !result.project.ok) say(`   ⚠️ 프로젝트를 올리지 못했어요 (${result.project.error}).`);
-      if (result.conversation) say(`   💬 교신 ${result.conversation.messageCount}개 메시지를 은하수에 올렸어요.`);
-      if (result.handoffTo) say('   🔁 넘겨 달라고 요청한 기기를 위해 자리를 비워 두었어요.');
+      if (result.conversation) say(`   💬 세션 메시지 ${result.conversation.messageCount}개를 은하수에 올렸어요.`);
+      if (result.handoffTo) say('   🔁 넘겨 달라고 요청한 기기를 위해 작업 자리를 비워 두었어요.');
       return 0;
     }
     return 1;

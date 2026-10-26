@@ -1,3 +1,4 @@
+import { SlidersHorizontal } from 'lucide-react';
 import { ExecutionBudgetControl } from './ExecutionBudgetControl';
 import type { ExecutionBudget } from './execution-budget-settings';
 import type { RefObject } from 'react';
@@ -61,6 +62,7 @@ export function ComposerFooter({
   modelAside,
   executionBudget = {},
   onExecutionBudgetChange,
+  onOpenTaskCenter,
   ...modelProps
 }: ModelProps & {
   attachAccept: string;
@@ -88,6 +90,7 @@ export function ComposerFooter({
   attachments: ComposerAttachment[];
   onStop: () => void;
   modelAside: ComposerProps['modelAside'];
+  onOpenTaskCenter?: () => void;
   executionBudget?: ExecutionBudget;
   onExecutionBudgetChange?: (value: ExecutionBudget) => void;
 }) {
@@ -146,6 +149,7 @@ export function ComposerFooter({
         tuningDisabled={commandBusy || transitioning}
       />
       {onExecutionBudgetChange && <ExecutionBudgetControl key={`budget:${recoveryScope}`} value={executionBudget} disabled={transitioning || turnBusy} onChange={onExecutionBudgetChange} />}
+      {onOpenTaskCenter && <button type="button" className="workbench-open-button" title="작업 도구 · ⌘/Ctrl+Shift+K" aria-label="작업 도구 열기" onClick={onOpenTaskCenter}><SlidersHorizontal size={14}/><span>도구</span></button>}
       {modelAside && <span className="composer-model-aside">{modelAside}</span>}
       <span className="composer-primary-actions">
         {/* The mic appears only once the voice runtime is installed

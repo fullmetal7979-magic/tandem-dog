@@ -34,6 +34,8 @@ import { useSidebarReferences, type SidebarReferenceKey } from './sidebar-refere
 import { usePersistedListOrder } from './use-persisted-list-order';
 import { useSidebarCapabilityRunner } from './use-sidebar-capability-runner';
 import { CompactSwitch } from './settings/capability-controls';
+import './desktop/20-automation.css';
+import './desktop/23-route-editor.css';
 
 type SchedulesApi = Partial<Pick<DesktopApi, 'invokeCapability' | 'listProviderModels' | 'listProjects'>>;
 

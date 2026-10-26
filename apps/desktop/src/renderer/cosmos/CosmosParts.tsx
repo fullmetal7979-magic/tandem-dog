@@ -1,11 +1,11 @@
 // Shared COSMOS building blocks: the mark, the verdict hero with its single
 // action, the step-by-step outcome of 이어받기/내려놓기, Galaxy setup, the
 // device name editor, project cloning and the second-PC checklist.
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 import type { CosmosOverview, CosmosPlanetRecord, CosmosStarKind } from '../../shared/contract-cosmos';
 import { invalidateSidebarReferenceForMutation, useSidebarReferences } from '../sidebar-reference-cache';
 import { record, rows } from '../record-utils';
-import { ACTION_LABEL, cosmosVerdict, josa, kindGlyph, type CosmosAction } from './cosmos-format';
+import { ACTION_LABEL, cosmosErrorText, cosmosVerdict, josa, kindGlyph, type CosmosAction } from './cosmos-format';
 import {
   clearCosmosNotice,
   cosmosAskTurn,
@@ -15,8 +15,38 @@ import {
   cosmosSetupGalaxy,
   cosmosSit,
   cosmosWithdraw,
+  refreshCosmos,
   type CosmosEntry,
 } from './cosmos-store';
+
+// The same project's state is often on screen twice or three times at once
+// (home, seat lock, Galaxy screen). Only the earliest mounted copy of each
+// channel speaks to screen readers, so one change is announced once.
+const speakers = new Map<string, number[]>();
+const speakerListeners = new Set<() => void>();
+let speakerSeq = 0;
+function notifySpeakers(): void {
+  for (const listener of speakerListeners) listener();
+}
+function listenSpeakers(listener: () => void): () => void {
+  speakerListeners.add(listener);
+  return () => speakerListeners.delete(listener);
+}
+function useSpeaker(channel: string): boolean {
+  const [id] = useState(() => ++speakerSeq);
+  useEffect(() => {
+    speakers.set(channel, [...(speakers.get(channel) ?? []), id]);
+    notifySpeakers();
+    return () => {
+      const rest = (speakers.get(channel) ?? []).filter((other) => other !== id);
+      if (rest.length) speakers.set(channel, rest);
+      else speakers.delete(channel);
+      notifySpeakers();
+    };
+  }, [channel, id]);
+  const read = () => speakers.get(channel)?.[0] === id;
+  return useSyncExternalStore(listenSpeakers, read, () => false);
+}
 
 /** The ringed-planet mark (same artwork as the app icon). */
 export function CosmosMark({ size = 28, title }: { size?: number; title?: string }) {
@@ -101,10 +131,10 @@ export function runCosmosAction(action: CosmosAction, { projectPath, entry, sess
 const NOTE_PROMPT: Partial<Record<Exclude<CosmosAction, null>, { label: string; placeholder: string; submit: string }>> = {
   moon: { label: '🌙 어디까지 했나요? 다음 기기에 보여 줄 한 줄', placeholder: '예) 로그인 화면 완성, API 연결은 다음에', submit: '🌙 저장하고 내려놓기' },
   handoff: { label: '🌙 넘겨주며 남길 한 줄', placeholder: '예) 테스트 3개 남았어요', submit: '🌙 내려놓고 넘기기' },
-  request: { label: '🔁 교대 요청과 함께 보낼 말 (선택)', placeholder: '예) 회의실에서 이어서 할게요', submit: '🔁 교대 요청 보내기' },
+  request: { label: '🔁 요청과 함께 보낼 말 (선택)', placeholder: '예) 회의실에서 이어서 할게요', submit: '🔁 넘겨 달라고 요청하기' },
 };
 
-/** Inline one-line note for 내려놓기/교대, so the hand-over always carries context. */
+/** Inline one-line note for 내려놓기 and hand-over requests, so the hand-over always carries context. */
 export function ActionNote({
   action,
   busy,
@@ -144,6 +174,31 @@ export function ActionNote({
   );
 }
 
+/**
+ * Before the first overview arrives: a quiet "looking" line, or — when that
+ * read failed — the reason and a retry, never an endless spinner.
+ */
+export function CosmosPending({ projectPath, entry }: { projectPath: string; entry: CosmosEntry }) {
+  if (!entry.pollError) {
+    return (
+      <p className="cosmos-empty-note" aria-busy="true">
+        ✨ 은하수를 살펴보는 중이에요…
+      </p>
+    );
+  }
+  return (
+    <div className="cosmos-outcome cosmos-outcome--refused cosmos-pending" role="status">
+      <b>⚠️ 은하수 상태를 불러오지 못했어요</b>
+      <p>{entry.pollError}</p>
+      <div className="cosmos-outcome-actions">
+        <button type="button" className="cosmos-button cosmos-button--plain" disabled={entry.loading} onClick={() => void refreshCosmos(projectPath, { force: true })}>
+          {entry.loading ? '확인 중…' : '다시 시도'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function VerdictHero({
   context,
   compact = false,
@@ -154,10 +209,19 @@ export function VerdictHero({
   const verdict = cosmosVerdict(context.entry.view);
   const busy = Boolean(context.entry.busy);
   const [composing, setComposing] = useState<CosmosAction>(null);
+  // Only the state words are live: the visible title carries a "47분째" clock
+  // that would otherwise be read aloud every minute.
+  const speaks = useSpeaker(`verdict:${context.projectPath}`);
+  if (!context.entry.view && context.entry.pollError) return <CosmosPending projectPath={context.projectPath} entry={context.entry} />;
   const tone = (action: CosmosAction) =>
     action === 'sun' || action === 'carry' ? 'sun' : action === 'moon' || action === 'handoff' ? 'moon' : action === 'force' ? 'danger' : 'plain';
   return (
-    <section className={`cosmos-hero cosmos-hero--${verdict.level}${compact ? ' cosmos-hero--compact' : ''}`} aria-live="polite">
+    <section className={`cosmos-hero cosmos-hero--${verdict.level}${compact ? ' cosmos-hero--compact' : ''}`}>
+      {speaks && (
+        <span className="sr-only" aria-live="polite">
+          {verdict.live || verdict.title}
+        </span>
+      )}
       <span className="cosmos-hero-icon" aria-hidden="true">
         {verdict.icon}
       </span>
@@ -192,9 +256,19 @@ export function VerdictHero({
 
 type Step = { label: string; state: 'done' | 'warn' | 'skip' };
 
+/** Fields newer runtimes add to the 이어받기 result (read loosely so older ones still render). */
+type SunExtras = {
+  /** Backing up the displaced work failed: it was left in place, nothing was reset. */
+  rescueFailed?: { failed?: string } | null;
+  /** The phone's seat moved over to this PC. */
+  moved?: unknown;
+  rescue?: { branch: string; pushed?: boolean } | null;
+};
+
 function sunSteps(entry: CosmosEntry): Step[] {
   const result = entry.lastSun;
   if (!result) return [];
+  const extra = result as typeof result & SunExtras;
   const project = result.project;
   return [
     {
@@ -209,8 +283,24 @@ function sunSteps(entry: CosmosEntry): Step[] {
       label: result.conversation ? `세션 찾음 · “${result.conversation.title || '제목 없음'}” ${result.conversation.messageCount}개 메시지` : '이어갈 세션 없음',
       state: result.conversation ? 'done' : 'skip',
     },
-    { label: result.took ? `이어받기 · ${result.took.name}에게서 넘겨받음` : '이어받기', state: result.took ? 'warn' : 'done' },
-    ...(result.rescue ? [{ label: `남은 작업 보관 · ${result.rescue.branch}`, state: 'warn' as const }] : []),
+    {
+      label: result.took ? `이어받기 · ${result.took.name}에게서 넘겨받음` : extra.moved ? '이어받기 · 폰의 작업 자리를 이 PC로 옮김' : '이어받기',
+      state: result.took ? 'warn' : 'done',
+    },
+    ...(extra.rescue
+      ? [
+          {
+            label:
+              extra.rescue.pushed === false
+                ? `남은 작업 보관 · ${extra.rescue.branch} (비밀 정보가 있어 이 기기에만 둠)`
+                : `남은 작업 보관 · ${extra.rescue.branch}`,
+            state: 'warn' as const,
+          },
+        ]
+      : []),
+    ...(extra.rescueFailed
+      ? [{ label: '남은 작업 보관 실패 · 작업은 손대지 않고 그대로 두었어요. git 상태를 확인해 주세요.', state: 'warn' as const }]
+      : []),
   ];
 }
 
@@ -225,8 +315,8 @@ function moonSteps(entry: CosmosEntry): Step[] {
       state: project?.ok === false ? 'warn' : 'done',
     },
     { label: result.environment ? `은하수 · 환경 ${result.environment.up}개 올림` : '은하수', state: 'done' },
-    { label: result.conversation ? `세션 · ${result.conversation.messageCount}개 메시지 올림` : '세션 · 올릴 대화 없음', state: result.conversation ? 'done' : 'skip' },
-    { label: result.handoffTo ? '내려놓기 · 교대 요청한 기기에게 넘김' : '내려놓기 · 자리 비움', state: 'done' },
+    { label: result.conversation ? `세션 · ${result.conversation.messageCount}개 메시지 올림` : '세션 · 올릴 세션 없음', state: result.conversation ? 'done' : 'skip' },
+    { label: result.handoffTo ? '내려놓기 · 요청한 기기에게 넘김' : '내려놓기 · 자리 비움', state: 'done' },
   ];
 }
 
@@ -235,10 +325,14 @@ const STEP_GLYPH: Record<Step['state'], string> = { done: '✓', warn: '!', skip
 /** What the last 이어받기/내려놓기 actually did, step by step, or why it was refused. */
 export function RelayOutcome({ projectPath, entry }: { projectPath: string; entry: CosmosEntry }) {
   const steps = entry.lastSun ? sunSteps(entry) : moonSteps(entry);
+  // Shown on every surface, announced by one.
+  const speaks = useSpeaker(`outcome:${projectPath}`);
+  const alertRole = speaks ? 'alert' : undefined;
+  const statusRole = speaks ? 'status' : undefined;
   if (entry.busy === 'sun' || entry.busy === 'moon') {
     const labels = entry.busy === 'sun' ? ['프로젝트 받기', '환경 맞추기', '세션 찾기', '이어받기'] : ['저장', '올리기', '은하수', '세션', '자리 비우기'];
     return (
-      <div className="cosmos-outcome is-running" role="status">
+      <div className="cosmos-outcome is-running" role={statusRole}>
         <b>{entry.busy === 'sun' ? '☀️ 이어받는 중…' : '🌙 내려놓는 중…'}</b>
         <ol className="cosmos-steps">
           {labels.map((label) => (
@@ -253,8 +347,15 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
   }
   if (entry.refusal) {
     return (
-      <div className="cosmos-outcome cosmos-outcome--refused" role="alert">
-        <b>⚠️ {entry.refusal.code === 'no_gh' ? 'GitHub CLI에 로그인하면 은하수를 연결할 수 있어요.' : entry.refusal.message}</b>
+      <div className="cosmos-outcome cosmos-outcome--refused" role={alertRole}>
+        {entry.refusal.code === 'push_failed' ? (
+          <>
+            <b>⚠️ 내려놓지 못했어요</b>
+            <p>{entry.refusal.message}</p>
+          </>
+        ) : (
+          <b>⚠️ {entry.refusal.code === 'no_gh' ? 'GitHub CLI에 로그인하면 은하수를 연결할 수 있어요.' : entry.refusal.message}</b>
+        )}
         {entry.refusal.secrets?.length ? (
           <ul className="cosmos-secret-list">
             {entry.refusal.secrets.map((finding) => (
@@ -270,10 +371,10 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
       </div>
     );
   }
-  if (entry.error) {
+  if (entry.actionError) {
     return (
-      <div className="cosmos-outcome cosmos-outcome--refused" role="alert">
-        <b>⚠️ {entry.error}</b>
+      <div className="cosmos-outcome cosmos-outcome--refused" role={alertRole}>
+        <b>⚠️ {entry.actionError}</b>
         <button type="button" className="cosmos-link" onClick={() => clearCosmosNotice(projectPath)}>
           닫기
         </button>
@@ -283,7 +384,7 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
   if (!steps.length) return null;
   const conversation = entry.lastSun?.conversation;
   return (
-    <div className="cosmos-outcome" role="status">
+    <div className="cosmos-outcome" role={statusRole}>
       <b>{entry.lastSun ? '☀️ 이어받았어요' : '🌙 내려놓았어요 · 다른 기기에서 이어받기를 누르면 이어져요'}</b>
       <ol className="cosmos-steps">
         {steps.map((step) => (
@@ -351,15 +452,15 @@ export function GalaxySetup({
       {needGithub && (
         <div className="cosmos-setup-github" role="status">
           <p>GitHub에 로그인해야 은하수를 만들거나 찾을 수 있어요.</p>
-          {githubSlot}
+          {githubSlot || <button type="button" className="cosmos-button cosmos-button--plain" onClick={()=>window.dispatchEvent(new CustomEvent('cosmos:open-settings',{detail:{section:'git'}}))}>GitHub 설정 열기</button>}
         </div>
       )}
       <div className="cosmos-setup-actions">
         <button type="button" className="cosmos-button cosmos-button--sun cosmos-button--large" disabled={busy} onClick={() => void cosmosSetupGalaxy(projectPath, { create: true })}>
-          {busy ? '연결하는 중…' : '✨ 처음이에요 – 내 GitHub에 은하수 만들기'}
+          {busy ? '연결하는 중…' : '새 은하수 만들기'}
         </button>
         <button type="button" className="cosmos-button cosmos-button--plain cosmos-button--large" disabled={busy} onClick={() => void find()}>
-          다른 PC에서 이미 만들었어요 – 찾기
+          기존 은하수 찾기
         </button>
       </div>
       {notice && notice !== NEED_GITHUB && (
@@ -457,8 +558,16 @@ function remoteRepository(remote: string): { repo: string; hostname: string } | 
  * folder to the project list.
  */
 export function useProjectClone(projectPath: string | null) {
-  const [busy, setBusy] = useState(false);
+  // Per remote: receiving one project leaves the other 받기 buttons alone.
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const mark = (remote: string, on: boolean) =>
+    setPending((current) => {
+      const next = new Set(current);
+      if (on) next.add(remote);
+      else next.delete(remote);
+      return next;
+    });
   const clone = async (remote: string, name?: string) => {
     const desktop = window.mixdogDesktop;
     const target = remoteRepository(remote);
@@ -466,7 +575,7 @@ export function useProjectClone(projectPath: string | null) {
       setMessage({ ok: false, text: '이 프로젝트의 저장소 주소를 읽지 못했어요.' });
       return;
     }
-    setBusy(true);
+    mark(remote, true);
     setMessage(null);
     try {
       const parent = await desktop.chooseProject();
@@ -479,12 +588,12 @@ export function useProjectClone(projectPath: string | null) {
       invalidateSidebarReferenceForMutation('addProject');
       setMessage({ ok: true, text: `${folder} 프로젝트를 받아서 목록에 추가했어요.` });
     } catch (reason) {
-      setMessage({ ok: false, text: reason instanceof Error ? reason.message : String(reason) });
+      setMessage({ ok: false, text: cosmosErrorText(reason) });
     } finally {
-      setBusy(false);
+      mark(remote, false);
     }
   };
-  return { busy, message, clone };
+  return { busy: pending.size > 0, isCloning: (remote: string) => pending.has(remote), message, clone };
 }
 
 export function CloneMessage({ message }: { message: { ok: boolean; text: string } | null }) {
@@ -516,13 +625,16 @@ export function NewStarChecklist({
   const [picking, setPicking] = useState(false);
   const [repo, setRepo] = useState('');
   const candidates = clonablePlanets(view);
+  const gitWorks = view.ready || Boolean(view.planet?.id) || Boolean(view.project?.branch);
   const items = [
-    { id: 'git', label: 'git 사용 가능', done: true, hint: '' },
-    { id: 'galaxy', label: '은하수 연결', done: view.ready, hint: '위의 은하수 연결을 눌러 주세요.' },
-    { id: 'sync', label: '은하수와 동기화', done: Boolean(view.syncedAt), hint: '이어받기를 한 번 하면 맞춰져요.' },
+    // No separate git probe exists: a connected Galaxy or a project with a
+    // remote proves git works here, otherwise it is still unconfirmed.
+    { id: 'git', label: 'git 사용 가능', done: gitWorks, hint: '은하수를 연결하면 확인돼요.' },
+    { id: 'galaxy', label: '동기화 저장소 연결', done: view.ready, hint: '위의 은하수 연결을 눌러 주세요.' },
+    { id: 'sync', label: '이 기기 동기화', done: Boolean(view.syncedAt), hint: '이어받기를 한 번 하면 맞춰져요.' },
     { id: 'ai', label: 'AI 계정', done: providerConnected(values.providerSetup), hint: '' },
     { id: 'project', label: '이 PC의 프로젝트', done: Boolean(view.planet?.id), hint: '' },
-    { id: 'devices', label: '다른 기기와 연결됨', done: view.stars.length > 1, hint: '다른 기기에서도 같은 은하수를 연결하세요.' },
+    { id: 'devices', label: '다른 기기 연결', done: view.stars.length > 1, hint: '다른 기기에서도 같은 은하수를 연결하세요.' },
   ];
   const done = items.filter((item) => item.done).length;
   const ratio = done / items.length;
@@ -549,7 +661,7 @@ export function NewStarChecklist({
           </text>
         </svg>
         <div>
-          <h3>두 번째 PC 준비</h3>
+          <h3>연결 준비 순서</h3>
           <p>{done === items.length ? '모든 준비가 끝났어요 ✨' : '체크가 모두 켜지면 어느 기기에서든 바로 이어서 작업해요.'}</p>
         </div>
       </div>
