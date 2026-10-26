@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { t } from './i18n';
 
 // `preparing` runs from the tap until audio is actually captured: a phone
 // takes a noticeable moment to open the mic, and words spoken before capture
@@ -121,13 +122,13 @@ function microphoneFailureText(reason: unknown): string {
   const name = reason instanceof DOMException ? reason.name : '';
   if (name === 'NotAllowedError') {
     return (window as unknown as { mixdogRemoteServer?: string }).mixdogRemoteServer
-      ? 'Microphone access is blocked. Allow microphone access for this site in your browser settings and reload.'
-      : 'Microphone access is blocked. Allow microphone access for desktop apps in Windows Settings → Privacy & security → Microphone.';
+      ? t('Microphone access is blocked. Allow microphone access for this site in your browser settings and reload.')
+      : t('Microphone access is blocked. Allow microphone access for desktop apps in Windows Settings → Privacy & security → Microphone.');
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No microphone was detected. Connect one and try again.';
+    return t('No microphone was detected. Connect one and try again.');
   }
-  if (name === 'NotReadableError') return 'The microphone is busy in another app. Close it and try again.';
+  if (name === 'NotReadableError') return t('The microphone is busy in another app. Close it and try again.');
   return reason instanceof Error ? reason.message : String(reason);
 }
 
@@ -218,7 +219,7 @@ export function useComposerDictation({
       // connections that wait silently discarded the start of the utterance.
       if (!dictationInstalled) {
         requestVoiceInstall();
-        showNotice('Install voice transcription from Extensions first.');
+        showNotice(t('Install voice transcription from Extensions first.'));
         return;
       }
       setDictationState('preparing');

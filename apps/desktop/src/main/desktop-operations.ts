@@ -1,5 +1,6 @@
 import { workbenchOperation } from './workbench-service';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
 
 import { childEnvironment } from './child-environment';
@@ -197,6 +198,24 @@ export function createFolderWatchRegistry(
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+/**
+ * The live ▶ 실행 terminals of one project. Their ids are
+ * `term_cosmos_run_<first 16 hex of SHA-256(project path)>[_<nonce>]`, the
+ * same derivation as `runTerminalId` in renderer/cosmos/run-tasks.ts.
+ */
+export function cosmosRunTerminals(terminals: Pick<TerminalManager, 'list'>, projectPath: unknown): string[] {
+  if (typeof projectPath !== 'string' || !projectPath) return [];
+  const base = `term_cosmos_run_${createHash('sha256').update(projectPath, 'utf8').digest('hex').slice(0, 16)}`;
+  return terminals
+    .list(base)
+    .map((entry) => entry.id)
+    .filter((id) => id === base || id.startsWith(`${base}_`));
+}
+
 const STATIC_OPERATIONS = {
   workbench: workbenchOperation,
   cosmosOverview: cosmos.cosmosOverview,
@@ -325,6 +344,13 @@ export function createDesktopOperations({
 
   async function invoke(name: string, args: unknown[] = []): Promise<unknown> {
     if (name === 'githubRequest') return executeGithub(args[0], args[1]);
+    // ▶ 실행 runs outlive a renderer reload in this service; an overview asked
+    // with `runs: true` names the project's live ones so the pane re-adopts them.
+    if (name === 'cosmosOverview' && isRecord(args[1]) && args[1].runs === true) {
+      const { runs: _runs, ...options } = args[1];
+      const view = await cosmos.cosmosOverview(args[0], options, args[2]);
+      return { ...view, runs: cosmosRunTerminals(terminals, args[0]) };
+    }
     const staticOperation = STATIC_OPERATIONS[name as keyof typeof STATIC_OPERATIONS] as
       | ((...values: unknown[]) => unknown)
       | undefined;

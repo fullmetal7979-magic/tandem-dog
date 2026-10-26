@@ -1,5 +1,5 @@
-// 설정 → 은하수: the Galaxy connection, this device's star, the relay
-// address phones use for their turn, and the 심플/고급 mode.
+// 설정 → 은하수: the Galaxy connection, this device's star and the relay
+// address phones use for their turn.
 import { useEffect, useState } from 'react';
 import { CosmosPending, GalaxySetup, StarIdentity } from './CosmosParts';
 import { cosmosErrorText } from './cosmos-format';

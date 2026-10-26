@@ -28,8 +28,8 @@
 @import "./desktop/17-settings.css";
 @import "./desktop/18-surface-states.css";
 /* Layers 20, 23, 25 and 28 are split. Each `-eager` part below holds the
-   rules first paint and simple mode can reach, in their original slot. The
-   advanced-only remainder keeps the layer's own file name and is imported by
+   rules first paint and the default screens can reach, in their original slot.
+   The lazy-only remainder keeps the layer's own file name and is imported by
    the lazy views that render it, the same way as layers 21 and 31:
      20 automation      SchedulesView, WebhooksView, WorkflowsView,
                         ProjectsView, settings provider-panel,

@@ -4,6 +4,13 @@
 // moves git, types into a terminal or starts an agent turn asks the seat
 // first. Without a Galaxy the gate answers "go ahead", so plain remote access
 // is unchanged.
+//
+// A write with no folder (a terminal opened nowhere, a task with no project),
+// or one aimed outside every registered project (`~`, a stray clone), could
+// `cd` into any project. It is judged by the every-registered-project rule:
+// while any project is held by another device, it is refused.
+import { resolve, sep } from 'node:path';
+
 type RemoteMethod = (params: unknown[]) => unknown;
 
 /** Resolves to the refusal text, or null when the write may go ahead. */
@@ -22,8 +29,18 @@ export interface SeatGateResolvers {
    * against every registered project instead.
    */
   terminalCwd?(terminalId: string): Promise<string | null | undefined> | string | null | undefined;
-  /** Every registered project directory; the fallback judge of an unknown terminal. */
+  /**
+   * Every registered project directory. With it, a folder outside them all (or
+   * no folder) is judged against each of them; without it the gate is asked
+   * about the folder as given, as before.
+   */
   projectDirectories?(): Promise<string[]>;
+  /**
+   * The every-project rule's question about one project: refuse only while
+   * another device holds it (an empty seat does not refuse). Without a Galaxy
+   * it answers null. Defaults to `gate`, which is stricter.
+   */
+  heldGate?: SeatGate;
 }
 
 /** Git lanes that change the checkout, the index, refs or the remote. */
@@ -107,6 +124,66 @@ function guarded(method: RemoteMethod, where: (params: unknown[]) => Promise<str
   };
 }
 
+const caseless = process.platform === 'darwin' || process.platform === 'win32';
+function folderKey(folder: string): string {
+  const resolved = resolve(folder);
+  const trimmed = resolved.length > 1 && resolved.endsWith(sep) ? resolved.slice(0, -1) : resolved;
+  return caseless ? trimmed.toLowerCase() : trimmed;
+}
+
+/** Is `cwd` one of the folders, or inside one? */
+export function insideAnyFolder(cwd: string, folders: string[]): boolean {
+  const target = folderKey(cwd);
+  return folders.some((folder) => {
+    const root = folderKey(folder);
+    return target === root || target.startsWith(root.endsWith(sep) ? root : root + sep);
+  });
+}
+
+/** The project list is read at most this often: a burst of writes asks the registry once. */
+const PROJECT_LIST_MS = 2_000;
+
+/**
+ * The seat question for any folder. A folder inside a registered project asks
+ * that project's seat; no folder, or one outside every project, asks every
+ * project with the held-elsewhere rule.
+ */
+export function folderJudge(resolvers: Pick<SeatGateResolvers, 'gate' | 'heldGate' | 'projectDirectories'>): SeatGate {
+  const { gate, projectDirectories } = resolvers;
+  const held = resolvers.heldGate ?? gate;
+  let cached: { at: number; folders: Promise<string[]> } | null = null;
+  const folders = (): Promise<string[]> => {
+    if (!projectDirectories) return Promise.resolve([]);
+    const now = Date.now();
+    if (!cached || now - cached.at > PROJECT_LIST_MS) {
+      const pending = projectDirectories();
+      cached = { at: now, folders: pending };
+      // A failed read is not remembered: the next write asks again.
+      pending.catch(() => {
+        if (cached?.folders === pending) cached = null;
+      });
+    }
+    return cached.folders;
+  };
+  return async (cwd) => {
+    // Without a project list there is nothing to widen to: ask about the folder as given.
+    if (!projectDirectories) return gate(cwd);
+    const projects = await folders();
+    if (cwd && insideAnyFolder(cwd, projects)) return gate(cwd);
+    // Outside every project: the folder's own seat still counts (a planet
+    // reached through another spelling of its path stays gated), and then
+    // every project is asked.
+    if (!projects.length) return gate(cwd);
+    const own = cwd ? await gate(cwd) : null;
+    if (own) return own;
+    for (const folder of projects) {
+      const refusal = await held(folder);
+      if (refusal) return refusal;
+    }
+    return null;
+  };
+}
+
 /** A terminal verdict is reused briefly: keystrokes arrive far faster than the seat can change. */
 const TERMINAL_VERDICT_MS = 1_500;
 
@@ -115,7 +192,8 @@ const TERMINAL_VERDICT_MS = 1_500;
  * gated by the directory the terminal was opened in.
  */
 export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolvers: SeatGateResolvers): Record<string, RemoteMethod> {
-  const { gate, projectDirectory, sessionCwd } = resolvers;
+  const { projectDirectory, sessionCwd } = resolvers;
+  const gate = folderJudge(resolvers);
   const wrap = (name: string, where: (params: unknown[]) => Promise<string | null>) => {
     const method = methods[name];
     if (method) methods[name] = guarded(method, where, gate);
@@ -135,7 +213,8 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
   // them in: never the folder the phone asked for, since ensuring an id that
   // already runs on the PC reuses that PTY wherever it lives. The rest (the
   // PC's own, term_cosmos_run_* among them) are looked up host-side, and when
-  // even the host cannot say, every registered project must pass.
+  // even the host cannot say (or the terminal has no folder), the
+  // every-registered-project rule judges it.
   const terminalCwd = new Map<string, string | null>();
   const verdicts = new Map<string, { at: number; refusal: Promise<string | null> }>();
   const ensure = methods.termEnsure;
@@ -161,14 +240,7 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
     try {
       let cwd: string | null | undefined = terminalCwd.has(id) ? terminalCwd.get(id) : undefined;
       if (cwd === undefined && resolvers.terminalCwd) cwd = await resolvers.terminalCwd(id);
-      if (cwd !== undefined) return await gate(cwd);
-      const folders = resolvers.projectDirectories ? await resolvers.projectDirectories() : [];
-      if (!folders.length) return await gate(null);
-      for (const folder of folders) {
-        const refusal = await gate(folder);
-        if (refusal) return refusal;
-      }
-      return null;
+      return await gate(cwd ?? null);
     } catch {
       return SEAT_UNVERIFIED_MESSAGE;
     }

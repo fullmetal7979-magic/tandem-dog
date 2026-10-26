@@ -831,6 +831,12 @@ export function createRemoteMethods({
   if (seatGate) {
     gateRemoteWrites(methods, {
       gate: seatGate,
+      // The every-registered-project rule (a write with no folder, or outside
+      // every project): only a project another device holds refuses it.
+      heldGate: (cwd) =>
+        invokeDesktopOperation('cosmosRemoteWriteRefusal', [cwd, { scope: 'held' }]).then((value) =>
+          typeof value === 'string' ? value : null
+        ),
       // A failed lookup is the gate's to refuse (fail closed), so it is not swallowed here.
       projectDirectory: async (projectPath) =>
         typeof projectPath === 'string' && projectPath ? host.projectDirectory(projectPath) : null,
@@ -872,13 +878,26 @@ function cosmosRemoteMethods(host: DesktopService, invokeDesktopOperation: Invok
     });
   const optionalProjectCwd = (value: unknown): Promise<string | null> =>
     typeof value === 'string' && value ? projectCwd(value) : Promise.resolve(null);
+  const fields = (value: unknown): Record<string, unknown> =>
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  // The PC's run terminals are a desktop-local view; a phone only reads the seat.
+  const overviewOptions = (value: unknown) => {
+    const { fetch, force } = fields(value);
+    return { ...(typeof fetch === 'boolean' ? { fetch } : {}), ...(force === true ? { force } : {}) };
+  };
+  const moonRequest = (value: unknown) => {
+    const body = fields(value);
+    return { note: body.note, handoffTo: body.handoffTo, sessionId: body.sessionId, force: body.force === true };
+  };
   return {
     cosmosOverview: async ([cwd, options, guest]) =>
-      invokeDesktopOperation('cosmosOverview', [await optionalProjectCwd(cwd), options ?? null, guestOf(guest)]),
+      invokeDesktopOperation('cosmosOverview', [await optionalProjectCwd(cwd), overviewOptions(options), guestOf(guest)]),
     cosmosSun: async ([cwd, request, guest]) =>
       invokeDesktopOperation('cosmosSun', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
+    // `force: true` is 그래도 내려놓기 after a push_failed refusal: the seat is
+    // released and the unpushed work stays on this PC.
     cosmosMoon: async ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosMoon', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
+      invokeDesktopOperation('cosmosMoon', [await projectCwd(cwd), moonRequest(request), guestOf(guest)]),
     cosmosRequest: async ([cwd, request, guest]) =>
       invokeDesktopOperation('cosmosRequest', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
     // The phone has no beat of its own; its seat lives on this PC's beat.

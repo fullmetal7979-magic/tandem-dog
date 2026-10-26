@@ -109,6 +109,9 @@ function refusal(error: unknown): CosmosRefusal {
     holder: (detail.holder as CosmosRefusal['holder']) ?? null,
     lastSeen: typeof detail.lastSeen === 'number' ? detail.lastSeen : undefined,
     secrets: Array.isArray(detail.secrets) ? (detail.secrets as CosmosRefusal['secrets']) : undefined,
+    // push_failed says why ('behind', 'rejected', 'push', …); read defensively, it is free text.
+    reason: typeof detail.reason === 'string' && detail.reason ? detail.reason.slice(0, 40) : undefined,
+    canForce: typeof detail.canForce === 'boolean' ? detail.canForce : undefined,
   };
 }
 
@@ -118,6 +121,8 @@ const REFUSAL_CODES = new Set([
   'seat_not_held',
   'seat_stale',
   'seat_reserved',
+  // A phone takeover through this PC while the other host was seen recently.
+  'seat_host_active',
   'secrets',
   'no_remote',
   'no_galaxy',
@@ -174,25 +179,17 @@ export function publicOverview(view: CosmosOverview): CosmosOverview {
   };
 }
 
-async function sharedPreferences(): Promise<{ relayUrl: string | null; uiMode: 'simple' | 'advanced' | null }> {
+async function sharedPreferences(): Promise<{ relayUrl: string | null }> {
   const { readConfig } = await configModule();
-  const config = record(readConfig());
-  const cosmos = record(config.cosmos);
-  const desktop = record(config.desktop);
+  const cosmos = record(record(readConfig()).cosmos);
   return {
     relayUrl: typeof cosmos.relayUrl === 'string' && cosmos.relayUrl.trim() ? publicRelayUrl(cosmos.relayUrl.trim()) : null,
-    uiMode: desktop.uiMode === 'simple' || desktop.uiMode === 'advanced' ? desktop.uiMode : null,
   };
 }
 
-/** desktop.uiMode / cosmos.relayUrl — synced to every star through the Galaxy. */
+/** cosmos.relayUrl — synced to every star through the Galaxy. (The retired 심플/고급 uiMode is no longer read or written.) */
 export async function cosmosSetPreference(key: unknown, value: unknown): Promise<void> {
   const { updateConfig } = await configModule();
-  if (key === 'uiMode') {
-    if (value !== 'simple' && value !== 'advanced') throw new TypeError('uiMode must be simple or advanced.');
-    updateConfig((config) => ({ ...config, desktop: { ...record(config.desktop), uiMode: value } }));
-    return;
-  }
   if (key === 'relayUrl') {
     const raw = typeof value === 'string' ? value.trim() : '';
     // Checked when it is saved, not when the relay first dials: a plain ws://
@@ -373,11 +370,14 @@ export async function cosmosMoon(cwd: unknown, request?: unknown, guestInput?: u
   const note = text(body.note, NOTE_LIMIT);
   const handoffTo = typeof body.handoffTo === 'string' && body.handoffTo ? body.handoffTo : null;
   const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
+  // 그래도 내려놓기: release the seat even though the push failed; the
+  // unpushed work stays on this device. Only an explicit `true` counts.
+  const force = body.force === true;
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
       const session = await sessionToCarry(root, sessionId);
-      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session, guest });
+      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session, guest, force });
       invalidateOverview();
       return result as CosmosMoonResult;
     })
@@ -408,9 +408,15 @@ export async function cosmosHeartbeat(planets: unknown): Promise<void> {
  * folder that is no shared planet, the relay works as before. Returns the
  * refusal text, or null when the write may go ahead. Reads the last pull
  * only: the windows poll keeps it fresh, and a write must not wait on git.
+ *
+ * `{ scope: 'held' }` is the every-registered-project rule's question, asked
+ * for each project when a write has no folder or one outside every project:
+ * it refuses only while another device (this PC included) holds the seat, so
+ * an empty seat elsewhere does not block a folder-less terminal.
  */
-export async function cosmosRemoteWriteRefusal(cwd: string | null): Promise<string | null> {
+export async function cosmosRemoteWriteRefusal(cwd: string | null, options?: unknown): Promise<string | null> {
   if (!cwd) return null;
+  const heldOnly = record(options).scope === 'held';
   let root: string;
   try {
     root = await resolveRoot(cwd);
@@ -420,6 +426,13 @@ export async function cosmosRemoteWriteRefusal(cwd: string | null): Promise<stri
   const view = (await (await cosmosCore()).overview({ root, fetch: false })) as CosmosOverview;
   if (!view.ready || !view.planet?.id || view.state === 'remote') return null;
   const holder = view.seat?.holder;
+  if (heldOnly) {
+    if (!holder) return null;
+    const project = view.planet.name || '다른 프로젝트';
+    return view.state === 'mine'
+      ? `🔒 이 PC(${holder.name})가 ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요. 폰에서 ${project}을(를) 이어받아 주세요.`
+      : `🔒 ${holder.name}이(가) ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요.`;
+  }
   if (view.state === 'mine') return `🔒 이 PC(${holder?.name ?? '이 기기'})가 작업 중이에요. 폰에서 이어받기를 누르면 이어서 할 수 있어요.`;
   if (holder) return `🔒 ${holder.name}이(가) 작업 중이에요. 폰에서 넘겨 달라고 요청해 주세요.`;
   return '☄️ 지금은 아무도 작업하지 않아요. 폰에서 먼저 이어받기를 눌러 주세요.';

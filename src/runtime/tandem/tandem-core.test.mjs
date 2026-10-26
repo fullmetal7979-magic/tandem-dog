@@ -159,7 +159,7 @@ test('runGit kills a command that outlives its timeout and resolves non-zero', a
     const ok = await runGit(dir, ['--version']);
     assert.equal(ok.code, 0);
     assert.equal(defaultGitTimeoutMs(['-c', 'k=v', 'fetch', '--quiet']), 60_000);
-    assert.equal(defaultGitTimeoutMs(['rev-parse', 'HEAD']), 20_000);
+    assert.equal(defaultGitTimeoutMs(['rev-parse', 'HEAD']), 0, 'local commands run without a default limit');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -7,10 +7,13 @@ import { markdownComponents, type MarkdownCopyControl } from './markdown-compone
 
 type AstNode = MarkdownAstRoot['children'][number];
 
+// Code blocks are the bulk of a long AST (one span per highlighted token) and
+// can never hold rendered math, so the walk skips them.
+const MATH_FREE_TAGS = new Set(['pre', 'code']);
 function hasMath(nodes: readonly AstNode[] | undefined): boolean {
   if (!nodes) return false;
   for (const node of nodes) {
-    if (node.type !== 'element') continue;
+    if (node.type !== 'element' || MATH_FREE_TAGS.has(String(node.tagName))) continue;
     const className = node.properties?.className;
     if (Array.isArray(className) && className.some((name) => String(name).startsWith('katex'))) return true;
     if (hasMath(node.children)) return true;
@@ -22,9 +25,15 @@ function hasMath(nodes: readonly AstNode[] | undefined): boolean {
 // loads it; until then 28-usage-explorer-eager.css keeps `.katex` hidden so
 // the MathML and HTML twins never print the formula twice. A failed load
 // still reveals the math, unstyled, rather than leaving it invisible.
+// Each AST is walked at most once: a remounted row (virtualized transcript,
+// pane switch) reuses its answer, and once the stylesheet is requested no AST
+// is walked again.
 let katexStyles: Promise<void> | null = null;
+const checkedRoots = new WeakSet<MarkdownAstRoot>();
 function ensureKatexStyles(root: MarkdownAstRoot): void {
-  if (katexStyles || typeof document === 'undefined' || !hasMath(root.children)) return;
+  if (katexStyles || typeof document === 'undefined' || checkedRoots.has(root)) return;
+  checkedRoots.add(root);
+  if (!hasMath(root.children)) return;
   const mark = (state: string) => {
     document.documentElement.dataset.katexStyles = state;
   };

@@ -51,6 +51,14 @@ export function holderLastSeen(seat, beats = {}) {
   return Math.max(Number(seat.holder.since) || 0, Number(beat?.at) || 0, Number(hostBeat?.at) || 0);
 }
 
+/** Is the PC a phone holder drives (holder.host) still alive? Its beat, or the phone's sit time through it. */
+export function hostAlive(seat, beats = {}, now = Date.now(), staleMs = SEAT_STALE_MS) {
+  const hostId = seat?.holder?.host;
+  if (!hostId) return false;
+  const seen = Math.max(Number(seat.holder.since) || 0, Number(beats?.[hostId]?.at) || 0);
+  return now - seen <= staleMs;
+}
+
 /**
  * 'empty' | 'mine' | 'occupied' | 'stale' | 'remote' for `starId`.
  * 'remote': a phone sits in the seat through THIS star (the PC it drives).
@@ -87,6 +95,12 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
     const from = seat.holder.host ?? null;
     const to = host ?? null;
     if (from === to) return { seat, changed: false, state };
+    // The PC the phone drove still holds that phone's uncommitted work. While
+    // it is alive the move is refused (its user has to 내려놓기 there first);
+    // only a PC that stopped answering may be left behind.
+    if (from && hostAlive(seat, beats, now)) {
+      return { seat, changed: false, state, refused: 'host_active', host: { id: from, name: beats?.[from]?.name || null } };
+    }
     const history = [...seat.history];
     const open = history.findLastIndex((entry) => entry.star === star.id && !entry.to);
     if (open >= 0) history[open] = { ...history[open], to: now, memo: history[open].memo || '다른 기기로 옮겨 이어감' };
@@ -170,6 +184,12 @@ export function withdrawTransition(seat, star) {
   return { seat: { ...seat, requests: seat.requests.filter((request) => request.star !== star.id) }, changed: true };
 }
 
+/** Why a phone may not move to another PC while the one it drove is alive. */
+export function hostActiveMessage(host) {
+  const name = host?.name || '이전 기기';
+  return `${name}에 아직 작업이 남아 있어요. ${name}에서 먼저 내려놓기를 한 뒤 이 기기에서 이어받아 주세요.`;
+}
+
 // ------------------------------------------------------------------ io
 
 async function mutateSeat(planetId, transition, message, { dir } = {}) {
@@ -203,8 +223,9 @@ export async function sit(planetId, star, options = {}) {
       occupied: `${holder?.name || '다른 기기'}이(가) 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
       stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기를 위해 작업 자리를 비워 두었어요.',
+      host_active: hostActiveMessage(result.host),
     };
-    throw new GalaxyError(`seat_${result.refused}`, messages[result.refused], { seat: result.seat });
+    throw new GalaxyError(`seat_${result.refused}`, messages[result.refused], { seat: result.seat, host: result.host || null });
   }
   return result;
 }

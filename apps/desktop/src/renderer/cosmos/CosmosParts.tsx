@@ -11,6 +11,7 @@ import {
   cosmosAskTurn,
   cosmosContinue,
   cosmosLeave,
+  cosmosLeaveAnyway,
   cosmosRenameStar,
   cosmosSetupGalaxy,
   cosmosSit,
@@ -310,10 +311,12 @@ function moonSteps(entry: CosmosEntry): Step[] {
   const project = result.project;
   return [
     { label: project?.committed ? '저장 · 변경 사항 커밋' : '저장 · 바뀐 것 없음', state: 'done' },
-    {
-      label: project?.pushed ? '올리기 · 원격 저장소에 푸시' : project?.ok === false ? `올리기 · 확인 필요 (${project.error})` : '올리기 · 이미 최신',
-      state: project?.ok === false ? 'warn' : 'done',
-    },
+    result.unpushed
+      ? { label: '올리기 · 푸시하지 않고 내려놓음 (작업은 이 기기에 남아요)', state: 'warn' as const }
+      : {
+          label: project?.pushed ? '올리기 · 원격 저장소에 푸시' : project?.ok === false ? `올리기 · 확인 필요 (${project.error})` : '올리기 · 이미 최신',
+          state: project?.ok === false ? ('warn' as const) : ('done' as const),
+        },
     { label: result.environment ? `은하수 · 환경 ${result.environment.up}개 올림` : '은하수', state: 'done' },
     { label: result.conversation ? `세션 · ${result.conversation.messageCount}개 메시지 올림` : '세션 · 올릴 세션 없음', state: result.conversation ? 'done' : 'skip' },
     { label: result.handoffTo ? '내려놓기 · 요청한 기기에게 넘김' : '내려놓기 · 자리 비움', state: 'done' },
@@ -321,6 +324,17 @@ function moonSteps(entry: CosmosEntry): Step[] {
 }
 
 const STEP_GLYPH: Record<Step['state'], string> = { done: '✓', warn: '!', skip: '–' };
+
+/** What to weigh before 그래도 내려놓기, by why the push failed (an unknown reason gets the plain warning). */
+function leaveAnywayPrompt(reason: string | undefined): string {
+  const why =
+    reason === 'behind'
+      ? '원격 저장소에 더 새로운 커밋이 있어 올리지 못했어요.'
+      : reason === 'rejected'
+        ? '원격 저장소가 푸시를 거부했어요 (권한이나 보호된 브랜치).'
+        : '프로젝트를 원격 저장소에 올리지 못했어요.';
+  return `${why}\n그래도 내려놓을까요? 푸시되지 않은 작업은 이 기기에 남아요.`;
+}
 
 /** What the last 이어받기/내려놓기 actually did, step by step, or why it was refused. */
 export function RelayOutcome({ projectPath, entry }: { projectPath: string; entry: CosmosEntry }) {
@@ -352,6 +366,21 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
           <>
             <b>⚠️ 내려놓지 못했어요</b>
             <p>{entry.refusal.message}</p>
+            {entry.refusal.canForce !== false && (
+            <div className="cosmos-outcome-actions">
+              <button
+                type="button"
+                className="cosmos-button cosmos-button--plain"
+                disabled={Boolean(entry.busy)}
+                onClick={() => {
+                  if (window.confirm(leaveAnywayPrompt(entry.refusal?.reason))) void cosmosLeaveAnyway(projectPath);
+                }}
+              >
+                그래도 내려놓기
+              </button>
+              <span className="cosmos-footnote">푸시되지 않은 작업은 이 기기에 남아요</span>
+            </div>
+            )}
           </>
         ) : (
           <b>⚠️ {entry.refusal.code === 'no_gh' ? 'GitHub CLI에 로그인하면 은하수를 연결할 수 있어요.' : entry.refusal.message}</b>
@@ -385,7 +414,13 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
   const conversation = entry.lastSun?.conversation;
   return (
     <div className="cosmos-outcome" role={statusRole}>
-      <b>{entry.lastSun ? '☀️ 이어받았어요' : '🌙 내려놓았어요 · 다른 기기에서 이어받기를 누르면 이어져요'}</b>
+      <b>
+        {entry.lastSun
+          ? '☀️ 이어받았어요'
+          : entry.lastMoon?.unpushed
+            ? '🌙 내려놓았어요 · 푸시되지 않은 작업은 이 기기에 남아 있어요'
+            : '🌙 내려놓았어요 · 다른 기기에서 이어받기를 누르면 이어져요'}
+      </b>
       <ol className="cosmos-steps">
         {steps.map((step) => (
           <li key={step.label} className={`is-${step.state}`}>

@@ -67,9 +67,16 @@ import { ComposerBanners } from './ComposerBanners';
 import { ComposerFooter } from './ComposerFooter';
 import { CapabilityIcon } from './CapabilityIcon';
 import { withComposerModelHandoff, takeComposerModelHandoff } from './composer-model-handoff';
-import { readComposerDraft, rememberComposerDraft, saveComposerDraft } from './composer-draft-store';
+import {
+  deleteComposerDraft,
+  readComposerDraft,
+  rememberComposerDraft,
+  saveComposerDraft,
+  saveReplacedComposerDraft,
+} from './composer-draft-store';
 import { readExecutionBudget, saveExecutionBudget, type ExecutionBudget } from './execution-budget-settings';
 import { shouldRemoveSelectedSkill, skillTitle, useComposerSkill } from './composer-skill';
+import { OPEN_TASK_TOOLS_EVENT } from './workbench-shortcuts';
 
 // Perf diagnostics (MIXDOG_DESKTOP_PERF=1): keystroke→paint latency, logged
 // only when a frame is actually slow.
@@ -527,21 +534,32 @@ export const Composer = memo(function Composer(props: ComposerProps) {
   },[identityScope]);
   const restoreWorkbenchDraft = async (saved: SavedComposerDraft) => {
     if(draftRef.current.trim() || attachmentsRef.current.length)
-      await saveComposerDraft(`replaced:${identityScope}:${Date.now()}`,{text:draftRef.current,attachments:attachmentsRef.current});
+      await saveReplacedComposerDraft(identityScope,{text:draftRef.current,attachments:attachmentsRef.current});
     replaceAttachments(saved.attachments);draftRef.current=saved.text;setDraft(saved.text);
   };
   const openTaskCenter = () => {
     void saveComposerDraft(identityScope,{text:draftRef.current,attachments:attachmentsRef.current}).catch(()=>{});
     setTaskCenterOpen(true);
   };
+  const openTaskCenterRef = useRef(openTaskCenter);
+  openTaskCenterRef.current = openTaskCenter;
+  // ⌘⇧K lives in the workbench shortcut table (capture phase, every surface);
+  // the table dispatches OPEN_TASK_TOOLS_EVENT and the focused pane's
+  // composer claims it with the same handler as the 도구 button.
   useEffect(()=>{
     if(!paneActive || !window.mixdogDesktop?.workbench)return;
-    const handler=(event:KeyboardEvent)=>{if(event.defaultPrevented || (event.target instanceof Element && event.target.closest('.monaco-editor,.xterm,[role=dialog]')))return;if((event.metaKey||event.ctrlKey)&&event.shiftKey&&!event.altKey&&event.key.toLowerCase()==='k'){
-      event.preventDefault();setTaskCenterOpen(true);
-    }};
-    window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
+    const handler=(event:Event)=>{if(event.defaultPrevented)return;event.preventDefault();openTaskCenterRef.current();};
+    window.addEventListener(OPEN_TASK_TOOLS_EVENT,handler);return()=>window.removeEventListener(OPEN_TASK_TOOLS_EVENT,handler);
   },[paneActive]);
 
+  // The draft travelled with the model handoff, so the source tab must not
+  // hand it back again: drop its parked text, recovery row and live copy.
+  const clearHandedOffDraft=(scope:string)=>{
+    stashComposerDraft(scope,'');
+    if(persistentDraftRef.current.scope===scope)persistentDraftRef.current={scope,saved:{text:'',attachments:[]}};
+    if(mountedRef.current&&activeIdentityScope.current===scope){draftRef.current='';setDraft('');replaceAttachments([]);}
+    void deleteComposerDraft(scope).catch(()=>{});
+  };
   const cancelModelContinuation=()=>{pendingModel?.resolve(false);modelHandoffGuard.current=false;setPendingModel(null);};
   const continueWithModel = async (selection: DesktopModelSelection): Promise<boolean> => {
     if (!props.onContinueWithModel || !sessionId || modelHandoffGuard.current) return false;
@@ -555,9 +573,10 @@ export const Composer = memo(function Composer(props: ComposerProps) {
   const confirmModelContinuation=async():Promise<boolean>=>{
     if(!pendingModel||!props.onContinueWithModel||!sessionId)return false;
     transitioningRef.current=true;setModelHandoffPending(true);
+    const sourceScope=identityScope;
     try {
       const ok=await withComposerModelHandoff(sessionId,{text:draftRef.current,attachments:attachmentsRef.current},()=>props.onContinueWithModel!(pendingModel.selection));
-      if(ok){pendingModel.resolve(true);modelHandoffGuard.current=false;if(mountedRef.current)setPendingModel(null);}
+      if(ok){clearHandedOffDraft(sourceScope);pendingModel.resolve(true);modelHandoffGuard.current=false;if(mountedRef.current)setPendingModel(null);}
       return ok;
     }finally{if(mountedRef.current)setModelHandoffPending(false);}
   };

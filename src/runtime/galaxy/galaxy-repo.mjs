@@ -10,6 +10,10 @@
 // Liveness ("heartbeats") does not go through main: each star force-pushes a
 // one-commit ref refs/cosmos/beats/<starId>, so a five-minute pulse never
 // grows the history every other star has to fetch.
+//
+// Every Galaxy commit is COSMOS bookkeeping, never the user's work, so it is
+// made with --no-gpg-sign: a user who signs every commit (commit.gpgSign, a
+// passphrase prompt, a hardware key) must not have every 이어받기 fail.
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
@@ -363,7 +367,7 @@ async function squashHistory(dir, threshold = SQUASH_COMMIT_THRESHOLD) {
   const count = Number((await runGit(dir, ['rev-list', '--count', 'HEAD'])).stdout.trim()) || 0;
   if (count <= threshold) return false;
   const head = (await git(dir, ['rev-parse', 'HEAD'])).trim();
-  const flat = (await git(dir, ['commit-tree', `${head}^{tree}`, '-m', `cosmos: 기록 정리 (${count}개 → 1개)`])).trim();
+  const flat = (await git(dir, ['commit-tree', '--no-gpg-sign', `${head}^{tree}`, '-m', `cosmos: 기록 정리 (${count}개 → 1개)`])).trim();
   const pushed = await runGit(dir, ['push', '--quiet', `--force-with-lease=refs/heads/${GALAXY_BRANCH}:${head}`, 'origin', `${flat}:refs/heads/${GALAXY_BRANCH}`]);
   if (pushed.code !== 0) {
     squashBackoff.set(dir, Date.now() + 60 * 60_000);
@@ -392,7 +396,7 @@ export async function transact(mutate, { dir = galaxyDir(), attempts = 5, squash
         await git(dir, ['add', '-A']);
         const staged = await runGit(dir, ['diff', '--cached', '--quiet']);
         if (staged.code === 0) return outcome.value;
-        await git(dir, ['commit', '--quiet', '--no-verify', '-m', message]);
+        await git(dir, ['commit', '--quiet', '--no-verify', '--no-gpg-sign', '-m', message]);
         const remote = await galaxyRemote(dir);
         if (!remote) return outcome.value;
         const pushed = await runGit(dir, ['push', '--quiet', 'origin', `HEAD:refs/heads/${GALAXY_BRANCH}`]);
@@ -419,7 +423,7 @@ export async function publishBeat(starId, beat, { dir = galaxyDir(), push = true
   const body = JSON.stringify({ v: 1, star: starId, at: Date.now(), ...beat });
   const blob = (await git(dir, ['hash-object', '-w', '--stdin'], { input: body })).trim();
   const tree = (await git(dir, ['mktree'], { input: `100644 blob ${blob}\tbeat.json\n` })).trim();
-  const commit = (await git(dir, ['commit-tree', tree, '-m', `beat ${starId}`])).trim();
+  const commit = (await git(dir, ['commit-tree', '--no-gpg-sign', tree, '-m', `beat ${starId}`])).trim();
   const ref = `${BEAT_REF_PREFIX}${starId}`;
   await git(dir, ['update-ref', ref, commit]);
   if (!push || !(await galaxyRemote(dir))) return { ref, pushed: false };

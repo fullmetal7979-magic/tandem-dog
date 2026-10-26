@@ -68,3 +68,17 @@ test('a cwd that is not a registered project is rejected before anything runs', 
   assert.deepEqual(operations, []);
   assert.deepEqual(continued, []);
 });
+
+test('the phone can 그래도 내려놓기 (force) but never asks for the PC run terminals', async () => {
+  const { methods, operations } = fixture();
+  await methods.cosmosMoon(['p1', { note: 'x', force: true, extra: 'dropped' }, GUEST]);
+  await methods.cosmosMoon(['p1', { force: 'yes' }, GUEST]);
+  await methods.cosmosOverview(['p1', { fetch: false, runs: true }, GUEST]);
+  const moons = operations.filter(([name]) => name === 'cosmosMoon').map(([, , request]) => request);
+  assert.equal(moons[0].force, true);
+  assert.equal(moons[0].note, 'x');
+  assert.equal('extra' in moons[0], false);
+  assert.equal(moons[1].force, false, 'only an explicit true forces');
+  const [, , options] = operations.find(([name]) => name === 'cosmosOverview');
+  assert.deepEqual(options, { fetch: false });
+});

@@ -39,6 +39,7 @@ import { EMPTY_TRANSCRIPT_ITEMS, type RecordValue, type Snapshot, type Transcrip
 import { ComposerDock } from './ComposerDock';
 import { TranscriptList } from './TranscriptList';
 import { inheritSessionDirectly } from './session-inheritance';
+import { promoteDraftExecutionBudget } from './execution-budget-settings';
 import type { TranscriptAssistantRowProps } from './TranscriptAssistantRow';
 import {
   MarkdownOpenFileContext,
@@ -256,6 +257,19 @@ export function Conversation({
     timelineMounted,
     suppressDraftSubmitPaintHandoff,
   });
+  // The request limit is saved under the draft scope. When this pane's own
+  // first send promotes the draft to a session, carry the limit onto the
+  // session before the composer re-reads it for the new scope (its passive
+  // effect runs after this layout effect), so the second turn keeps it.
+  const draftBudgetScope = useRef('');
+  if (draftMode) draftBudgetScope.current = `draft:${draftId || 'default'}`;
+  const promotedSessionId = draftMode ? '' : String(routeSnapshot.sessionId || '');
+  useLayoutEffect(() => {
+    const source = draftBudgetScope.current;
+    if (!source || !promotedSessionId) return;
+    draftBudgetScope.current = '';
+    if (promotedOwnDraft.current) promoteDraftExecutionBudget(source, promotedSessionId);
+  }, [promotedSessionId, promotedOwnDraft]);
   // Submit-time baseline for the id-agnostic release path below.
   const settledUsers = useMemo(() => settledUserRowCount(settledItems), [settledItems]);
   const settledUsersRef = useRef(settledUsers);

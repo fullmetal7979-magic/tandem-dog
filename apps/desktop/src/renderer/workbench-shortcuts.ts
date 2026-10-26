@@ -23,15 +23,39 @@ export const WORKBENCH_SHORTCUTS = [
   { id: 'models', keys: 'shift+mod+m', label: 'Select model' },
 ] as const;
 export type WorkbenchShortcut = typeof WORKBENCH_SHORTCUTS[number]['id'];
-export function matchesWorkbenchShortcut(event: Pick<KeyboardEvent, 'key'|'ctrlKey'|'metaKey'|'shiftKey'|'altKey'>, id: WorkbenchShortcut): boolean {
+type ShortcutEvent = Pick<KeyboardEvent, 'key'|'ctrlKey'|'metaKey'|'shiftKey'|'altKey'>;
+
+/** macOS keeps Control for the terminal's readline (Ctrl+W/P/N/B/J) and
+ *  Mission Control (Ctrl+Arrow), so `mod` is ⌘ alone there. */
+export function isMacShortcutPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform
+    || navigator.platform || '';
+  return /^mac|iphone|ipad|ipod/i.test(platform);
+}
+
+/** The workbench `mod` key: ⌘ on macOS, Ctrl (or the Meta key) elsewhere. */
+export function workbenchModPressed(event: Pick<KeyboardEvent, 'ctrlKey'|'metaKey'>, mac = isMacShortcutPlatform()): boolean {
+  return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey || event.metaKey;
+}
+
+export function matchesWorkbenchShortcut(event: ShortcutEvent, id: WorkbenchShortcut, mac = isMacShortcutPlatform()): boolean {
   const entry = WORKBENCH_SHORTCUTS.find(item => item.id === id)!;
   const parts = entry.keys.split('+');
   const mod = parts.includes('mod');
   return event.key.toLowerCase() === parts[parts.length - 1] &&
     event.shiftKey === parts.includes('shift') && event.altKey === parts.includes('alt') &&
-    (mod ? (event.ctrlKey || event.metaKey) : (event.ctrlKey === parts.includes('ctrl') && !event.metaKey));
+    (mod ? workbenchModPressed(event, mac) : (event.ctrlKey === parts.includes('ctrl') && !event.metaKey));
 }
 export function shortcutLabel(keys: string, mac: boolean): string {
   const labels: Record<string, string> = { mod: mac ? '⌘' : 'Ctrl', ctrl: 'Ctrl', shift: mac ? '⇧' : 'Shift', alt: mac ? '⌥' : 'Alt', arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓', tab: 'Tab' };
   return keys.split('+').map(part => labels[part] || part.toUpperCase()).join('+');
+}
+
+/** ⌘/Ctrl+Shift+K and the composer's 도구 button share one open path: the
+ *  shortcut table dispatches this, and the focused pane's composer claims it
+ *  with preventDefault(). Returns whether a composer handled it. */
+export const OPEN_TASK_TOOLS_EVENT = 'mixdog:open-task-tools';
+export function requestOpenTaskTools(): boolean {
+  return !window.dispatchEvent(new window.CustomEvent(OPEN_TASK_TOOLS_EVENT, { cancelable: true }));
 }

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
+  adoptRuns,
+  isAdoptedRun,
   isRunnableName,
   makeTargets,
   makeTasks,
@@ -156,4 +158,18 @@ test('a failing release of the old PTY never blocks the new run', async () => {
   };
   const result = await startRun(fake.api, '/p', { command: 'make' }, 'term_cosmos_run_old', 'n3');
   assert.deepEqual(fake.typed, [[result.terminalId, 'make\r']]);
+});
+
+test('a reloaded pane re-adopts only its own live run terminals, once', () => {
+  const project = '/work/adopt-me';
+  const base = runTerminalId(project);
+  // The service derives the same id prefix from the path (desktop-operations cosmosRunTerminals).
+  assert.equal(base, `term_cosmos_run_${createHash('sha256').update(project, 'utf8').digest('hex').slice(0, 16)}`);
+  const other = runTerminalId('/work/someone-else', 'x1');
+  const adopted = adoptRuns(project, [`${base}_a1`, other, 'term_123_4', null, `${base}_b2`]);
+  assert.deepEqual(adopted, [`${base}_a1`, `${base}_b2`]);
+  assert.deepEqual(adoptRuns(project, [`${base}_a1`]), [], 'already tracked');
+  const runs = projectRuns(project);
+  assert.deepEqual(runs.map((entry) => entry.terminalId), [`${base}_a1`, `${base}_b2`]);
+  assert.ok(runs.every((entry) => isAdoptedRun(entry.taskId)));
 });

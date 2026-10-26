@@ -8,6 +8,10 @@ import { ModelSelector } from './model-controls.tsx';
 import { ExecutionBudgetControl } from './ExecutionBudgetControl.tsx';
 import { ComposerFooter } from './ComposerFooter.tsx';
 import { invalidateSharedModelCatalogRequest } from './model-catalog-cache.ts';
+import { isMacShortcutPlatform } from './workbench-shortcuts.ts';
+
+// The workbench `mod` key: ⌘ alone on macOS, Ctrl elsewhere.
+const mod = () => (isMacShortcutPlatform() ? { metaKey: true } : { ctrlKey: true });
 
 const models = [
   { provider: 'openai', model: 'test-coder', display: 'Coder', contextWindow: 128000, supportsVision: true },
@@ -87,7 +91,7 @@ test('footer routes new-conversation model selections to the draft, never the co
     const selector = React.Children.toArray(footerRow.props.children).find(child => child.type === ModelSelector);
     assert.ok(selector);
     await act(async () => root.render(selector));
-    const event = new window.KeyboardEvent('keydown', { key: 'M', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
+    const event = new window.KeyboardEvent('keydown', { key: 'M', ...mod(), shiftKey: true, bubbles: true, cancelable: true });
     await act(async () => window.dispatchEvent(event));
     assert.equal(event.defaultPrevented, true);
     const modelRow = [...document.querySelectorAll('[role="option"]')].find(row => row.textContent.includes('Builder'));
@@ -107,7 +111,7 @@ test('only the focused pane handles the model keyboard shortcut', async () => {
       modelDisabled: false, tuningDisabled: false, answersModelPickerRequests: false,
       invokeResult: action => action(), applySnapshot() {}, onOpenSettings() {},
     })));
-    const event = new window.KeyboardEvent('keydown', { key: 'M', ctrlKey: true, shiftKey: true, cancelable: true });
+    const event = new window.KeyboardEvent('keydown', { key: 'M', ...mod(), shiftKey: true, cancelable: true });
     await act(async () => window.dispatchEvent(event));
     assert.equal(event.defaultPrevented, false);
     assert.equal(document.querySelector('.model-trigger').getAttribute('aria-expanded'), 'false');
@@ -126,7 +130,7 @@ test('a populated chat switches providers through continuation instead of changi
       invokeResult: action => action(), applySnapshot() {}, onOpenSettings() {},
     })));
     await act(async () => window.dispatchEvent(new window.KeyboardEvent('keydown', {
-      key: 'M', ctrlKey: true, shiftKey: true, cancelable: true,
+      key: 'M', ...mod(), shiftKey: true, cancelable: true,
     })));
     const other = [...document.querySelectorAll('[role="option"]')].find(row => row.textContent.includes('Builder'));
     await act(async () => other.click());
@@ -161,5 +165,29 @@ test('request limits follow restored task settings, validate input and close wit
     await act(async () => document.querySelector('.execution-budget-panel input').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     assert.equal(document.querySelector('.execution-budget-panel'), null);
     assert.equal(document.activeElement, trigger);
+  });
+});
+
+test('a click outside the request limit applies a valid edit and keeps an invalid one open', async () => {
+  await withDom(async ({ root }) => {
+    const changes = [];
+    await act(async () => root.render(React.createElement(ExecutionBudgetControl, {
+      value: {}, disabled: false, onChange: value => changes.push(value),
+    })));
+    const trigger = document.querySelector('.execution-budget-control > button');
+    const help = document.getElementById(trigger.getAttribute('aria-describedby'));
+    assert.match(help.textContent, /tool loops|도구/);
+    const outside = () => act(async () => document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })));
+    await act(async () => trigger.click());
+    const inputs = [...document.querySelectorAll('.execution-budget-panel input')];
+    await inputText(inputs[2], '0');
+    await outside();
+    assert.ok(document.querySelector('.execution-budget-panel'), 'invalid input is not discarded');
+    assert.ok(document.querySelector('.execution-budget-panel [role="alert"]'));
+    assert.equal(inputs[2].getAttribute('aria-invalid'), 'true');
+    await inputText(inputs[2], '4');
+    await outside();
+    assert.equal(document.querySelector('.execution-budget-panel'), null);
+    assert.deepEqual(changes, [{ maxRequests: 4 }]);
   });
 });

@@ -394,7 +394,9 @@ test('the sync base belongs to one Galaxy: another Galaxy never turns local file
   assert.deepEqual(baseFor(agreed, { galaxyId: 'g1', remote: 'https://h.example/a.git' }), { k: 'x' });
   assert.deepEqual(baseFor(agreed, { galaxyId: 'g1', remote: 'https://h.example/b.git' }), {});
   assert.deepEqual(baseFor(agreed, { galaxyId: 'g2', remote: 'https://h.example/a.git' }), {});
-  assert.deepEqual(baseFor({ base: { k: 'x' }, galaxyId: null, remote: null }, { galaxyId: 'g1', remote: null }), {}, 'a base from before ids is not trusted');
+  // A base from before Galaxy ids is accepted (once: commitLocal stamps it), unless it names another remote.
+  assert.deepEqual(baseFor({ base: { k: 'x' }, galaxyId: null, remote: null }, { galaxyId: 'g1', remote: null }), { k: 'x' });
+  assert.deepEqual(baseFor({ base: { k: 'x' }, galaxyId: null, remote: 'https://h.example/a.git' }, { galaxyId: 'g1', remote: 'https://h.example/b.git' }), {});
 });
 
 test('a symlinked folder hides its whole subtree from the sync and is never written through', async (t) => {

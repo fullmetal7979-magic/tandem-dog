@@ -1,27 +1,12 @@
-// 코스모스 홈: the first thing every new 세션 shows. One glance answers "where is
-// my work and can I start here?", and three big buttons do the rest:
-//   ☀️ 이어받기 (or 🔁 넘겨 달라고 요청 when another device is working) · 🌙 내려놓기 · 💬 새 세션
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { CosmosAction } from './cosmos-format';
 import { since, cosmosVerdict } from './cosmos-format';
 import { ActionNote, CosmosMark, NOTE_ACTIONS, RelayOutcome, runCosmosAction } from './CosmosParts';
 import { StarMap } from './StarMap';
-import { cosmosSeatHeldElsewhere, cosmosSeatUnknown, useCosmos } from './cosmos-store';
+import { useCosmos } from './cosmos-store';
 
 export function openCosmosGalaxy(): void {
   window.dispatchEvent(new CustomEvent('cosmos:open-galaxy'));
-}
-
-/**
- * The composer of the pane this home sits in: the nearest ancestor that holds
- * one. In a split view the other pane's composer is never the target.
- */
-function paneComposer(from: HTMLElement | null): HTMLTextAreaElement | null {
-  for (let node = from?.parentElement ?? null; node; node = node.parentElement) {
-    const field = node.querySelector<HTMLTextAreaElement>('form.composer textarea');
-    if (field) return field;
-  }
-  return null;
 }
 
 /** The first big button changes with the seat; one face per action. */
@@ -62,17 +47,9 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
     else runCosmosAction(action, context);
   };
   const holder = view?.seat?.holder;
-  const homeRef = useRef<HTMLElement>(null);
-  // The composer is inert while another device holds the seat (or while that
-  // is being checked), so 💬 says why instead of doing nothing.
-  const composerHeld = Boolean(projectPath) && (cosmosSeatHeldElsewhere(view) || cosmosSeatUnknown(entry, projectPath));
-  const focusComposer = () => {
-    const field = paneComposer(homeRef.current);
-    if (field && !field.closest('[inert]')) field.focus();
-  };
 
   return (
-    <section ref={homeRef} className="cosmos-home cosmos-home--focused" aria-label="코스모스 홈">
+    <section className="cosmos-home cosmos-home--focused" aria-label="코스모스 홈">
       <header className="cosmos-home-head">
         <CosmosMark size={32} />
         <div><h1>{projectLabel || view?.planet?.name || '새 작업'}</h1><p>{projectPath?'현재 프로젝트에서 개발을 이어가세요.':'모델을 고르고 아래에 작업을 입력하세요.'}</p></div>
@@ -80,7 +57,6 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
       {projectPath && <p className="cosmos-home-status" role="status"><span className="cosmos-dot" aria-hidden="true"/> {cosmosVerdict(view).title}{state==='mine'?` · ${since(holder?.since)}`:''}</p>}
       {projectPath && <RelayOutcome projectPath={projectPath} entry={entry} />}
       <div className="cosmos-home-actions" role="group" aria-label="작업 시작">
-        <button type="button" className="cosmos-button cosmos-button--plain" disabled={composerHeld} onClick={focusComposer}>메시지 입력</button>
         {!projectPath && <button type="button" className="cosmos-button cosmos-button--plain" onClick={()=>window.dispatchEvent(new CustomEvent('cosmos:open-projects'))}>프로젝트 열기</button>}
         {projectPath && relayReady && state!=='mine' && <button type="button" className={`cosmos-button cosmos-button--${face.tone}`} disabled={busy} onClick={()=>press(sunAction)}>{face.icon} {face.title}</button>}
         {projectPath && relayReady && state==='mine' && <button type="button" className="cosmos-button cosmos-button--moon" disabled={busy} onClick={()=>press(view?.seat?.requests.length?'handoff':'moon')}>저장하고 작업 넘기기</button>}

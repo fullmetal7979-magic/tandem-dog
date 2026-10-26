@@ -225,6 +225,34 @@ export function projectRuns(projectPath: string): Array<{ taskId: string; termin
   return [...(taskRuns.get(projectPath) ?? new Map<string, string>())].map(([taskId, terminalId]) => ({ taskId, terminalId }));
 }
 
+const ADOPTED = 'adopted:';
+
+/** A run found live in the service after a reload: its task is not known, only its terminal. */
+export function isAdoptedRun(taskId: string): boolean {
+  return taskId.startsWith(ADOPTED);
+}
+
+/**
+ * Re-adopt run terminals the desktop service still has for this project (the
+ * renderer forgot them on reload, the PTYs and their dev servers did not
+ * stop). Only this project's `term_cosmos_run_*` ids are taken; ones already
+ * tracked are left alone. Returns the ids newly adopted.
+ */
+export function adoptRuns(projectPath: string, terminalIds: readonly unknown[]): string[] {
+  const base = runTerminalId(projectPath);
+  const runs = taskRuns.get(projectPath) ?? new Map<string, string>();
+  const known = new Set(runs.values());
+  const adopted: string[] = [];
+  for (const id of terminalIds) {
+    if (typeof id !== 'string' || known.has(id) || !(id === base || id.startsWith(`${base}_`))) continue;
+    runs.set(`${ADOPTED}${id}`, id);
+    known.add(id);
+    adopted.push(id);
+  }
+  if (adopted.length) taskRuns.set(projectPath, runs);
+  return adopted;
+}
+
 /**
  * Start a task in a brand-new PTY of its own, and type the command only once
  * that fresh shell exists, so it never goes into a process that is already

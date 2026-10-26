@@ -214,3 +214,80 @@ test('termEnsure on a terminal the host cannot place falls back to every project
   await methods.termEnsure(['t1', '/free', null]);
   await assert.rejects(methods.termWrite(['t1', 'x\r']), /locked/);
 });
+
+// Audit round 3, security 1: a write with no folder, or one outside every
+// registered project, could `cd` into any project. With a Galaxy ready it is
+// refused while any project is held by another device; an empty seat, or no
+// Galaxy at all, lets it through as before.
+test('no folder, no project or a folder outside every project is judged by every registered project', async () => {
+  const calls = [];
+  const heldAsked = [];
+  let galaxyReady = true;
+  // The real held rule: only a project another device holds refuses; without a Galaxy nothing does.
+  const heldGate = async (cwd) => {
+    heldAsked.push(cwd);
+    return galaxyReady && cwd === '/projects/held' ? '🔒 회사 PC가 held 프로젝트에서 작업 중이에요.' : null;
+  };
+  const methods = gateRemoteWrites(
+    {
+      ...table(calls),
+      termEnsure: (params) => {
+        calls.push(['termEnsure', ...params]);
+        return { id: params[0] || 't-home', replay: '' };
+      },
+    },
+    {
+      // The folder's own seat: a folder that is no planet answers null.
+      gate: async (cwd) => (galaxyReady && cwd === '/projects/held' ? 'held' : null),
+      heldGate,
+      projectDirectory: async (id) => (id === 'p-free' ? '/projects/free' : null),
+      sessionCwd: async (id) => (id === 's-home' ? '/Users/me' : null),
+      projectDirectories: async () => ['/projects/free', '/projects/empty', '/projects/held'],
+      terminalCwd: (id) => (id === 't-none' ? null : id === 't-home' ? '/Users/me' : undefined),
+    }
+  );
+
+  await methods.termEnsure(['t-none', null, null]);
+  await assert.rejects(methods.termWrite(['t-none', 'cd /projects/held && rm -rf .\r']), /작업 중/);
+  await methods.termEnsure(['t-home', '~', null]);
+  await assert.rejects(methods.termWrite(['t-home', 'ls\r']), /작업 중/);
+  await assert.rejects(methods.submitNewTask(['hi', {}, {}]), /작업 중/);
+  await assert.rejects(methods.submitToSession(['s-home', 'hi']), /작업 중/);
+  await assert.rejects(methods.gitCommit(['~', 'msg']), /작업 중/);
+  await assert.rejects(methods.gitCommit(['/tmp/stray-clone', 'msg']), /작업 중/);
+  assert.ok(heldAsked.includes('/projects/held'));
+  // Inside a registered project, only that project's own seat counts.
+  assert.equal(await methods.gitCommit(['/projects/free/src', 'msg']), 'ok');
+  assert.equal(await methods.submitNewTask(['hi', {}, { projectPath: 'p-free' }]), 'ok');
+  assert.equal(calls.some(([name]) => name === 'termWrite'), false, 'refused keystrokes never reached a PTY');
+
+  // No Galaxy ready: the every-project rule finds nothing held, the old allow stands.
+  galaxyReady = false;
+  assert.equal(await methods.submitNewTask(['hi', {}, {}]), 'ok');
+  assert.equal(await methods.gitCommit(['~', 'msg']), 'ok');
+  await new Promise((resolve) => setTimeout(resolve, 1_600)); // past the terminal verdict reuse
+  assert.equal(await methods.termWrite(['t-none', 'ls\r']), 'ok');
+});
+
+test('an empty seat elsewhere does not block a folder-less write; a failed project list refuses it', async () => {
+  const calls = [];
+  const methods = gateRemoteWrites(table(calls), {
+    gate: async () => '☄️ 아무도 작업하지 않아요.',
+    heldGate: async () => null,
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    projectDirectories: async () => ['/projects/empty'],
+  });
+  assert.equal(await methods.submitNewTask(['hi', {}, {}]), 'ok');
+
+  const broken = gateRemoteWrites(table(calls), {
+    gate: async () => null,
+    heldGate: async () => null,
+    projectDirectory: async () => null,
+    sessionCwd: async () => null,
+    projectDirectories: async () => {
+      throw new Error('registry offline');
+    },
+  });
+  await assert.rejects(broken.submitNewTask(['hi', {}, {}]), (error) => error.code === 'seat_refused');
+});

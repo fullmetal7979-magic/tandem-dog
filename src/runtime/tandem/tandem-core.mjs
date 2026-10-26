@@ -260,7 +260,7 @@ export async function publishDesk(root, { desk, tool, status, holding = null, pu
   const body = JSON.stringify({ v: 1, desk, tool: oneLine(tool).slice(0, 60), host: hostname(), holding, ...status }, null, 1);
   const blob = (await git(root, ['hash-object', '-w', '--stdin'], { input: body })).trim();
   const tree = (await git(root, ['mktree'], { input: `100644 blob ${blob}\tdesk.json\n` })).trim();
-  const commit = (await git(root, ['commit-tree', tree, '-m', `tandem desk ${desk}`], { env: GIT_IDENT })).trim();
+  const commit = (await git(root, ['commit-tree', '--no-gpg-sign', tree, '-m', `tandem desk ${desk}`], { env: GIT_IDENT })).trim();
   const ref = `${DESK_REF_PREFIX}${desk}`;
   await git(root, ['update-ref', ref, commit]);
   if (push) {

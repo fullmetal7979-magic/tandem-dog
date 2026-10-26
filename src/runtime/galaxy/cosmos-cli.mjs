@@ -33,6 +33,7 @@ const HELP = `코스모스 이어받기 명령
 
   cosmos 이어받기 [--force]        최신 작업·환경·세션을 받아 이 기기에서 이어서 작업하기
   cosmos 내려놓기 ["메모"]         저장·커밋·푸시하고 환경·세션을 은하수에 올린 뒤 작업 자리 비우기
+                                  (--force: 프로젝트를 올리지 못해도 내려놓기)
   cosmos 요청 ["메모"]             지금 작업 중인 기기에 넘겨 달라고 요청 (취소: cosmos 요청 --cancel)
   cosmos 은하수                    모든 기기와 이 프로젝트의 작업 상태 보기
   cosmos 연결 <저장소 URL>         은하수(비공개 GitHub 저장소) 연결
@@ -166,13 +167,18 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       return 0;
     }
     if (verb === 'moon') {
+      // --force: free the seat even when the project could not be pushed.
+      const force = flag(args, '--force');
       const note = args.join(' ').trim();
       const session = await latestSessionFor(cwd);
-      const result = await moon({ root: cwd, note, session });
+      const result = await moon({ root: cwd, note, session, force });
       say(`🌙 ${result.planet.name}을(를) 내려놓았어요.`);
       if (result.project?.committed) say('   💾 변경 사항을 커밋했어요.');
       if (result.project?.pushed) say('   ⬆️ 원격 저장소에 올렸어요.');
-      if (result.project && !result.project.ok) say(`   ⚠️ 프로젝트를 올리지 못했어요 (${result.project.error}).`);
+      if (result.unpushed) {
+        say(`   ⚠️ 프로젝트를 원격 저장소에 올리지 않은 채로 내려놓았어요 (${result.unpushed.reason}).`);
+        say('      작업은 이 기기에만 있어요. 다른 기기에서 이어받기 전에 이 기기에서 올려 주세요.');
+      }
       if (result.conversation) say(`   💬 세션 메시지 ${result.conversation.messageCount}개를 은하수에 올렸어요.`);
       if (result.handoffTo) say('   🔁 넘겨 달라고 요청한 기기를 위해 작업 자리를 비워 두었어요.');
       return 0;
@@ -180,6 +186,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
     return 1;
   } catch (error) {
     err.write(`⚠️ ${scrubUrlsInText(error instanceof Error ? error.message : String(error))}\n`);
+    if (error?.code === 'push_failed' && error.canForce) err.write('   올리지 않은 채로 내려놓으려면: cosmos 내려놓기 --force\n');
     if (error?.secrets?.length) for (const finding of error.secrets) err.write(`   - ${finding.path}\n`);
     return 2;
   }

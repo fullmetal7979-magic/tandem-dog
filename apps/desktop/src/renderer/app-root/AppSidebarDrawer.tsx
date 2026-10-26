@@ -96,8 +96,8 @@ export function AppSidebarDrawer({
         onMoveView={moveWorkbenchSideView}
         renderView={(id, active, titleDragProps) => renderWorkbenchSideView('left', id, active, titleDragProps)}
         footer={
-          // 심플 모드: the Galaxy's new-device checklist replaces the Mixdog tour,
-          // whose steps point at advanced tools (workflows, agents, extensions).
+          // The Galaxy's new-device checklist replaces the Mixdog tour, whose
+          // steps point at advanced tools (workflows, agents, extensions).
           (
           <StarterGuide
             descriptors={sideViewDescriptors}

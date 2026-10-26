@@ -175,11 +175,59 @@ export async function rescueDisplacedWork(root, starName, now = new Date()) {
   return { ok: true, ...summary, pushed, ...(secrets?.length ? { secrets } : {}) };
 }
 
+/**
+ * Why a push failed, from git's stderr:
+ *  - 'behind'   the remote has commits this branch lacks (non-fast-forward,
+ *               "fetch first"): fetch and merge, then push again.
+ *  - 'rejected' the remote refused the push itself: no permission, a
+ *               protected branch, a server hook. Pulling will not help.
+ *  - 'push'     anything else (offline, authentication, an unknown host…).
+ */
+export function classifyPushFailure(stderr) {
+  const text = String(stderr ?? '');
+  if (/non-fast-forward|fetch first|tip of your current branch is behind|remote contains work that you do/i.test(text)) return 'behind';
+  if (
+    /remote rejected|protected branch|hook declined|permission to .* denied|permission denied|access denied|denied to|not allowed to push|\b403\b|forbidden|GH006|GH013|pre-receive|\[rejected\]/i.test(
+      text
+    )
+  ) {
+    return 'rejected';
+  }
+  return 'push';
+}
+
+/**
+ * Where the commits about to be pushed start: the upstream when the branch
+ * tracks one, else the merge-base with the remote's default branch (a new
+ * branch), else the empty tree (a first push: everything goes).
+ */
+async function pushRangeStart(root, remoteName, state) {
+  if (state.upstream) {
+    return (await out(root, ['merge-base', 'HEAD', state.upstream])) || state.upstream;
+  }
+  const candidates = [];
+  const remoteHead = await out(root, ['symbolic-ref', '--quiet', `refs/remotes/${remoteName}/HEAD`]);
+  if (remoteHead) candidates.push(remoteHead);
+  candidates.push(`refs/remotes/${remoteName}/main`, `refs/remotes/${remoteName}/master`);
+  for (const ref of candidates) {
+    if (!(await out(root, ['rev-parse', '--verify', '--quiet', ref]))) continue;
+    const base = await out(root, ['merge-base', 'HEAD', ref]);
+    if (base) return base;
+  }
+  return emptyTree(root);
+}
+
+/** The empty tree's id in this repository's hash (sha1 or sha256). */
+async function emptyTree(root) {
+  const r = await runGit(root, ['hash-object', '-t', 'tree', '--stdin'], { input: '' });
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+
 /** 달: commit everything (gitignore respected) and push. Refuses secrets. */
 export async function saveAndPush(root, { message }) {
   const paths = await changedPaths(root);
   const secrets = await secretFindings(root, paths);
-  if (secrets.length) return { ok: false, error: 'secrets', secrets, ...(await branchState(root)) };
+  if (secrets.length) return { ok: false, error: 'secrets', secretsIn: 'changes', secrets, ...(await branchState(root)) };
   const env = (await hasIdentity(root)) ? {} : IDENT_FALLBACK;
   let committed = false;
   if (paths.length) {
@@ -195,6 +243,12 @@ export async function saveAndPush(root, { message }) {
   const state = await branchState(root);
   if (!state.branch) return { ok: false, error: 'detached', committed, ...state };
   if (state.upstream && state.ahead === 0) return { ok: true, committed, pushed: false, ...state };
+  // The working tree was scanned before the commit; the commits themselves
+  // (made earlier, by hand or by an agent) are scanned here, before they leave.
+  const from = await pushRangeStart(root, remote.name, state);
+  const pending = from ? await secretFindingsInRange(root, from, 'HEAD') : null;
+  if (!pending) return { ok: false, error: 'scan', committed, ...state };
+  if (pending.length) return { ok: false, error: 'secrets', secretsIn: 'commits', secrets: pending, committed, ...state };
   let args = ['push', '--quiet', '-u', remote.name, state.branch];
   if (state.upstream) {
     // Push where the branch actually tracks, which may be a remote other than
@@ -205,7 +259,7 @@ export async function saveAndPush(root, { message }) {
   }
   const pushed = await runGit(root, args);
   if (pushed.code !== 0) {
-    return { ok: false, error: /rejected|non-fast-forward|fetch first/i.test(pushed.stderr) ? 'behind' : 'push', detail: pushed.stderr.trim(), committed, ...(await branchState(root)) };
+    return { ok: false, error: classifyPushFailure(pushed.stderr), detail: pushed.stderr.trim(), committed, ...(await branchState(root)) };
   }
   return { ok: true, committed, pushed: true, ...(await branchState(root)) };
 }

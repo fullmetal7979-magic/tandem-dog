@@ -18,6 +18,7 @@ import {
 } from './slash-commands';
 import { TURN_LOCKED_SLASH_COMMANDS, asRecord } from './text-format';
 import { dispatchCosmosSeatAction } from './cosmos/cosmos-store';
+import { t } from './i18n';
 
 type SlashExecutorDeps = {
   draftMode?: boolean;
@@ -67,13 +68,13 @@ export function createSlashExecutor(deps: SlashExecutorDeps) {
     const argument = tail.join(' ').trim();
     const command = resolveDesktopSlashCommand(rawName);
     if (!command) {
-      deps.setAttachmentError(`Unknown command: /${rawName}`);
+      deps.setAttachmentError(t('Unknown command: /{{name}}', { name: rawName }));
       return false;
     }
     deps.setAttachmentError('');
     deps.clearNotice();
     if (deps.turnBusy && TURN_LOCKED_SLASH_COMMANDS.has(command.name)) {
-      deps.setAttachmentError(`Wait for the current turn to finish before /${rawName}.`);
+      deps.setAttachmentError(t('Wait for the current turn to finish before /{{name}}.', { name: rawName }));
       return false;
     }
     const run: SlashRun = { deps, failed: false };
@@ -132,7 +133,7 @@ async function commandCapability<T>(run: SlashRun, capability: DesktopCapability
     return nextEffort as T;
   }
   if (deps.draftMode && capability !== 'listPresets' && capability !== 'getUsageDashboard') {
-    deps.setAttachmentError('Start the task with a message before running this command.');
+    deps.setAttachmentError(t('Start the task with a message before running this command.'));
     run.failed = true;
     return undefined;
   }
@@ -181,7 +182,7 @@ async function runGoal(run: SlashRun, argument: string): Promise<boolean | undef
     return accepted === true ? undefined : false;
   }
   const result = asRecord(await commandCapability<unknown>(run, 'goalControl', [{ command: argument }]));
-  if (!run.failed) deps.showNotice(String(result?.message || 'Goal updated.'));
+  if (!run.failed) deps.showNotice(result?.message ? String(result.message) : t('Goal updated.'));
   return undefined;
 }
 
@@ -190,7 +191,7 @@ async function runGoal(run: SlashRun, argument: string): Promise<boolean | undef
 async function runInherit(run: SlashRun, inherit: () => Promise<boolean>): Promise<boolean | undefined> {
   const { deps } = run;
   if (deps.draftMode) {
-    deps.setAttachmentError('Start the task with a message before running this command.');
+    deps.setAttachmentError(t('Start the task with a message before running this command.'));
     return false;
   }
   const inherited = await deps.invokeResult(inherit);
@@ -207,8 +208,9 @@ async function runAutoClear(run: SlashRun, argument: string) {
     await commandCapability<unknown>(run, statusQuery ? 'getAutoClear' : 'setAutoClear', statusQuery ? [] : [patch])
   );
   if (run.failed) return;
+  const state = status?.enabled ? t('Auto-clear on') : t('Auto-clear off');
   run.deps.showNotice(
-    `Auto-clear ${status?.enabled ? 'on' : 'off'}${status?.idleMs ? ` · idle ${status.idleMs}ms` : ''}`
+    status?.idleMs ? t('{{state}} · idle {{ms}}ms', { state, ms: String(status.idleMs) }) : state
   );
 }
 
@@ -223,7 +225,9 @@ async function runOutputStyle(run: SlashRun, argument: string) {
   const result = asRecord(value);
   const current = asRecord(result?.current);
   run.deps.showNotice(
-    `Output style: ${String(current?.label || current?.id || result?.configured || result?.label || result?.id || argument)}`
+    t('Output style: {{style}}', {
+      style: String(current?.label || current?.id || result?.configured || result?.label || result?.id || argument),
+    })
   );
 }
 
@@ -236,12 +240,12 @@ async function runTheme(run: SlashRun, argument: string) {
   );
   if (run.failed) return;
   const result = asRecord(value);
-  run.deps.showNotice(`Theme: ${String(result?.label || result?.id || value || argument)}`);
+  run.deps.showNotice(t('Theme: {{theme}}', { theme: String(result?.label || result?.id || value || argument) }));
 }
 
 async function runEffort(run: SlashRun, argument: string) {
   const next = await commandCapability<unknown>(run, 'setEffort', [argument]);
-  if (!run.failed) run.deps.showNotice(`Effort set to ${String(next || argument)}`);
+  if (!run.failed) run.deps.showNotice(t('Effort set to {{effort}}', { effort: String(next || argument) }));
 }
 
 async function runUsage(run: SlashRun, argument: string) {
@@ -264,12 +268,12 @@ async function runFast(run: SlashRun, argument: string): Promise<boolean | undef
   const { deps } = run;
   const speed = parseFastArgument(argument, deps.fast);
   if (speed === null) {
-    deps.setAttachmentError('Usage: /fast [on|off|ultra]');
+    deps.setAttachmentError(t('Usage: /fast [on|off|ultra]'));
     return false;
   }
   const offersTier = deps.ultrafastCapable?.() === true;
   if (speed === 'ultrafast' && !offersTier) {
-    deps.setAttachmentError('Ultrafast is not available for the current model.');
+    deps.setAttachmentError(t('Ultrafast is not available for the current model.'));
     return false;
   }
   const nextFast = speed !== 'standard';
@@ -290,8 +294,9 @@ async function runFast(run: SlashRun, argument: string): Promise<boolean | undef
     deps.applySnapshot(next);
     if (deps.provider && deps.model) deps.onRoutePreferenceApplied?.(selection);
   }
-  const labels = { standard: 'off', fast: 'on', ultrafast: 'ultra' };
-  deps.showNotice(speed === 'ultrafast' ? 'Ultrafast mode on' : `Fast mode ${labels[speed]}`);
+  deps.showNotice(
+    speed === 'ultrafast' ? t('Ultrafast mode on') : speed === 'fast' ? t('Fast mode on') : t('Fast mode off')
+  );
   return undefined;
 }
 
@@ -331,7 +336,7 @@ async function runModel(run: SlashRun, argument: string): Promise<boolean | unde
       entry.display.toLowerCase() === normalized
   );
   if (!match) {
-    deps.setAttachmentError(`Model not found: ${argument}`);
+    deps.setAttachmentError(t('Model not found: {{model}}', { model: argument }));
     return false;
   }
   const selection = { provider: match.provider, model: match.model };

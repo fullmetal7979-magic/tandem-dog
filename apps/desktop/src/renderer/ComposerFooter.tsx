@@ -13,6 +13,7 @@ import type { ComposerAttachment } from './composer-support';
 import type { useComposerDictation } from './use-composer-dictation';
 import type { useComposerSkill } from './composer-skill';
 import type { useComposerPalettes } from './use-composer-palettes';
+import { isMacShortcutPlatform } from './workbench-shortcuts';
 
 type ModelProps = Pick<
   ComposerProps,
@@ -149,7 +150,7 @@ export function ComposerFooter({
         tuningDisabled={commandBusy || transitioning}
       />
       {onExecutionBudgetChange && <ExecutionBudgetControl key={`budget:${recoveryScope}`} value={executionBudget} disabled={transitioning || turnBusy} onChange={onExecutionBudgetChange} />}
-      {onOpenTaskCenter && <button type="button" className="workbench-open-button" title="작업 도구 · ⌘/Ctrl+Shift+K" aria-label="작업 도구 열기" onClick={onOpenTaskCenter}><SlidersHorizontal size={14}/><span>도구</span></button>}
+      {onOpenTaskCenter && <button type="button" className="workbench-open-button" title={`작업 도구 · ${isMacShortcutPlatform() ? '⌘⇧K' : 'Ctrl+Shift+K'}`} aria-label="작업 도구 열기" onClick={onOpenTaskCenter}><SlidersHorizontal size={14}/><span>도구</span></button>}
       {modelAside && <span className="composer-model-aside">{modelAside}</span>}
       <span className="composer-primary-actions">
         {/* The mic appears only once the voice runtime is installed

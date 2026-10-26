@@ -1,29 +1,97 @@
-/* Developer chat: a quiet budget line and fast access to the model's controls. */
+/* Developer chat: a quiet budget line and fast access to the model's controls.
+   Sizes follow the type tokens (no fixed 11px), and the phone multiplies them
+   by --mx-device-scale like the rest of html[data-mixdog-mobile-tabs]. */
 .draft-token-budget {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px 8px;
-  font-size: 11px; line-height: 1.5; color: var(--mx-text-muted);
+  font-size: var(--mx-font-micro); line-height: 1.5; color: var(--mx-text-muted);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
 }
+.draft-token-budget > span { min-width: 0; overflow-wrap: anywhere; }
 .draft-token-budget[data-large] { color: var(--mx-text-soft); }
 .draft-token-guidance { opacity: .85; }
-.model-capabilities { display: flex; gap: 8px; font-size: 10px; color: var(--mx-text-muted); }
+.model-capabilities { display: flex; gap: 8px; font-size: var(--mx-font-micro); color: var(--mx-text-muted); }
 .model-capabilities:empty { display: none; }
 .model-catalog-panel .model-option-row:has(.model-capabilities:not(:empty)) { min-height: 44px; }
 .model-favorite-toggle[aria-pressed="true"] { color: var(--mx-text); }
 @media (max-width: 520px) {
-  .draft-token-budget { font-size: 10px; padding-inline: 4px; }
+  .draft-token-budget { padding-inline: 4px; }
   .draft-token-guidance { flex-basis: 100%; }
 }
-.execution-budget-control { position: relative; flex: 0 0 auto; }
-.execution-budget-control > button { border: 0; padding: 4px 7px; color: var(--mx-text-muted); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.execution-budget-control { position: relative; flex: 0 0 auto; min-width: 0; }
+.execution-budget-control > button { border: 0; padding: 4px 7px; color: var(--mx-text-muted); background: transparent; font: inherit; font-size: var(--mx-font-micro); cursor: pointer; white-space: nowrap; }
+.execution-budget-control > button:focus-visible { outline: 2px solid var(--mx-focus); outline-offset: 2px; }
 .execution-budget-panel { position: absolute; bottom: calc(100% + 12px); left: 0; width: min(300px, calc(100vw - 40px)); max-height: 60vh; overflow: auto; display: grid; gap: 10px; padding: 16px; background: var(--mx-bg-layer-1); color: var(--mx-text); border: 1px solid var(--mx-border); border-radius: 12px; box-shadow: var(--mx-shadow-floating); z-index: 50; }
-.execution-budget-panel label { display: grid; grid-template-columns: 1fr 110px; gap: 8px; align-items: center; font-size: 12px; }
-.execution-budget-panel input { width: 100%; min-width: 0; background: var(--mx-bg-base); color: var(--mx-text); border: 1px solid var(--mx-border); border-radius: 5px; padding: 6px; }
-.execution-budget-panel small { color: var(--mx-text-muted); line-height: 1.6; font-size: 11px; }
+.execution-budget-panel label { display: grid; grid-template-columns: 1fr 110px; gap: 8px; align-items: center; font-size: var(--mx-font-meta); }
+.execution-budget-panel input { width: 100%; min-width: 0; background: var(--mx-bg-base); color: var(--mx-text); border: 1px solid var(--mx-border); border-radius: 5px; padding: 6px; font: inherit; }
+.execution-budget-panel input[aria-invalid="true"] { border-color: var(--mx-danger, #d9534f); }
+.execution-budget-panel small { color: var(--mx-text-muted); line-height: 1.6; font-size: var(--mx-font-micro); }
+.execution-budget-panel .execution-budget-error { color: var(--mx-danger, #d9534f); }
 @media(max-width:520px) { .execution-budget-panel { position: fixed; left: 16px; right: 16px; bottom: 120px; width: auto; } }
 
-.workbench-open-button {display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;border:0;border-radius:6px;padding:4px 7px;background:transparent;color:var(--mx-text-muted);font:inherit;font-size:11px;cursor:pointer;transition:background 120ms,color 120ms;}
+.workbench-open-button {display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;border:0;border-radius:6px;padding:4px 7px;background:transparent;color:var(--mx-text-muted);font:inherit;font-size:var(--mx-font-micro);cursor:pointer;white-space:nowrap;transition:background 120ms,color 120ms;}
 .workbench-open-button:hover {background:var(--mx-bg-layer-2);color:var(--mx-text);}
 .workbench-open-button:focus-visible {outline:2px solid var(--mx-focus);outline-offset:2px;}
-.workbench-opening {font-size:11px;color:var(--mx-text-muted);padding:4px;}
+.workbench-opening {font-size:var(--mx-font-micro);color:var(--mx-text-muted);padding:4px;}
+
+/* Narrow panes: the footer used to be one fixed 40px row and its last controls
+   ran off the edge. It now wraps onto a second row, and the 도구 label
+   collapses to its icon (the button keeps its aria-label). */
+@container (max-width: 520px) {
+  .composer-footer { height: auto; min-height: 40px; flex-wrap: wrap; row-gap: 2px; }
+  .workbench-open-button > span { display: none; }
+}
+@container (max-width: 360px) {
+  .execution-budget-control > button { padding-inline: 4px; }
+}
+
+/* Phone: scale with the projection factor and give every control here a 44dp
+   touch target, matching the composer row's other buttons. */
+html[data-mixdog-mobile-tabs] .draft-token-budget,
+html[data-mixdog-mobile-tabs] .workbench-opening {
+  font-size: calc(var(--mx-font-micro) * var(--mx-device-scale, 1));
+  padding-inline: calc(4px * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .model-capabilities {
+  font-size: calc(var(--mx-font-micro) * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .execution-budget-control > button,
+html[data-mixdog-mobile-tabs] .workbench-open-button {
+  min-height: calc(44px * var(--mx-device-scale, 1));
+  min-width: calc(44px * var(--mx-device-scale, 1));
+  padding-inline: calc(6px * var(--mx-device-scale, 1));
+  font-size: calc(var(--mx-font-micro) * var(--mx-device-scale, 1));
+  justify-content: center;
+}
+html[data-mixdog-mobile-tabs] .workbench-open-button svg {
+  width: calc(16px * var(--mx-device-scale, 1));
+  height: calc(16px * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .workbench-open-button > span { display: none; }
+html[data-mixdog-mobile-tabs] .composer-footer {
+  height: auto;
+  min-height: calc(44px * var(--mx-device-scale, 1));
+  flex-wrap: wrap;
+}
+html[data-mixdog-mobile-tabs] .execution-budget-panel {
+  gap: calc(10px * var(--mx-device-scale, 1));
+  padding: calc(16px * var(--mx-device-scale, 1));
+  border-radius: calc(12px * var(--mx-device-scale, 1));
+  bottom: calc(120px * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .execution-budget-panel label {
+  grid-template-columns: 1fr calc(110px * var(--mx-device-scale, 1));
+  gap: calc(8px * var(--mx-device-scale, 1));
+  font-size: calc(var(--mx-font-meta) * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .execution-budget-panel input {
+  min-height: calc(44px * var(--mx-device-scale, 1));
+  padding: calc(6px * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .execution-budget-panel small {
+  font-size: calc(var(--mx-font-micro) * var(--mx-device-scale, 1));
+}
+html[data-mixdog-mobile-tabs] .execution-budget-panel > button {
+  min-height: calc(44px * var(--mx-device-scale, 1));
+}

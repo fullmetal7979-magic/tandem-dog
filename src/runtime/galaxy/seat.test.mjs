@@ -7,6 +7,8 @@ import test from 'node:test';
 import { connectGalaxy, publishBeat, pullGalaxy, readBeats } from './galaxy-repo.mjs';
 import {
   emptySeat,
+  hostActiveMessage,
+  hostAlive,
   leave,
   leaveTransition,
   readSeat,
@@ -76,23 +78,50 @@ test('a phone that picks its seat up through another PC moves the seat to that P
   // Same PC again: nothing changes.
   assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: home.id }).changed, false);
 
-  // Through 회사 PC now: the seat follows, so 회사 PC's gate accepts the phone.
-  const moved = sitTransition(seat, phone, { now: 3_000, via: 'relay', host: work.id });
+  // Through 회사 PC once 집 맥북 stopped answering: the seat follows, so 회사 PC's gate accepts the phone.
+  const later = 1_000 + 31 * 60_000;
+  const moved = sitTransition(seat, phone, { now: later, via: 'relay', host: work.id });
   assert.equal(moved.changed, true);
   assert.deepEqual(moved.moved, { from: home.id, to: work.id });
   assert.equal(moved.took, null);
   seat = moved.seat;
   assert.equal(seat.holder.host, work.id);
-  assert.equal(seat.holder.since, 3_000);
-  assert.equal(seatState(seat, work.id, { now: 4_000 }), 'remote');
-  assert.equal(seatState(seat, home.id, { now: 4_000 }), 'occupied');
+  assert.equal(seat.holder.since, later);
+  assert.equal(seatState(seat, work.id, { now: later + 1_000 }), 'remote');
+  assert.equal(seatState(seat, home.id, { now: later + 1_000 }), 'occupied');
   assert.deepEqual(
     seat.history.map((entry) => [entry.host, entry.to, entry.memo ?? null]),
     [
-      [home.id, 3_000, '다른 기기로 옮겨 이어감'],
+      [home.id, later, '다른 기기로 옮겨 이어감'],
       [work.id, null, null],
     ]
   );
+});
+
+test('a phone cannot move to another PC while the PC it drove is alive (내려놓기 there first)', () => {
+  const phone = { id: 'browser-2', name: '내 폰', kind: 'phone', color: '#fff' };
+  const seat = sitTransition(emptySeat(PLANET), phone, { now: 1_000, via: 'relay', host: home.id }).seat;
+  const later = 40 * 60_000;
+  // 집 맥북 keeps beating: the phone's work is still there, so the move is refused.
+  const beats = { [home.id]: { at: later - 60_000, name: '집 맥북' } };
+  const refused = sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats });
+  assert.equal(refused.changed, false);
+  assert.equal(refused.refused, 'host_active');
+  assert.deepEqual(refused.host, { id: home.id, name: '집 맥북' });
+  assert.equal(refused.seat.holder.host, home.id);
+  assert.equal(hostAlive(seat, beats, later), true);
+  // Even `force` does not leave a live PC's work behind.
+  assert.equal(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats, force: true }).refused, 'host_active');
+  // Right after sitting through 집 맥북 (no beat yet) it also counts as alive.
+  assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: work.id }).refused, 'host_active');
+  // Once 집 맥북's beat is stale the move goes through.
+  const stale = { [home.id]: { at: later - 31 * 60_000 } };
+  assert.equal(hostAlive(seat, stale, later), false);
+  assert.deepEqual(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats: stale }).moved, { from: home.id, to: work.id });
+
+  const message = hostActiveMessage({ id: home.id, name: '집 맥북' });
+  assert.match(message, /집 맥북에서 먼저 내려놓기/);
+  assert.match(message, /이어받아/);
 });
 
 function galaxyFixture(t) {

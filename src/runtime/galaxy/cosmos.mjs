@@ -26,9 +26,10 @@ import {
   transact,
   writeGalaxyJson,
 } from './galaxy-repo.mjs';
-import { scrubUrl } from './secrets.mjs';
+import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import {
   holderLastSeen,
+  hostActiveMessage,
   leaveTransition,
   normalizeSeat,
   requestTransition,
@@ -130,8 +131,9 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
       occupied: `${holder?.name || '다른 기기'}에서 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
       stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기에 넘겨주기로 한 작업 자리예요.',
+      host_active: hostActiveMessage(sat.host),
     }[sat.refused];
-    throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, planet: publicPlanet(planet) });
+    throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, host: sat.host || null, planet: publicPlanet(planet) });
   }
   const environment = env ? await env.commitLocal() : null;
   // The seat is ours now. Only then is it safe to keep this star's stale work
@@ -191,26 +193,47 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
   const message = `cosmos: ${String(note || '').trim() || `${star.name}에서 작업 마무리`}`.slice(0, 200);
   const project = await saveAndPush(root, { message });
   if (!project.ok && project.error === 'secrets') {
-    throw new GalaxyError('secrets', '비밀 정보가 들어 있는 파일이 있어 저장을 멈췄어요. 목록을 확인하고 .gitignore에 추가하거나 지워 주세요.', {
-      secrets: project.secrets,
-    });
+    // Never overridden by `force`: nothing with a secret leaves this machine.
+    const text =
+      project.secretsIn === 'commits'
+        ? '아직 올리지 않은 커밋에 비밀 정보가 들어 있어 올리지 않았어요. 목록의 파일을 커밋에서 빼고 다시 내려놓아 주세요.'
+        : '비밀 정보가 들어 있는 파일이 있어 저장을 멈췄어요. 목록을 확인하고 .gitignore에 추가하거나 지워 주세요.';
+    throw new GalaxyError('secrets', text, { secrets: project.secrets, secretsIn: project.secretsIn || 'changes' });
   }
   // The seat only moves on once the work is really on the remote: otherwise
   // the next device would sit down at an older project and the work forks.
-  // `force` is the explicit override.
+  // `force` ("그래도 내려놓기") is the explicit override: the seat is freed and
+  // the result says the work stayed on this device (`unpushed`).
   if (!project.ok && !force) {
     const reason = {
       behind: '원격 저장소에 더 새로운 커밋이 있어 올리지 못했어요. 먼저 받아서 합친 뒤 다시 내려놓아 주세요.',
+      rejected: '원격 저장소가 올리기를 거부했어요. 이 브랜치에 올릴 권한이 없거나 보호된 브랜치일 수 있어요.',
       push: '프로젝트를 원격 저장소에 올리지 못했어요. 연결을 확인하고 다시 내려놓아 주세요.',
       commit: '변경 사항을 커밋하지 못했어요. git 상태를 확인하고 다시 내려놓아 주세요.',
       detached: '지금 브랜치가 아닌 커밋에 있어 올릴 수 없어요. 브랜치로 돌아간 뒤 다시 내려놓아 주세요.',
+      scan: '올릴 커밋에 비밀 정보가 있는지 확인하지 못했어요. git 상태를 확인하고 다시 내려놓아 주세요.',
     }[project.error] || `프로젝트를 저장하지 못했어요 (${project.error}).`;
-    throw new GalaxyError('push_failed', `${reason} 작업 자리는 이 기기에 그대로 있어요.`, {
-      reason: project.error,
-      project,
-      planet: publicPlanet(planet),
-    });
+    throw new GalaxyError(
+      'push_failed',
+      `${reason} 작업 자리는 이 기기에 그대로 있어요. 올리지 않은 채로 내려놓을 수도 있어요.`,
+      {
+        reason: project.error,
+        // The desktop/phone offer "그래도 내려놓기" (moon with force: true).
+        canForce: true,
+        project,
+        planet: publicPlanet(planet),
+      }
+    );
   }
+  const unpushed = project.ok
+    ? null
+    : {
+        reason: project.error,
+        detail: scrubUrlsInText(String(project.detail || '')),
+        committed: Boolean(project.committed),
+        branch: project.branch || null,
+        ahead: Number(project.ahead) || 0,
+      };
   let env = null;
   let left = null;
   let exported = null;
@@ -242,6 +265,9 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
     seat: left?.seat || null,
     handoffTo: left?.handoffTo || null,
     project,
+    // Set only when `force` freed the seat although the work did not reach
+    // the remote: the next device will not see it until this one pushes.
+    unpushed,
     environment,
     conversation: exported ? { id: exported.id, messageCount: exported.messageCount, trimmed: exported.trimmed } : null,
   };

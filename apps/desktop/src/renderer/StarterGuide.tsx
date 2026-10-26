@@ -245,8 +245,8 @@ export function StarterGuide({
       ],
     },
   ];
-  // 심플/고급 모드: a step is offered only when the screen it opens exists in
-  // the current mode.
+  // A step is offered only when the screen it opens exists in this build
+  // (desktop-feature-config).
   const available: Record<StepId, boolean> = {
     provider: desktopFeatureEnabled('settings'),
     project: desktopSidebarDestinationEnabled('projects'),

@@ -85,3 +85,14 @@ test('sessionTabs lists only one session in tab order and snapshot is read-only'
   assert.equal(manager.snapshot('session-terminal:missing'), null);
   assert.equal(manager.snapshot('session-terminal:a').text, 'hello pwsh');
 });
+
+test('list names the live terminals under a term_ prefix only', () => {
+  const manager = new TerminalManager();
+  const fake = (disposed, cwd) => ({ disposed, cwd, shell: 'zsh', pty: { kill() {} }, buffer: new TerminalReplayBuffer(10) });
+  manager.terminals.set('term_cosmos_run_abc_1', fake(false, '/p'));
+  manager.terminals.set('term_cosmos_run_abc_2', fake(true, '/p'));
+  manager.terminals.set('term_other', fake(false, null));
+  assert.deepEqual(manager.list('term_cosmos_run_abc').map((entry) => entry.id), ['term_cosmos_run_abc_1']);
+  assert.deepEqual(manager.list('session-terminal:'), [], 'only term_ prefixes');
+  manager.terminals.clear();
+});

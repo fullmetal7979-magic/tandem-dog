@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { t } from './i18n';
 import type {
   DesktopAbortOptions,
   DesktopCapability,
@@ -175,7 +176,7 @@ export function useComposerQueue({
         if (!restoredAnything) {
           reconcile('');
           revealRequested();
-          showNotice('No queued messages to restore');
+          showNotice(t('No queued messages to restore'));
           return value;
         }
         const restoredIds = Array.isArray(value.ids) ? value.ids.map(String).filter(Boolean) : requestedIds;

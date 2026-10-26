@@ -37,11 +37,11 @@ test('real Chromium recovers text and binary drafts across reload, isolates task
   assert.equal(await page.evaluate(() => window.drafts.readComposerDraft('scope-0')), undefined, 'older drafts are pruned');
   assert.equal(await page.evaluate(async () => (await window.drafts.readComposerDraft('scope-24')).text), 'text-24');
   await page.evaluate(() => new Promise((resolve, reject) => {
-    const request = indexedDB.open('cosmos-composer-drafts-v1', 1);
+    const request = indexedDB.open('cosmos-composer-drafts-v1', 2);
     request.onsuccess = () => {
       const db = request.result;
-      const transaction = db.transaction('drafts', 'readwrite');
-      const store = transaction.objectStore('drafts');
+      const transaction = db.transaction('meta', 'readwrite');
+      const store = transaction.objectStore('meta');
       const get = store.get('scope-24');
       get.onsuccess = () => store.put({ ...get.result, updatedAt: Date.now() - 8 * 24 * 60 * 60_000 });
       transaction.oncomplete = () => { db.close(); resolve(); };
@@ -51,6 +51,46 @@ test('real Chromium recovers text and binary drafts across reload, isolates task
   await page.reload();
   assert.equal(await page.evaluate(() => window.drafts.readComposerDraft('scope-24')), undefined, 'expired drafts never reappear');
   assert.equal(await page.evaluate(() => localStorage.length), 0, 'attachments never enter localStorage');
+  const restoreCopies = await page.evaluate(async saved => {
+    await window.drafts.saveComposerDraft('live-tab', saved);
+    for (let i = 0; i < 8; i++) {
+      await window.drafts.saveReplacedComposerDraft('live-tab', { text: `old-${i}`, attachments: [] });
+      await new Promise(resolve => setTimeout(resolve, 2));
+    }
+    const rows = await window.drafts.listComposerDrafts();
+    return { replaced: rows.filter(row => row.scope.startsWith('replaced:')).length, live: rows.some(row => row.scope === 'live-tab') };
+  }, draft);
+  assert.deepEqual(restoreCopies, { replaced: 5, live: true }, 'replaced: copies keep their own cap');
+  const attachmentWrites = await page.evaluate(async saved => {
+    await window.drafts.saveComposerDraft('typing', saved);
+    let puts = 0;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) { if (this.name === 'attachments') puts += 1; return put.apply(this, args); };
+    for (const text of ['a', 'ab', 'abc']) await window.drafts.saveComposerDraft('typing', { ...saved, text });
+    IDBObjectStore.prototype.put = put;
+    return puts;
+  }, draft);
+  assert.equal(attachmentWrites, 0, 'typing rewrites only the text row');
+  await page.reload();
+  assert.equal(await page.evaluate(async () => (await window.drafts.readComposerDraft('typing')).text), 'abc');
+  assert.equal(await page.evaluate(async () => (await window.drafts.readComposerDraft('typing')).attachments.length), 1);
+  const legacyContext = await browser.createBrowserContext();
+  const legacy = await legacyContext.newPage();
+  await legacy.evaluateOnNewDocument(bundle.outputFiles[0].text);
+  await legacy.goto(`http://127.0.0.1:${server.address().port}`);
+  await legacy.evaluate(saved => new Promise((resolve, reject) => {
+    const request = indexedDB.open('cosmos-composer-drafts-v1', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'scope' }).createIndex('updatedAt', 'updatedAt');
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('drafts', 'readwrite');
+      transaction.objectStore('drafts').put({ ...saved, scope: 'legacy', chars: 10, updatedAt: Date.now() });
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onerror = () => reject(transaction.error);
+    };
+  }), draft);
+  assert.deepEqual(await legacy.evaluate(() => window.drafts.readComposerDraft('legacy')), draft, 'version-1 drafts survive the split');
+  await legacyContext.close();
   const unavailable = await browser.newPage();
   await unavailable.evaluateOnNewDocument('Object.defineProperty(window, "indexedDB", { value: undefined });');
   await unavailable.evaluateOnNewDocument(bundle.outputFiles[0].text);

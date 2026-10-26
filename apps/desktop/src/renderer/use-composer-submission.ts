@@ -1,4 +1,5 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { t } from './i18n';
 import type {
   DesktopAbortOptions,
   DesktopPastedText,
@@ -187,7 +188,7 @@ export function useComposerSubmission({
         clearNotice();
         if (text.startsWith('/')) {
           if (commandBusy) {
-            setAttachmentError('Wait for the current command to finish. Your command is still in the editor.');
+            setAttachmentError(t('Wait for the current command to finish. Your command is still in the editor.'));
             return;
           }
           setDraft((current) => (current === submittedDraft ? '' : current));
@@ -215,7 +216,7 @@ export function useComposerSubmission({
           );
         }
         if (expandedText.length > MAX_SUBMIT_TEXT_LENGTH) {
-          setAttachmentError('This prompt is too large to send. Remove or shorten an inline text attachment.');
+          setAttachmentError(t('This prompt is too large to send. Remove or shorten an inline text attachment.'));
           return;
         }
         const committedAttachments = [...used];
@@ -264,7 +265,7 @@ export function useComposerSubmission({
         setAttachmentError(
           error instanceof Error && error.message
             ? error.message
-            : 'The connection was interrupted. Your message has been kept for retry.'
+            : t('The connection was interrupted. Your message has been kept for retry.')
         );
       } finally {
         if (showsSubmitProgress) {

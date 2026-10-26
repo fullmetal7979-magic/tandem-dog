@@ -96,7 +96,7 @@ export const SETTINGS_CATEGORIES = [
     group: 'COSMOS',
     items: ['profile', 'theme', 'web-search-enabled', 'link-preview', 'memory-enabled', 'voice'],
   },
-  // COSMOS: the Galaxy, the relay address and the 심플/고급 mode.
+  // COSMOS: the Galaxy and the relay address.
   {
     value: 'cosmos',
     label: 'Galaxy',

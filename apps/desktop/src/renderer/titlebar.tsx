@@ -1,5 +1,5 @@
 // Window title bar: the 코스모스 mark, the always-visible seat badge,
-// the 심플/고급 mode switch, the updater badge and the Windows caption reserve.
+// the updater badge and the Windows caption reserve.
 // Workspace tab strips live in the panes themselves (WorkspaceTabStrip).
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useState, type ComponentType } from 'react';

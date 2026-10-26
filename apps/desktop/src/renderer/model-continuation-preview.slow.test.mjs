@@ -21,6 +21,8 @@ test('model preview reads capacity without generating, preserves failure retry a
  await page.addScriptTag({content:result.outputFiles[0].text});
  const click=async text=>page.evaluate(text=>[...document.querySelectorAll('button')].find(e=>e.textContent===text)?.click(),text);
  await page.click('#launch');await page.waitForFunction(()=>document.querySelector('.workbench-panel')?.textContent.includes('1,200'));
+ await page.waitForFunction(()=>document.activeElement?.textContent==='이 모델로 이어가기');
+ assert.equal(await page.evaluate(()=>document.activeElement.classList.contains('is-primary')),true,'first focus is the primary action, not ✕');
  assert.equal(await page.evaluate(()=>window.calls.length),1);assert.equal(await page.evaluate(()=>window.calls[0].capability),'inheritancePreflight');assert.equal(await page.evaluate(()=>window.attempts),0);
  await click('이 모델로 이어가기');await page.waitForSelector('[role=alert]');assert.match(await page.$eval('[role=alert]',e=>e.textContent),/기존 대화와 초안은 유지/);
  await page.evaluate(()=>window.fail=false);await click('다시 시도');await page.waitForFunction(()=>window.continued===true);assert.equal(await page.evaluate(()=>window.attempts),2);

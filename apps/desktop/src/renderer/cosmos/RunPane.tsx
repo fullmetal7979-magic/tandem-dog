@@ -5,12 +5,16 @@
 // never typed into a process that is still running. Every live run gets a tab
 // to see and stop it. Running changes the project, so it follows the seat:
 // while another device (or the phone) holds it, or while that is still being
-// checked, the buttons rest.
+// checked, the buttons rest. ⏹ 멈추기 never rests: stopping a local run is
+// always allowed. Runs live in the desktop service, so after a reload the
+// pane asks it for the project's live run terminals and shows them again.
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { cosmosSeatHeldElsewhere, cosmosSeatUnknown, useCosmos } from './cosmos-store';
 import { openCosmosGalaxy } from './CosmosHome';
 import { josa } from './cosmos-format';
 import {
+  adoptRuns,
+  isAdoptedRun,
   makefileName,
   makeTasks,
   orderTasks,
@@ -45,6 +49,14 @@ async function releaseRunTerminal(id: string): Promise<void> {
 /** The run tab shown for each project, kept across dock tab switches. */
 const shownRuns = new Map<string, string>();
 let runCounter = 0;
+/** Projects whose live run terminals were already looked up since this page loaded. */
+const adoptionChecked = new Set<string>();
+
+/** The project's run terminals still alive in the desktop service (after a reload), or [] when unknown. */
+async function liveRunTerminals(projectPath: string): Promise<string[]> {
+  const view = await window.mixdogDesktop?.cosmosOverview?.(projectPath, { fetch: false, runs: true });
+  return Array.isArray(view?.runs) ? view.runs : [];
+}
 
 async function loadTasks(projectPath: string): Promise<Omit<Loaded, 'key'>> {
   const desktop = window.mixdogDesktop;
@@ -98,6 +110,22 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
     setLast(null);
     setNotice('');
   }, [key]);
+  // Re-adopt runs started before a reload: their dev servers are still up.
+  useEffect(() => {
+    if (!active || !projectPath || adoptionChecked.has(projectPath)) return;
+    adoptionChecked.add(projectPath);
+    let current = true;
+    void liveRunTerminals(projectPath)
+      .then((ids) => {
+        const adopted = adoptRuns(projectPath, ids);
+        if (!current || !adopted.length) return;
+        setNotice(`화면을 다시 열기 전에 시작한 실행 ${adopted.length}개가 아직 돌고 있어요. 아래 탭에서 보거나 ⏹ 멈추기로 멈출 수 있어요.`);
+      })
+      .catch(() => adoptionChecked.delete(projectPath));
+    return () => {
+      current = false;
+    };
+  }, [active, projectPath]);
 
   // Runs that are still going when the pane is left keep their terminals.
   const runs = key ? projectRuns(key) : [];
@@ -162,7 +190,9 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   const primary = tasks.filter((task) => task.primary);
   const rest = tasks.filter((task) => !task.primary);
   const visible = showAll || primary.length === 0 ? tasks : primary;
-  const taskName = (taskId: string) => tasks.find((task) => task.id === taskId)?.name ?? taskId;
+  const adoptedIds = runs.filter((entry) => isAdoptedRun(entry.taskId)).map((entry) => entry.terminalId);
+  const taskName = (taskId: string, terminalId = '') =>
+    isAdoptedRun(taskId) ? `이전 실행 ${adoptedIds.indexOf(terminalId) + 1}` : (tasks.find((task) => task.id === taskId)?.name ?? taskId);
   const shownTask = runs.find((entry) => entry.terminalId === terminalId)?.taskId ?? null;
   const shownCommand = shownTask ? (tasks.find((task) => task.id === shownTask)?.command ?? (last?.task.id === shownTask ? last.task.command : '')) : '';
 
@@ -242,7 +272,7 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
                   aria-pressed={entry.terminalId === terminalId}
                   onClick={() => showRun(entry.terminalId)}
                 >
-                  ▶ {taskName(entry.taskId)}
+                  {isAdoptedRun(entry.taskId) ? '↺' : '▶'} {taskName(entry.taskId, entry.terminalId)}
                 </button>
               ))}
             </div>
@@ -253,6 +283,8 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
                 <>
                   ▶ <code>{shownCommand}</code>
                 </>
+              ) : shownTask && isAdoptedRun(shownTask) ? (
+                '↺ 다시 열기 전에 시작한 실행'
               ) : (
                 '실행 터미널'
               )}
@@ -261,8 +293,7 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
               type="button"
               className="cosmos-button cosmos-button--plain"
               onClick={stop}
-              disabled={held}
-              aria-label={shownTask ? `${taskName(shownTask)} 멈추기` : '실행 멈추기'}
+              aria-label={shownTask ? `${taskName(shownTask, terminalId)} 멈추기` : '실행 멈추기'}
             >
               ⏹ 멈추기
             </button>

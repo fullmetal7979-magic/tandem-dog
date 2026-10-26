@@ -1,4 +1,10 @@
-import { matchesWorkbenchShortcut as matches } from './workbench-shortcuts';
+import {
+  isMacShortcutPlatform,
+  matchesWorkbenchShortcut,
+  requestOpenTaskTools,
+  workbenchModPressed,
+  type WorkbenchShortcut,
+} from './workbench-shortcuts';
 // THE workbench keymap. One table, resolved in the CAPTURE phase, so every
 // surface (xterm, Monaco, composer, Studio prompt) obeys the same bindings
 // instead of swallowing them;
@@ -13,7 +19,10 @@ import { matchesWorkbenchShortcut as matches } from './workbench-shortcuts';
 // mod+J panel ·
 // shift+mod+F find in files · shift+mod+D 은하수 · shift+mod+S 이어받기 ·
 // shift+mod+L 내려놓기 · shift+mod+E ▶ 실행 · shift+mod+M model picker ·
-// mod+W and ctrl+Q close.
+// shift+mod+K 작업 도구 · mod+W and (outside macOS) ctrl+Q close.
+// On macOS `mod` is ⌘ only: Control chords belong to the terminal's readline
+// (Ctrl+W/P/N/B/J) and the system. Ctrl+Arrow stays with word movement in
+// text entry and xterm on every platform.
 import { useEffect, useRef } from 'react';
 
 import type { WorkspaceTab } from './navigation';
@@ -35,6 +44,8 @@ interface WorkspaceShortcutActions {
   openRun?: () => void;
   /** mod+Shift+M : the focused composer's route picker, on its model pane. */
   openModelPicker?: () => void;
+  /** mod+Shift+K : the focused composer's 작업 도구 (same path as its button). */
+  openTaskTools?: () => void;
   toggleSidebar: () => void;
   toggleDock: () => void;
   togglePanel: () => void;
@@ -73,16 +84,34 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
     };
     /** The keymap itself: returns the command for an event, or null. */
     const resolve = (event: globalThis.KeyboardEvent) => {
-      const mod = event.ctrlKey || event.metaKey;
-      if (!mod) return null;
+      const mac = isMacShortcutPlatform();
+      const matches = (keyEvent: globalThis.KeyboardEvent, id: WorkbenchShortcut) =>
+        matchesWorkbenchShortcut(keyEvent, id, mac);
       const key = event.key.toLowerCase();
       const plain = !event.shiftKey && !event.altKey;
+      // Ctrl+Tab and Ctrl+PageUp/PageDown stay Control chords on every platform.
+      if (plain && (event.ctrlKey || workbenchModPressed(event, mac)) && (event.key === 'PageUp' || event.key === 'PageDown')) {
+        const offset = event.key === 'PageDown' ? 1 : -1;
+        return () => cycleTab(offset);
+      }
+      if (matches(event, 'nextTab') || matches(event, 'previousTab')) {
+        const offset = event.shiftKey ? -1 : 1;
+        return () => actionsRef.current.openTabSwitcher(offset);
+      }
+      if (!workbenchModPressed(event, mac)) return null;
       const target = event.target as Partial<Element> | null;
       const inEditor = Boolean(target?.closest?.('.monaco-editor'));
       const inTextEntry = Boolean(target?.closest?.('input, textarea, [contenteditable]:not([contenteditable="false"])'));
-      // macOS Command+Arrow moves to line/document boundaries in text fields.
-      // Let the focused editor/composer own these native editing commands.
-      if (plain && event.key.startsWith('Arrow') && (inEditor || (event.metaKey && inTextEntry))) return null;
+      const inTerminal = Boolean(target?.closest?.('.xterm'));
+      // macOS Command+Arrow moves to line/document boundaries in text fields,
+      // and Ctrl+Arrow is word movement in text entry and the terminal on
+      // every platform. Let the focused editor/composer/xterm own them.
+      if (
+        plain &&
+        event.key.startsWith('Arrow') &&
+        (inEditor || (event.metaKey && inTextEntry) || (event.ctrlKey && (inTextEntry || inTerminal)))
+      )
+        return null;
       if (plain && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         const offset = event.key === 'ArrowLeft' ? -1 : 1;
         return () => cycleTab(offset, true);
@@ -90,14 +119,6 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
       if (plain && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
         const direction = event.key === 'ArrowUp' ? 'up' : 'down';
         return () => actionsRef.current.focusVerticalPane(direction);
-      }
-      if (plain && (event.key === 'PageUp' || event.key === 'PageDown')) {
-        const offset = event.key === 'PageDown' ? 1 : -1;
-        return () => cycleTab(offset);
-      }
-      if (matches(event, 'nextTab') || matches(event, 'previousTab')) {
-        const offset = event.shiftKey ? -1 : 1;
-        return () => actionsRef.current.openTabSwitcher(offset);
       }
       if (matches(event, 'quickOpen') || matches(event, 'palette')) {
         return event.shiftKey
@@ -120,6 +141,11 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
         if (matches(event, 'sit') && actions.cosmosSeat) return () => actions.cosmosSeat?.('sit');
         if (matches(event, 'leave') && actions.cosmosSeat && !inEditor) return () => actions.cosmosSeat?.('leave');
         if (matches(event, 'run') && actions.openRun) return () => actions.openRun?.();
+        // The composer's 도구 button and this key open the same surface, from
+        // any focused surface (terminal and editor included).
+        if (matches(event, 'taskTools')) {
+          return () => (actions.openTaskTools ? actions.openTaskTools() : requestOpenTaskTools());
+        }
         // Ctrl+Shift+M is Monaco's "toggle Tab key moves focus" on macOS, so a
         // focused code editor keeps the Ctrl chord; Cmd+Shift+M still opens.
         if (matches(event, 'models') && actions.openModelPicker && !(inEditor && event.ctrlKey && !event.metaKey)) {
@@ -133,8 +159,8 @@ export function useWorkspaceShortcuts(actions: WorkspaceShortcutActions) {
       if (matches(event, 'help') && !inEditor && actionsRef.current.openShortcuts) return () => actionsRef.current.openShortcuts?.();
       if (matches(event, 'panel') && !(event.ctrlKey && !event.metaKey && Boolean(target?.closest?.('form.composer textarea')))) return () => actionsRef.current.togglePanel();
       // Command+Q belongs to the native macOS app menu. Ctrl+Q keeps the
-      // workbench close binding without intercepting the system Quit command.
-      if (matches(event, 'close') || (key === 'q' && event.ctrlKey && !event.metaKey)) return closeActiveTab;
+      // workbench close binding elsewhere without intercepting system Quit.
+      if (matches(event, 'close') || (!mac && key === 'q' && event.ctrlKey && !event.metaKey)) return closeActiveTab;
       return null;
     };
     const onShortcutCapture = (event: globalThis.KeyboardEvent) => {

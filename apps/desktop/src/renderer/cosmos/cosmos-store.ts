@@ -3,7 +3,10 @@
 // disagree and never poll twice.
 //
 // Freshness: a project somebody looks at refreshes every minute and on window
-// focus (the service throttles network fetches on its own). While this star
+// focus (the service throttles network fetches on its own). The first read of
+// a project answers from the last pull at once (no network); the Galaxy fetch
+// follows in the background and updates the view when it lands. Seat-bound
+// controls wait for that first answer at most SEAT_WAIT_MS. While this star
 // holds a seat it sends a heartbeat every five minutes, which is what keeps
 // other stars from seeing it as "응답 없음".
 //
@@ -39,12 +42,16 @@ export interface CosmosEntry {
   refusal: CosmosRefusal | null;
   lastSun: CosmosSunResult | null;
   lastMoon: CosmosMoonResult | null;
+  /** The first read took longer than SEAT_WAIT_MS: seat-bound controls stop waiting for it. */
+  waitedOut?: boolean;
 }
 
 const POLL_MS = 60_000;
 const HEARTBEAT_MS = 5 * 60_000;
 /** A surface that (re)appears with older data than this asks again. */
 const STALE_MS = 15_000;
+/** How long the "확인 중" lock may hold a surface before it falls back to what is known locally. */
+export const SEAT_WAIT_MS = 2_000;
 const EMPTY: CosmosEntry = {
   view: null,
   loading: false,
@@ -63,6 +70,10 @@ const watchers = new Map<string, number>();
 const checkedAt = new Map<string, number>();
 /** One background read per key at a time; a forced read always goes through. */
 const inFlight = new Map<string, Promise<void>>();
+/** The SEAT_WAIT_MS cap of each key's first read. */
+const waitTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** The last 내려놓기 request per key, so 그래도 내려놓기 repeats it with force. */
+const leaveRequests = new Map<string, { note: string; handoffTo: string | null; sessionId: string | null }>();
 let pollTimer: number | null = null;
 let heartbeatTimer: number | null = null;
 let beating = false;
@@ -106,17 +117,29 @@ export function refreshCosmos(projectPath: string | null | undefined, { force = 
   const running = inFlight.get(key);
   if (running && !force) return running;
   if (force) set(key, { loading: true });
+  const first = !force && !get(key).view && !checkedAt.has(key);
+  if (first) capSeatWait(key);
+  const apply = (view: CosmosOverview) => {
+    checkedAt.set(key, Date.now());
+    const before = get(key);
+    const changed = !sameView(before.view, view);
+    // An unchanged answer to a background poll touches nothing on screen.
+    if (changed || before.pollError || (force && before.loading)) {
+      set(key, { ...(changed ? { view } : {}), pollError: '', ...(force ? { loading: false } : {}) });
+    }
+    syncHeartbeat();
+  };
   const task = (async () => {
     try {
-      const view = await read(key || null, { force });
-      checkedAt.set(key, Date.now());
-      const before = get(key);
-      const changed = !sameView(before.view, view);
-      // An unchanged answer to a background poll touches nothing on screen.
-      if (changed || before.pollError || (force && before.loading)) {
-        set(key, { ...(changed ? { view } : {}), pollError: '', ...(force ? { loading: false } : {}) });
+      if (first) {
+        // Local state first: the seat is known without waiting on the network.
+        try {
+          apply(await read(key || null, { fetch: false }));
+        } catch {
+          /* the full read below reports the failure */
+        }
       }
-      syncHeartbeat();
+      apply(await read(key || null, { force }));
     } catch (error) {
       set(key, { pollError: cosmosErrorText(error), ...(force ? { loading: false } : {}) });
     }
@@ -128,6 +151,18 @@ export function refreshCosmos(projectPath: string | null | undefined, { force = 
     });
   }
   return task;
+}
+
+/** After SEAT_WAIT_MS without a first answer, seat-bound surfaces stop holding (see cosmosSeatUnknown). */
+function capSeatWait(key: string): void {
+  if (typeof window === 'undefined' || waitTimers.has(key)) return;
+  waitTimers.set(
+    key,
+    setTimeout(() => {
+      waitTimers.delete(key);
+      if (!get(key).view) set(key, { waitedOut: true });
+    }, SEAT_WAIT_MS)
+  );
 }
 
 function startPolling(): void {
@@ -246,9 +281,14 @@ export function useCosmos(projectPath: string | null | undefined): CosmosEntry {
   return useSyncExternalStore(listen, read, read);
 }
 
-/** The open project's seat is not known yet (first read still running): seat-bound controls wait. */
+/**
+ * The open project's seat is not known yet (first read still running):
+ * seat-bound controls wait, but at most SEAT_WAIT_MS. After that they fall
+ * back to the last known view (none yet: treated as free), and the lock
+ * returns only if the answer, when it lands, says another device holds it.
+ */
 export function cosmosSeatUnknown(entry: CosmosEntry, projectPath: string | null | undefined): boolean {
-  return Boolean(projectPath) && !entry.view && !entry.pollError && Boolean(api()?.cosmosOverview);
+  return Boolean(projectPath) && !entry.view && !entry.pollError && !entry.waitedOut && Boolean(api()?.cosmosOverview);
 }
 
 /** Another device (or the phone driving this PC) holds the seat: this device must not edit. */
@@ -286,11 +326,30 @@ export async function cosmosSit(projectPath: string, { force = false } = {}) {
   return result;
 }
 
-export async function cosmosLeave(projectPath: string, { note = '', handoffTo = null as string | null, sessionId = null as string | null } = {}) {
+export async function cosmosLeave(
+  projectPath: string,
+  { note = '', handoffTo = null as string | null, sessionId = null as string | null, force = false } = {}
+) {
   const key = keyOf(projectPath);
-  const result = await run<CosmosMoonResult>(key, 'moon', () => api()?.cosmosMoon?.(key, { note, handoffTo, sessionId }));
-  if (result) set(key, { lastMoon: result, lastSun: null });
+  leaveRequests.set(key, { note, handoffTo, sessionId });
+  const result = await run<CosmosMoonResult>(key, 'moon', () =>
+    api()?.cosmosMoon?.(key, force ? { note, handoffTo, sessionId, force: true } : { note, handoffTo, sessionId })
+  );
+  if (result) {
+    leaveRequests.delete(key);
+    set(key, { lastMoon: result, lastSun: null });
+  }
   return result;
+}
+
+/**
+ * 그래도 내려놓기: after a push_failed refusal, release the seat anyway with the
+ * same note and hand-over. The unpushed work stays on this device.
+ */
+export function cosmosLeaveAnyway(projectPath: string) {
+  const key = keyOf(projectPath);
+  const last = leaveRequests.get(key) ?? { note: '', handoffTo: null, sessionId: null };
+  return cosmosLeave(key, { ...last, force: true });
 }
 
 export function cosmosAskTurn(projectPath: string, note = '') {
@@ -359,8 +418,11 @@ async function onSeatAction(event: Event): Promise<void> {
   const holder = view.seat?.holder?.name;
   let done: unknown = null;
   if (action === 'leave') {
-    if (state === 'mine') done = await cosmosLeave(key, { note: '' });
-    else openGalaxyScreen();
+    if (state === 'mine') {
+      done = await cosmosLeave(key, { note: '' });
+      // A refusal (push_failed and its 그래도 내려놓기 among them) is explained on the Galaxy screen.
+      if (!done && get(key).refusal) openGalaxyScreen();
+    } else openGalaxyScreen();
   } else if (state === 'empty' || (state === 'occupied' && view.here)) {
     done = await cosmosSit(key);
   } else if (state === 'stale') {
@@ -385,6 +447,9 @@ export function resetCosmosStore(): void {
   entries.clear();
   checkedAt.clear();
   inFlight.clear();
+  for (const timer of waitTimers.values()) clearTimeout(timer);
+  waitTimers.clear();
+  leaveRequests.clear();
   stopPolling();
   if (heartbeatTimer !== null && typeof window !== 'undefined') {
     window.clearInterval(heartbeatTimer);

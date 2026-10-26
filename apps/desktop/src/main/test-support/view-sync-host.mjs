@@ -111,7 +111,8 @@ export async function viewSyncHost({ runTurns = false } = {}) {
       };
     },
     async loadProjects() {
-      return {};
+      // No registered projects: the seat gate's every-project rule has nothing to refuse.
+      return { listProjects: () => [] };
     },
     async loadSessionStore() {
       return { listStoredAgentWorkers: () => state.agents };

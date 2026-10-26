@@ -29,6 +29,8 @@ import { SECRET_PLACEHOLDER, hasRedactionMark, isSecretFile, redactJson, redactT
 import { galaxyRemote } from './galaxy-repo.mjs';
 import { cosmosHome } from './star.mjs';
 
+// `desktop.uiMode` (the retired simple mode) is no longer synced: an old copy
+// still in a Galaxy is not an allowed key, so it is skipped on both sides.
 export const SYNCED_CONFIG_KEYS = Object.freeze([
   'outputStyle',
   'memory',
@@ -45,7 +47,6 @@ export const SYNCED_CONFIG_KEYS = Object.freeze([
   'agent.recap',
   'agent.mcpServers',
   'desktop.activityRailPins',
-  'desktop.uiMode',
   'cosmos',
 ]);
 
@@ -146,8 +147,22 @@ async function galaxyIdentity(galaxy) {
   return { galaxyId: await galaxyIdIn(galaxy), remote: remote ? scrubUrl(remote) : null };
 }
 
+/**
+ * A base written before Galaxies carried ids (no galaxyId) is trusted once,
+ * as long as its remote, when it recorded one, is this Galaxy's: dropping it
+ * would turn the first sync after an upgrade into a conflict on every file.
+ * commitLocal() then stamps it with this Galaxy's identity, so from then on
+ * the normal rule applies.
+ */
+export function isLegacyBase(state, identity) {
+  if (state.galaxyId) return false;
+  if (state.remote && state.remote !== (identity.remote ?? null)) return false;
+  return Boolean(state.base && Object.keys(state.base).length);
+}
+
 /** The agreed base, or {} when it was made against another Galaxy. */
 export function baseFor(state, identity) {
+  if (isLegacyBase(state, identity)) return state.base;
   if (!state.galaxyId || state.galaxyId !== identity.galaxyId) return {};
   if ((state.remote ?? null) !== (identity.remote ?? null)) return {};
   return state.base;
@@ -481,6 +496,7 @@ export async function syncEnvironmentIn(galaxy, { direction, dataDir = resolvePl
   const state = await readSyncState(home);
   const identity = await galaxyIdentity(galaxy);
   const base = baseFor(state, identity);
+  const legacy = isLegacyBase(state, identity);
   const mine = await localSnapshotDetailed({ dataDir, config, risky });
   const theirs = await galaxySnapshotDetailed(galaxy);
   const skip = new Set([...mine.skipped, ...theirs.skipped]);
@@ -510,6 +526,8 @@ export async function syncEnvironmentIn(galaxy, { direction, dataDir = resolvePl
         backupDir,
         // The old base belonged to another Galaxy and was set aside.
         rebased: base !== state.base && Object.keys(state.base).length > 0,
+        // A base from before Galaxy ids was accepted this once and is now stamped.
+        adopted: legacy,
       };
     },
   };

@@ -255,6 +255,18 @@ export class TerminalManager {
     return entry ? entry.cwd : undefined;
   }
 
+  /** Read-only: the live (not exited) terminals whose id starts with
+   *  `prefix`, oldest first. A reloaded ▶ 실행 pane uses it to find the run
+   *  PTYs it started before the reload. */
+  list(prefix: string): Array<{ id: string; cwd: string | null; shell: string }> {
+    if (!prefix.startsWith('term_')) return [];
+    const live: Array<{ id: string; cwd: string | null; shell: string }> = [];
+    for (const [id, entry] of this.terminals) {
+      if (!entry.disposed && id.startsWith(prefix)) live.push({ id, cwd: entry.cwd, shell: entry.shell });
+    }
+    return live;
+  }
+
   /** Read-only: the tabs of one session's terminal, ordered by tab number.
    * Tab 1 is `session-terminal:<sessionId>`, tab n is `…:<n>`. Other
    * sessions' terminals are never visible through this. */

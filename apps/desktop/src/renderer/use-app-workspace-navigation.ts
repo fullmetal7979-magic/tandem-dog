@@ -7,6 +7,7 @@ import { useWorkspaceShortcuts } from './app-workspace-shortcuts';
 import { dispatchCosmosSeatAction } from './cosmos/cosmos-store';
 import { useStableEvent } from './use-stable-event';
 import { requestOpenModelPicker } from './model-picker-event';
+import { requestOpenTaskTools } from './workbench-shortcuts';
 
 type PaneWorkspace = ReturnType<typeof usePaneWorkspace>;
 
@@ -142,6 +143,11 @@ export function useAppWorkspaceNavigation({
     // the capture table makes it work from the terminal and editor too.
     openModelPicker: () => {
       requestOpenModelPicker();
+    },
+    // ⌘⇧K: the focused pane's composer opens 작업 도구 through the same
+    // handler as its 도구 button, whichever surface holds focus.
+    openTaskTools: () => {
+      requestOpenTaskTools();
     },
     toggleSidebar,
     toggleDock,

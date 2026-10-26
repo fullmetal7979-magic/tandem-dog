@@ -37,3 +37,26 @@ test('two requests cannot inherit one composer concurrently', async () => {
   release(true);
   await first;
 });
+
+test('a draft request limit moves to the session its first send creates', async () => {
+  const store = new Map();
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: key => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: key => store.delete(key),
+  };
+  try {
+    const { saveExecutionBudget, readExecutionBudget, promoteDraftExecutionBudget } = await import('./execution-budget-settings.ts');
+    saveExecutionBudget('draft:a', { maxRequests: 3, maxTokens: 5000 });
+    promoteDraftExecutionBudget('draft:a', 'session-a');
+    assert.deepEqual(readExecutionBudget('session-a'), { maxRequests: 3, maxTokens: 5000 });
+    assert.deepEqual(readExecutionBudget('draft:a'), {});
+    assert.equal([...store.keys()].some(key => key.endsWith(':draft:a')), false, 'the draft key is deleted');
+    saveExecutionBudget('session-b', { maxRequests: 9 });
+    promoteDraftExecutionBudget('draft:b', 'session-b');
+    assert.deepEqual(readExecutionBudget('session-b'), { maxRequests: 9 }, 'an empty draft never clears a limit');
+  } finally {
+    globalThis.localStorage = previous;
+  }
+});

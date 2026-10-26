@@ -91,8 +91,12 @@ export interface CosmosOverview {
   project?: CosmosProjectState | null;
   /** Relay server address shared through the Galaxy (phone turns). */
   relayUrl?: string | null;
-  /** 심플/고급 mode as synced through the Galaxy (desktop.uiMode). */
-  uiMode?: 'simple' | 'advanced' | null;
+  /**
+   * Live ▶ 실행 terminals (term_cosmos_run_*) of this project in the desktop
+   * service, present only when the overview was asked with `runs: true`: a
+   * reloaded run pane re-adopts them instead of leaving dev servers orphaned.
+   */
+  runs?: string[];
 }
 
 export interface CosmosEnvironmentSummary {
@@ -119,6 +123,8 @@ export interface CosmosMoonResult {
   seat: CosmosSeat | null;
   handoffTo: string | null;
   project: (CosmosProjectState & { ok: boolean; committed?: boolean; pushed?: boolean; error?: string }) | null;
+  /** Set when 그래도 내려놓기 (force) freed the seat although the push failed: the work stayed on this device. */
+  unpushed?: { reason?: string; committed?: boolean; branch?: string | null; ahead?: number } | null;
   environment: CosmosEnvironmentSummary | null;
   conversation: { id: string; messageCount: number; trimmed: boolean } | null;
 }
@@ -132,6 +138,14 @@ export interface CosmosRefusal {
   holder?: CosmosSeatPerson | null;
   lastSeen?: number;
   secrets?: Array<{ path: string; reason: 'file' | 'content' }>;
+  /**
+   * Why push_failed: 'behind' (the remote moved), 'rejected' (refused by the
+   * remote: permissions, a protected branch), 'push', 'commit', … Free text
+   * from the runtime; read it defensively.
+   */
+  reason?: string;
+  /** push_failed: false when the runtime says 그래도 내려놓기 cannot apply (missing: offered). */
+  canForce?: boolean;
 }
 
 export type CosmosOutcome<T> = T | CosmosRefusal;
@@ -146,16 +160,21 @@ export interface CosmosGalaxySetupResult {
 }
 
 export interface DesktopCosmosApi {
-  cosmosOverview?(cwd: string | null, options?: { fetch?: boolean; force?: boolean }): Promise<CosmosOverview>;
+  /** `fetch: false` reads the last pull only (no network); `runs: true` adds the project's live ▶ 실행 terminals. */
+  cosmosOverview?(cwd: string | null, options?: { fetch?: boolean; force?: boolean; runs?: boolean }): Promise<CosmosOverview>;
   cosmosSun?(cwd: string, request?: { force?: boolean }): Promise<CosmosOutcome<CosmosSunResult>>;
-  cosmosMoon?(cwd: string, request?: { note?: string; handoffTo?: string | null; sessionId?: string | null }): Promise<CosmosOutcome<CosmosMoonResult>>;
+  /** `force: true` (그래도 내려놓기) releases the seat even when the push failed; unpushed work stays on this device. */
+  cosmosMoon?(
+    cwd: string,
+    request?: { note?: string; handoffTo?: string | null; sessionId?: string | null; force?: boolean }
+  ): Promise<CosmosOutcome<CosmosMoonResult>>;
   cosmosRequest?(cwd: string, request?: { note?: string; withdraw?: boolean }): Promise<CosmosOutcome<{ seat: CosmosSeat }>>;
   cosmosSetStar?(request: { name?: string; kind?: CosmosStarKind; color?: string }): Promise<CosmosStar>;
   /** Connect an existing Galaxy repository URL, or create the private `cosmos-galaxy` repo with gh. */
   cosmosSetupGalaxy?(request: { remoteUrl?: string | null; create?: boolean }): Promise<CosmosOutcome<CosmosGalaxySetupResult>>;
   cosmosHeartbeat?(planets: string[]): Promise<void>;
-  /** Shared COSMOS preferences that travel through the Galaxy. */
-  cosmosSetPreference?(key: 'uiMode' | 'relayUrl', value: string | null): Promise<void>;
+  /** Shared COSMOS preferences that travel through the Galaxy (the relay address). */
+  cosmosSetPreference?(key: 'relayUrl', value: string | null): Promise<void>;
   /** Open a new session carrying the planet's latest (or the named) Galaxy conversation. */
   cosmosContinueConversation?(cwd: string, conversationId?: string | null): Promise<{ sessionId: string }>;
 }

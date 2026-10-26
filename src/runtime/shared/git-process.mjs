@@ -15,11 +15,12 @@ export function configureGitEnvironment(provider) {
 }
 
 const NETWORK_GIT = new Set(['fetch', 'push', 'pull', 'clone', 'ls-remote']);
-// Local commands that rewrite a working tree can legitimately take a while on
-// a big repository; killing one half-way would leave it in a worse state.
-const HEAVY_GIT = new Set(['checkout', 'switch', 'merge', 'rebase', 'reset', 'clean', 'stash', 'worktree', 'cherry-pick', 'add', 'commit', 'gc']);
+// Only network commands get a default time limit: a stuck remote or credential
+// helper must not hang COSMOS. Local commands (status, add, commit, reset, gc,
+// checkout…) can legitimately run long on a big repository, and killing one
+// half-way leaves index.lock and a half-written tree behind, so they run
+// without a limit unless the caller asks for one.
 const NETWORK_TIMEOUT_MS = 60_000;
-const LOCAL_TIMEOUT_MS = 20_000;
 
 /** The git subcommand of an argv (skips leading -c k=v / -C dir / --flag options). */
 function gitSubcommand(args) {
@@ -35,15 +36,30 @@ function gitSubcommand(args) {
   return '';
 }
 
+export function isNetworkGit(args) {
+  return NETWORK_GIT.has(gitSubcommand(args));
+}
+
+/** Default time limit: 60s for network commands, none (0) for everything local. */
 export function defaultGitTimeoutMs(args) {
-  const sub = gitSubcommand(args);
-  return NETWORK_GIT.has(sub) || HEAVY_GIT.has(sub) ? NETWORK_TIMEOUT_MS : LOCAL_TIMEOUT_MS;
+  return isNetworkGit(args) ? NETWORK_TIMEOUT_MS : 0;
+}
+
+/**
+ * How a timed-out command is stopped. A network command is only waiting on
+ * the remote, so it is killed outright. A local command that the caller gave
+ * a limit gets SIGTERM, which git handles by removing its lock files; it is
+ * never SIGKILLed in the middle of writing the index or the tree.
+ */
+export function gitTimeoutSignal(args) {
+  return isNetworkGit(args) ? 'SIGKILL' : 'SIGTERM';
 }
 
 /**
  * Run git and resolve {code, stdout, stderr}; never rejects on a non-zero exit.
- * A command that outlives `timeoutMs` (default 60s for network commands, 20s
- * otherwise; 0 disables) is killed and resolves a non-zero result.
+ * A command that outlives `timeoutMs` (default 60s for network commands, no
+ * limit for local ones; 0 disables) is stopped (see gitTimeoutSignal) and
+ * resolves a non-zero result.
  */
 export function runGit(cwd, args, { input, env, timeoutMs } = {}) {
   const limit = timeoutMs === undefined ? defaultGitTimeoutMs(args) : Number(timeoutMs) || 0;
@@ -69,7 +85,7 @@ export function runGit(cwd, args, { input, env, timeoutMs } = {}) {
       // Own timer instead of execFile's: a grandchild (ssh, a credential
       // helper) can hold the pipes open long after git itself is killed.
       timer = setTimeout(() => {
-        child.kill('SIGKILL');
+        child.kill(gitTimeoutSignal(args));
         child.stdout?.destroy();
         child.stderr?.destroy();
         finish({ code: 1, stdout: '', stderr: `git ${gitSubcommand(args)} timed out after ${Math.round(limit / 1000)}s\n`, timedOut: true });

@@ -48,11 +48,11 @@ test('a hidden Galaxy pane watches nothing; showing it reads once', async (t) =>
   assert.equal(reads, 0, 'an inactive dock tab does not poll');
   await act(async () => root.render(React.createElement(GalaxyPane, { projectPath: '/work/app', active: true })));
   await tick();
-  assert.equal(reads, 1);
+  assert.equal(reads, 2, 'the first look reads local state, then fetches in the background');
   await act(async () => root.render(React.createElement(GalaxyPane, { projectPath: '/work/app', active: false })));
   await act(async () => root.render(React.createElement(GalaxyPane, { projectPath: '/work/app', active: true })));
   await tick();
-  assert.equal(reads, 1, 'reopening within the freshness window reuses the cached view');
+  assert.equal(reads, 2, 'reopening within the freshness window reuses the cached view');
 });
 
 test('a failed first read shows the reason and a retry instead of an endless spinner', async (t) => {
@@ -144,7 +144,7 @@ test('until the seat is known the composer is held with a checking banner', asyn
   assert.ok(!composer.hasAttribute('inert'), 'released once the seat is free');
 });
 
-test('the compact home input button is disabled while another device holds the seat', async (t) => {
+test('the compact home explains the occupied seat without duplicating the composer input', async (t) => {
   const { root, document, window } = installTestDom(t, { rootId: 'root' });
   const occupied = view({ state: 'occupied', seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW } } });
   window.mixdogDesktop = { cosmosOverview: async () => occupied };
@@ -154,7 +154,7 @@ test('the compact home input button is disabled while another device holds the s
   await act(async () => root.render(React.createElement(CosmosHome, { projectPath: '/work/app' })));
   await tick();
   const chat = [...document.querySelectorAll('.cosmos-home-actions button')].find((button) => /메시지 입력/.test(button.textContent));
-  assert.ok(chat.disabled);
+  assert.equal(chat,undefined);
   assert.match(document.querySelector('.cosmos-home-status').textContent, /회사 PC/);
   assert.equal(document.querySelector('.cosmos-home').getAttribute('aria-label'), '코스모스 홈');
   // The compact home exposes one accessible live status for the seat holder.
@@ -191,4 +191,88 @@ test('the 이어받기 outcome tells a local-only or failed backup and a seat mo
   const refused = document.querySelector('.cosmos-outcome--refused');
   assert.match(refused.querySelector('b').textContent, /내려놓지 못했어요/);
   assert.match(refused.textContent, /작업 자리는 이 기기에 그대로 있어요/);
+});
+
+test('the first read answers from local state at once; the Galaxy fetch lands later', async (t) => {
+  const { root, window } = installTestDom(t, { rootId: 'root' });
+  const asked = [];
+  let fetched;
+  window.mixdogDesktop = {
+    cosmosOverview: (_cwd, options) => {
+      asked.push(options);
+      if (options?.fetch === false) return Promise.resolve(view({ state: 'empty' }));
+      return new Promise((resolve) => (fetched = resolve));
+    },
+  };
+  const store = await freshStore();
+  t.after(() => store.resetCosmosStore());
+  let latest = null;
+  function Probe() {
+    latest = store.useCosmos('/work/app');
+    return null;
+  }
+  await act(async () => root.render(React.createElement(Probe)));
+  await tick();
+  assert.deepEqual(asked[0], { fetch: false });
+  assert.equal(latest.view?.state, 'empty', 'the local seat is known before any network');
+  assert.equal(store.cosmosSeatUnknown(latest, '/work/app'), false);
+  const occupied = view({ state: 'occupied', seat: { ...view().seat, holder: { star: 'work', name: '회사 PC', kind: 'pc', since: NOW } } });
+  await act(async () => fetched(occupied));
+  await tick();
+  assert.equal(latest.view?.state, 'occupied', 'the background fetch updates the view');
+});
+
+test('the 확인 중 lock gives up after the cap and falls back to the local seat', async (t) => {
+  const { root, document, window } = installTestDom(t, { rootId: 'root' });
+  window.mixdogDesktop = { cosmosOverview: () => new Promise(() => undefined) };
+  const store = await freshStore();
+  t.after(() => store.resetCosmosStore());
+  const { SeatLock } = await import('./SeatLock.tsx');
+  await act(async () => root.render(React.createElement(SeatLock, { projectPath: '/work/slow' })));
+  assert.ok(document.querySelector('.cosmos-lock--checking'), 'checking at first');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, store.SEAT_WAIT_MS + 100)));
+  assert.equal(document.querySelector('.cosmos-lock--checking'), null, 'released after the cap');
+});
+
+test('push_failed offers 그래도 내려놓기, which repeats the leave with force', async (t) => {
+  const { root, document, window } = installTestDom(t, { rootId: 'root' });
+  const moons = [];
+  window.confirm = () => true;
+  window.mixdogDesktop = {
+    cosmosOverview: async () => view({ state: 'mine' }),
+    cosmosMoon: async (_cwd, request) => {
+      moons.push(request);
+      if (!request.force) return { refused: true, code: 'push_failed', reason: 'rejected', canForce: true, message: '원격 저장소가 올리기를 거부했어요.' };
+      return {
+        planet: { id: 'p', name: 'app' },
+        seat: null,
+        handoffTo: null,
+        project: { ok: false, error: 'rejected' },
+        unpushed: { reason: 'rejected', committed: true, branch: 'main', ahead: 1 },
+        environment: null,
+        conversation: null,
+      };
+    },
+  };
+  const store = await freshStore();
+  t.after(() => store.resetCosmosStore());
+  const { RelayOutcome } = await import('./CosmosParts.tsx');
+  function Probe() {
+    return React.createElement(RelayOutcome, { projectPath: '/work/app', entry: store.useCosmos('/work/app') });
+  }
+  await act(async () => root.render(React.createElement(Probe)));
+  await act(async () => store.cosmosLeave('/work/app', { note: '로그인 화면' }));
+  const anyway = [...document.querySelectorAll('.cosmos-outcome--refused button')].find((button) => button.textContent === '그래도 내려놓기');
+  assert.ok(anyway, 'the button is offered');
+  assert.match(document.querySelector('.cosmos-outcome--refused').textContent, /푸시되지 않은 작업은 이 기기에 남아요/);
+  await act(async () => anyway.click());
+  await tick();
+  assert.deepEqual(moons.at(-1), { note: '로그인 화면', handoffTo: null, sessionId: null, force: true });
+  assert.match(document.querySelector('.cosmos-outcome').textContent, /푸시되지 않은 작업은 이 기기에 남아 있어요/);
+
+  // secrets is never forceable: no button.
+  window.mixdogDesktop.cosmosMoon = async () => ({ refused: true, code: 'secrets', message: '비밀 정보가 있어요.', secrets: [] });
+  await act(async () => store.cosmosLeave('/work/app'));
+  const none = [...document.querySelectorAll('.cosmos-outcome--refused button')].find((button) => button.textContent === '그래도 내려놓기');
+  assert.equal(none, undefined);
 });
