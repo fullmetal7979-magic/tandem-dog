@@ -24,6 +24,7 @@ import type {
 import { t } from './i18n';
 import { approvalInstanceKey } from './renderer-logic.mjs';
 import { useConversationQueue } from './use-conversation-queue';
+import { useTurnAnnouncement } from './use-turn-announcement';
 import { useStreamingTail, useTranscriptRows } from './use-conversation-rows';
 import { useConversationFollowEffects } from './use-conversation-follow-effects';
 import { useConversationOptimisticPromptRelease } from './use-conversation-optimistic-prompts';
@@ -373,6 +374,8 @@ export function Conversation({
   const disclosureScope = String(routeSnapshot.sessionId || 'new-task');
   const routeProject = String(routeSnapshot.currentProject || routeSnapshot.project || routeSnapshot.cwd || '');
   const routeScope = String(routeSnapshot.sessionId || routeProject || 'new-task');
+  // A finished reply is announced once, politely; history paging is silent.
+  const turnNotice = useTurnAnnouncement(Boolean(snapshot.busy), transcriptSessionKey);
   const retryDisabled = Boolean(snapshot.busy) || transitioning;
   // Session retry: a failed turn that produced no output resubmits its prompt
   // and the runtime rewinds the unanswered copy, so the model sees the prompt
@@ -409,6 +412,9 @@ export function Conversation({
         conversationKeyDownCapture(event, { readOnly, viewport, onTranscriptKey: handleTranscriptKeyDown })
       }
     >
+      <div className="sr-only" role="status" aria-live="polite">
+        {turnNotice}
+      </div>
       <div className="transcript-shell">
         <div
           className="transcript"
@@ -418,9 +424,9 @@ export function Conversation({
           style={transcriptRevealed ? undefined : { visibility: 'hidden' }}
           data-session-key={transcriptSessionKey}
           data-following={following ? 'true' : 'false'}
-          aria-live="polite"
-          aria-relevant="additions"
-          aria-atomic="false"
+          // Off: loading older history (or a virtualized row remounting) must
+          // not be read aloud. New replies are announced by the status below.
+          aria-live="off"
           aria-busy={Boolean(snapshot.busy || snapshot.commandBusy)}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the scrollable log must take focus for keyboard paging.
           tabIndex={0}

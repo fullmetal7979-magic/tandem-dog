@@ -96,3 +96,19 @@ test('list names the live terminals under a term_ prefix only', () => {
   assert.deepEqual(manager.list('session-terminal:'), [], 'only term_ prefixes');
   manager.terminals.clear();
 });
+
+test('list with exited runs says which shells still run a command', () => {
+  const manager = new TerminalManager();
+  const fake = (disposed, title) => ({ disposed, cwd: '/p', shell: 'zsh', pty: { kill() {}, process: title }, buffer: new TerminalReplayBuffer(10) });
+  manager.terminals.set('term_cosmos_run_abc_1', fake(false, 'node'));
+  manager.terminals.set('term_cosmos_run_abc_2', fake(false, 'zsh'));
+  manager.terminals.set('term_cosmos_run_abc_3', fake(true, 'zsh'));
+  const rows = manager.list('term_cosmos_run_abc', { includeExited: true }).map(({ id, busy, exited }) => [id.slice(-1), busy, exited]);
+  if (process.platform === 'win32') {
+    assert.deepEqual(rows, [['1', null, false], ['2', null, false], ['3', false, true]]);
+  } else {
+    assert.deepEqual(rows, [['1', true, false], ['2', false, false], ['3', false, true]]);
+  }
+  assert.deepEqual(manager.list('term_cosmos_run_abc').map((entry) => entry.id), ['term_cosmos_run_abc_1', 'term_cosmos_run_abc_2']);
+  manager.terminals.clear();
+});

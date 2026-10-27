@@ -30,6 +30,7 @@ import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import {
   holderLastSeen,
   hostActiveMessage,
+  hostStaleMessage,
   leaveTransition,
   normalizeSeat,
   requestTransition,
@@ -38,8 +39,10 @@ import {
   seatState,
   sitTransition,
   withdrawTransition,
+  seatRefusal,
 } from './seat.mjs';
 import { readSyncState, syncEnvironmentIn } from './environment.mjs';
+import { clearPendingRescue, markPendingRescue, readPendingRescue } from './pending-rescue.mjs';
 import { buildConversationExport, listConversationsIn, readConversationIn, writeConversationIn } from './conversations.mjs';
 import { bringUpToDate, branchState, rescueDisplacedWork, saveAndPush } from './project-sync.mjs';
 
@@ -95,6 +98,16 @@ async function actorFor(guest, home) {
 }
 
 /**
+ * This star held the seat last time, but another MACHINE sat down since (a
+ * phone driving this PC shares its working copy, so it never displaces it).
+ */
+function wasDisplaced(seat, star, host) {
+  const last = seat.history.at(-1);
+  const lastMine = seat.history.findLast((entry) => entry.star === star.id);
+  return Boolean(lastMine && last && last.star !== star.id && !sameMachine(last, star, host));
+}
+
+/**
  * 해 — sit down at the planet in `root`.
  * `force` replaces a holder that stopped answering (never an active one).
  */
@@ -116,6 +129,10 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
       before = seat;
       sat = sitTransition(seat, star, { beats, force, via, host });
       if (sat.refused) return { value: null };
+      // Taking the seat from another machine leaves this checkout to be
+      // rescued and caught up AFTER the seat push. Mark that first, so a crash
+      // in between is finished by the next 이어받기 instead of forgotten.
+      if (!guest && wasDisplaced(seat, star, host)) await markPendingRescue(home, planet.id, { star: star.id });
       env = syncEnvironment ? await syncEnvironmentIn(galaxy, { direction: 'pull', home }) : null;
       if (sat.changed) await writeGalaxyJson(galaxy, seatPath(planet.id), sat.seat);
       await writeGalaxyJson(galaxy, `stars/${star.id}.json`, publicStar(star));
@@ -132,17 +149,26 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
       stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기에 넘겨주기로 한 작업 자리예요.',
       host_active: hostActiveMessage(sat.host),
+      host_stale: hostStaleMessage(sat.host),
     }[sat.refused];
-    throw new GalaxyError(`seat_${sat.refused}`, text, { seat: sat.seat, holder, lastSeen, host: sat.host || null, planet: publicPlanet(planet) });
+    throw new GalaxyError(...seatRefusal(sat.refused, text), {
+      seat: sat.seat,
+      holder,
+      lastSeen,
+      host: sat.host || null,
+      planet: publicPlanet(planet),
+      canForce: sat.refused === 'stale' || sat.refused === 'host_stale',
+    });
   }
   const environment = env ? await env.commitLocal() : null;
   // The seat is ours now. Only then is it safe to keep this star's stale work
   // on a rescue branch and reset the checkout: this star held the seat last
   // time but another MACHINE sat down since. A phone driving this PC shares
   // its working copy, so nothing to rescue there.
-  const last = before.history.at(-1);
-  const lastMine = before.history.findLast((entry) => entry.star === star.id);
-  const displaced = Boolean(lastMine && last && last.star !== star.id && !sameMachine(last, star, host));
+  // An earlier 이어받기 that stopped after its seat push left a marker: finish
+  // its rescue now even though the seat already reads as ours.
+  const pending = guest ? null : await readPendingRescue(home, planet.id);
+  const displaced = wasDisplaced(before, star, host) || Boolean(pending && pending.star === star.id);
   const rescued =
     displaced && !guest && seatState(before, star.id, { beats }) !== 'occupied' ? await rescueDisplacedWork(root, star.name) : null;
   // A rescue that stopped half-way left the work where it was; say so instead of claiming it was kept.
@@ -151,6 +177,9 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
   // A phone's seat lives on its host PC's beat.
   await publishBeat(local.id, { name: local.name, planets: [planet.id] }, { dir }).catch(() => null);
   const project = await bringUpToDate(root);
+  // Done only once the checkout really caught up; a failed catch-up keeps the
+  // marker so the next 이어받기 tries again.
+  if (!guest && rescued?.ok !== false && project?.ok !== false) await clearPendingRescue(home, planet.id);
   const conversation = await readConversationIn(await galaxyReader(dir), planet.id);
   return {
     star,
@@ -171,15 +200,33 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
  * 달 — save, sync and get up. `session` (a runtime session object) is the
  * conversation to carry; `handoffTo` names the star the seat is left for.
  */
-export async function moon({ root, note = '', handoffTo = null, session = null, guest = null, force = false, dir = galaxyDir(), home = cosmosHome(), syncEnvironment = true } = {}) {
+export async function moon({
+  root,
+  note = '',
+  handoffTo = null,
+  session = null,
+  guest = null,
+  forcePush = false,
+  dir = galaxyDir(),
+  home = cosmosHome(),
+  syncEnvironment = true,
+} = {}) {
   await requireGalaxy(dir);
   const { star, local } = await actorFor(guest, home);
   const planet = await requirePlanet(root);
-  // Only the star in the seat may leave it. `force` is an explicit override
-  // (e.g. a star that lost track of the seat); nothing else skips the check.
+  // Only the star in the seat may leave it, and a phone only through the PC it
+  // sits on (that machine holds its work). Nothing overrides this check:
+  // `forcePush` ("그래도 내려놓기") only accepts a push that did not land.
   const refuseUnlessHeld = (seat) => {
-    if (force || seat.holder?.star === star.id) return;
     const holder = seat.holder;
+    if (holder?.star === star.id) {
+      if (!guest || (holder.host || null) === local.id) return;
+      throw new GalaxyError(
+        'seat_other_host',
+        `이 폰은 ${hostNames[holder.host]?.name || '다른 기기'}을(를) 통해 작업 중이에요. 그 기기에 연결해서 내려놓아 주세요.`,
+        { seat, holder, planet: publicPlanet(planet) }
+      );
+    }
     throw new GalaxyError(
       holder ? 'seat_occupied' : 'seat_not_held',
       holder ? `${holder.name || '다른 기기'}이(가) 작업 중이라 이 기기에서는 마무리할 수 없어요.` : '이 프로젝트를 이어받지 않아서 내려놓을 게 없어요. 먼저 이어받기를 눌러 주세요.',
@@ -189,11 +236,12 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
   // Fail fast, before touching the project. The last fetch is good enough
   // when offline; the transaction below re-checks against the real state.
   await fetchGalaxy(dir).catch(() => null);
+  const hostNames = guest ? await readBeats(dir).catch(() => ({})) : {};
   refuseUnlessHeld(normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planet.id)), planet.id));
   const message = `cosmos: ${String(note || '').trim() || `${star.name}에서 작업 마무리`}`.slice(0, 200);
   const project = await saveAndPush(root, { message });
   if (!project.ok && project.error === 'secrets') {
-    // Never overridden by `force`: nothing with a secret leaves this machine.
+    // Never overridden by `forcePush`: nothing with a secret leaves this machine.
     const text =
       project.secretsIn === 'commits'
         ? '아직 올리지 않은 커밋에 비밀 정보가 들어 있어 올리지 않았어요. 목록의 파일을 커밋에서 빼고 다시 내려놓아 주세요.'
@@ -202,9 +250,9 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
   }
   // The seat only moves on once the work is really on the remote: otherwise
   // the next device would sit down at an older project and the work forks.
-  // `force` ("그래도 내려놓기") is the explicit override: the seat is freed and
-  // the result says the work stayed on this device (`unpushed`).
-  if (!project.ok && !force) {
+  // `forcePush` ("그래도 내려놓기") is the explicit override: the seat is freed
+  // and the result says the work stayed on this device (`unpushed`).
+  if (!project.ok && !forcePush) {
     const reason = {
       behind: '원격 저장소에 더 새로운 커밋이 있어 올리지 못했어요. 먼저 받아서 합친 뒤 다시 내려놓아 주세요.',
       rejected: '원격 저장소가 올리기를 거부했어요. 이 브랜치에 올릴 권한이 없거나 보호된 브랜치일 수 있어요.',
@@ -218,7 +266,7 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
       `${reason} 작업 자리는 이 기기에 그대로 있어요. 올리지 않은 채로 내려놓을 수도 있어요.`,
       {
         reason: project.error,
-        // The desktop/phone offer "그래도 내려놓기" (moon with force: true).
+        // The desktop/phone offer "그래도 내려놓기" (moon with forcePush: true).
         canForce: true,
         project,
         planet: publicPlanet(planet),
@@ -265,7 +313,7 @@ export async function moon({ root, note = '', handoffTo = null, session = null, 
     seat: left?.seat || null,
     handoffTo: left?.handoffTo || null,
     project,
-    // Set only when `force` freed the seat although the work did not reach
+    // Set only when `forcePush` freed the seat although the work did not reach
     // the remote: the next device will not see it until this one pushes.
     unpushed,
     environment,
@@ -333,12 +381,16 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
   let state = null;
   let conversations = [];
   let project = null;
+  let pendingRescue = false;
   if (root) {
     planet = publicPlanet(await planetForRoot(root));
     if (planet.id) {
       seat = normalizeSeat(await reader.json(seatPath(planet.id)), planet.id);
       state = seatState(seat, star.id, { beats });
       conversations = await listConversationsIn(reader, planet.id);
+      // An 이어받기 stopped half-way: the seat is ours but the checkout was
+      // never rescued/caught up. The screens offer to finish it (sun again).
+      if (!guest && state === 'mine' && (await readPendingRescue(home, planet.id))?.star === star.id) pendingRescue = true;
     } else {
       state = 'no_remote';
     }
@@ -358,5 +410,6 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
     here: Boolean(seat?.holder && seat.holder.star !== star.id && sameMachine(seat.holder, star, guest ? local.id : null)),
     conversations,
     project,
+    pendingRescue,
   };
 }

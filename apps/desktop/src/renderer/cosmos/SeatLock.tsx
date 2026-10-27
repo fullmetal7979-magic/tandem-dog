@@ -116,11 +116,11 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
   let detail = `작업 시작: ${ago(holder?.since)} · 같은 프로젝트를 두 기기가 동시에 고치지 않도록 이 기기에서는 잠겨 있어요.`;
   if (remote) {
     icon = '📱';
-    title = `${josa(holderName, '이가')} 이 PC에서 원격으로 작업 중이에요`;
-    detail = `${since(holder?.since)} · 폰과 이 PC가 동시에 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르면 풀려요.`;
+    title = `${josa(holderName, '이가')} 이 기기에서 원격으로 작업 중이에요`;
+    detail = `${since(holder?.since)} · 폰과 이 기기가 동시에 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르면 풀려요.`;
   } else if (here) {
     icon = '💻';
-    detail = `작업 시작: ${ago(holder?.since)} · 지금 연결된 바로 그 PC예요. 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있고, 그 PC는 잠겨요.`;
+    detail = `작업 시작: ${ago(holder?.since)} · 지금 연결된 바로 그 기기예요. 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있고, 그 기기는 잠겨요.`;
   } else if (stale) {
     icon = '⚠️';
     title = `${kindGlyph(holder?.kind)} ${josa(holderName, '이가')} 응답이 없어요`;
@@ -160,7 +160,7 @@ export function SeatLock({ projectPath }: { projectPath: string }) {
                 disabled={busy}
                 onClick={() => runCosmosAction('reclaim', context)}
               >
-                ↩️ 이 PC로 되찾기
+                ↩️ 이 기기로 이어받기
               </button>
             ) : here ? (
               <button

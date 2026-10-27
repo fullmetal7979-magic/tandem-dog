@@ -180,7 +180,7 @@ test('the 이어받기 outcome tells a local-only or failed backup and a seat mo
   };
   await act(async () => root.render(React.createElement(RelayOutcome, { projectPath: '/a', entry: { ...base, lastSun } })));
   const text = document.querySelector('.cosmos-outcome').textContent;
-  assert.match(text, /폰의 작업 자리를 이 PC로 옮김/);
+  assert.match(text, /폰의 작업 자리를 이 기기로 옮김/);
   assert.match(text, /비밀 정보가 있어 이 기기에만 둠/);
   await act(async () =>
     root.render(React.createElement(RelayOutcome, { projectPath: '/a', entry: { ...base, lastSun: { ...lastSun, moved: null, rescue: null, rescueFailed: { failed: 'commit' } } } }))

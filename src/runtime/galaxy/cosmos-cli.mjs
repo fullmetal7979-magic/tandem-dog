@@ -171,7 +171,7 @@ export async function runCosmosCli(argv, { cwd = process.cwd(), out = process.st
       const force = flag(args, '--force');
       const note = args.join(' ').trim();
       const session = await latestSessionFor(cwd);
-      const result = await moon({ root: cwd, note, session, force });
+      const result = await moon({ root: cwd, note, session, forcePush: force });
       say(`🌙 ${result.planet.name}을(를) 내려놓았어요.`);
       if (result.project?.committed) say('   💾 변경 사항을 커밋했어요.');
       if (result.project?.pushed) say('   ⬆️ 원격 저장소에 올렸어요.');

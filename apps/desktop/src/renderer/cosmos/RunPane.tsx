@@ -14,15 +14,20 @@ import { openCosmosGalaxy } from './CosmosHome';
 import { josa } from './cosmos-format';
 import {
   adoptRuns,
+  clearRunTerminalViewState,
+  forgetRun,
   isAdoptedRun,
   makefileName,
   makeTasks,
   orderTasks,
   packageManagerFor,
   packageScriptTasks,
+  normalizeLiveRuns,
   projectRuns,
+  reattachRuns,
   skippedScriptNames,
   startRun,
+  type LiveRun,
   type RunTask,
 } from './run-tasks';
 
@@ -52,10 +57,21 @@ let runCounter = 0;
 /** Projects whose live run terminals were already looked up since this page loaded. */
 const adoptionChecked = new Set<string>();
 
-/** The project's run terminals still alive in the desktop service (after a reload), or [] when unknown. */
-async function liveRunTerminals(projectPath: string): Promise<string[]> {
+/** The project's run terminals still alive in the desktop service (after a reload), or [] when unknown.
+ *  Entries may be bare ids or carry `busy`/`exited`; both shapes are read. */
+async function liveRunTerminals(projectPath: string): Promise<LiveRun[]> {
   const view = await window.mixdogDesktop?.cosmosOverview?.(projectPath, { fetch: false, runs: true });
-  return Array.isArray(view?.runs) ? view.runs : [];
+  return normalizeLiveRuns((view as { runs?: unknown } | undefined)?.runs);
+}
+
+/** What the pane says about runs found again after a reload: "still running" only when the service said so. */
+export function adoptedRunNotice(found: readonly LiveRun[]): string {
+  if (!found.length) return '';
+  const running = found.filter((entry) => entry.running === true).length;
+  const ended = found.filter((entry) => entry.running === false).length;
+  if (running) return `화면을 다시 열기 전에 시작한 실행 ${running}개가 아직 돌고 있어요. 아래 탭에서 보거나 ⏹ 멈추기로 멈출 수 있어요.`;
+  if (ended === found.length) return `화면을 다시 열기 전에 시작한 실행 ${ended}개는 끝났어요. 아래 탭에서 결과를 보고 ✕로 닫을 수 있어요.`;
+  return `화면을 다시 열기 전에 시작한 실행 ${found.length}개를 다시 찾았어요. 아래 탭에서 보거나 ✕로 닫을 수 있어요.`;
 }
 
 async function loadTasks(projectPath: string): Promise<Omit<Loaded, 'key'>> {
@@ -93,6 +109,8 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   const [last, setLast] = useState<{ task: RunTask; at: number } | null>(null);
   const [shown, setShown] = useState<{ key: string; id: string } | null>(null);
   const [notice, setNotice] = useState('');
+  /** Bumped when the tracked runs change outside a run (re-attach, tab close). */
+  const [, setRunsVersion] = useState(0);
   const starting = useRef(false);
   const key = projectPath || '';
 
@@ -116,16 +134,26 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
     adoptionChecked.add(projectPath);
     let current = true;
     void liveRunTerminals(projectPath)
-      .then((ids) => {
-        const adopted = adoptRuns(projectPath, ids);
-        if (!current || !adopted.length) return;
-        setNotice(`화면을 다시 열기 전에 시작한 실행 ${adopted.length}개가 아직 돌고 있어요. 아래 탭에서 보거나 ⏹ 멈추기로 멈출 수 있어요.`);
+      .then((live) => {
+        const adopted = new Set(adoptRuns(projectPath, live, loadedTaskIds.current));
+        if (!current || !adopted.size) return;
+        setRunsVersion((value) => value + 1);
+        setNotice(adoptedRunNotice(live.filter((entry) => adopted.has(entry.id))));
       })
       .catch(() => adoptionChecked.delete(projectPath));
     return () => {
       current = false;
     };
   }, [active, projectPath]);
+
+  // Once the task list is known, adopted runs whose id carries a task's tag
+  // belong to that task again: its ▶ restarts the run instead of adding one.
+  const loadedTaskIds = useRef<string[]>([]);
+  const loadedForKey = loaded?.key === key ? loaded : null;
+  useEffect(() => {
+    loadedTaskIds.current = loadedForKey ? loadedForKey.tasks.map((task) => task.id) : [];
+    if (key && loadedForKey && reattachRuns(key, loadedTaskIds.current).length) setRunsVersion((value) => value + 1);
+  }, [key, loadedForKey]);
 
   // Runs that are still going when the pane is left keep their terminals.
   const runs = key ? projectRuns(key) : [];
@@ -181,6 +209,21 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   const stop = useCallback(() => {
     if (terminalId) window.mixdogDesktop?.termWrite?.(terminalId, '\x03');
   }, [terminalId]);
+  /** ✕ on a run tab: forget it, unmount its view, then free the PTY and its saved view. */
+  const closeRun = useCallback(
+    async (id: string) => {
+      if (!projectPath) return;
+      forgetRun(projectPath, id);
+      if (shownRuns.get(projectPath) === id) shownRuns.delete(projectPath);
+      setRunsVersion((value) => value + 1);
+      try {
+        await releaseRunTerminal(id);
+      } finally {
+        clearRunTerminalViewState(id);
+      }
+    },
+    [projectPath]
+  );
 
   if (!projectPath) {
     return <p className="cosmos-empty-note">🪐 프로젝트를 고르면 실행할 수 있는 명령이 여기 나와요.</p>;
@@ -262,11 +305,10 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
 
       {terminalId && (
         <div className="cosmos-run-terminal">
-          {runs.length > 1 && (
-            <div className="cosmos-run-tabs" role="group" aria-label="실행 중인 명령">
-              {runs.map((entry) => (
+          <div className="cosmos-run-tabs" role="group" aria-label="실행 중인 명령">
+            {runs.map((entry) => (
+              <span key={entry.terminalId} className={`cosmos-run-tab-item${entry.terminalId === terminalId ? ' is-on' : ''}`}>
                 <button
-                  key={entry.terminalId}
                   type="button"
                   className={`cosmos-run-tab${entry.terminalId === terminalId ? ' is-on' : ''}`}
                   aria-pressed={entry.terminalId === terminalId}
@@ -274,9 +316,18 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
                 >
                   {isAdoptedRun(entry.taskId) ? '↺' : '▶'} {taskName(entry.taskId, entry.terminalId)}
                 </button>
-              ))}
-            </div>
-          )}
+                <button
+                  type="button"
+                  className="cosmos-run-tab-close"
+                  onClick={() => void closeRun(entry.terminalId)}
+                  aria-label={`${taskName(entry.taskId, entry.terminalId)} 탭 닫기`}
+                  title="탭 닫기 (실행도 멈춰요)"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
           <div className="cosmos-run-terminal-bar">
             <span>
               {shownCommand ? (

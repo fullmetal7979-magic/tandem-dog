@@ -223,7 +223,8 @@ export function createRelayClientCallDispatch(
       if (!deps.attached(clientId, client)) return;
       const callStartedAt = Date.now();
       const queueMs = callStartedAt - callQueuedAt;
-      const response = await executeRemoteFrame(deps.methods, clearFrame);
+      // The authenticated relay client is the caller's identity (the phone's star).
+      const response = await executeRemoteFrame(deps.methods, clearFrame, { clientId });
       const callMs = Date.now() - callStartedAt;
       const method =
         typeof call?.method === 'string' && Object.hasOwn(deps.methods, call.method) ? call.method : 'unknown';

@@ -38,6 +38,7 @@ import {
 } from './explorer-tree-model';
 import { COMPOSER_PROJECT_PATHS_MIME } from './composer-support';
 import { t } from './i18n';
+import { platformShortcut } from './shortcut-display';
 import { ErrorNotice } from './ErrorNotice';
 import { openEditorFileExternally } from './editor-external-file';
 import { useMobileBack } from './mobile-back';
@@ -167,7 +168,7 @@ function explorerContextMenu({
           {item('New file…', () => beginCreate(false, ''))}
           {item('New folder…', () => beginCreate(true, ''))}
           {sep('bg-clipboard')}
-          {item('Paste', () => void pasteClipboard(''), { hint: 'Ctrl+V', disabled: !clipboard })}
+          {item('Paste', () => void pasteClipboard(''), { hint: platformShortcut('Ctrl+V'), disabled: !clipboard })}
           {sep('bg-path')}
           {item('Reveal in Explorer', () => void api?.openProjectInExplorer(projectPath))}
           {item('Copy path', () => void copyTextToClipboard(projectPath))}
@@ -181,13 +182,13 @@ function explorerContextMenu({
           {!multi && menu.isDir && item('New file…', () => beginCreate(false, menu.rel))}
           {!multi && menu.isDir && item('New folder…', () => beginCreate(true, menu.rel))}
           {!multi && sep('row-open')}
-          {item('Cut', () => stashClipboard(true), { hint: 'Ctrl+X' })}
-          {item('Copy', () => stashClipboard(false), { hint: 'Ctrl+C' })}
-          {!multi && item('Paste', () => void pasteClipboard(pasteTarget), { hint: 'Ctrl+V', disabled: !clipboard })}
+          {item('Cut', () => stashClipboard(true), { hint: platformShortcut('Ctrl+X') })}
+          {item('Copy', () => stashClipboard(false), { hint: platformShortcut('Ctrl+C') })}
+          {!multi && item('Paste', () => void pasteClipboard(pasteTarget), { hint: platformShortcut('Ctrl+V'), disabled: !clipboard })}
           {sep('row-clipboard')}
           {!multi && item('Reveal in Explorer', () => void api?.revealFile?.(projectPath, menu.rel))}
           {item('Copy path', () => void copyTextToClipboard(copyRels.map(absOf).join('\n')), {
-            hint: 'Shift+Alt+C',
+            hint: platformShortcut('Shift+Alt+C'),
           })}
           {item('Copy relative path', () => void copyTextToClipboard(copyRels.join('\n')))}
           {sep('row-path')}

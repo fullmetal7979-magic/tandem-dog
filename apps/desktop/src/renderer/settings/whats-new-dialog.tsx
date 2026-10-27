@@ -9,6 +9,7 @@ import { acquireTitleBarDim } from '../titlebar-dim';
 import { CopyControl } from '../transcript-primitives';
 import { type ChangelogRelease, selectWhatsNew } from './changelog';
 import { loadReleases } from './changelog-source';
+import { useStandaloneDialogModality } from './use-standalone-dialog';
 import './changelog-dialog.css';
 
 /** The running version's section in the UI language, parsed and ready to paint. */
@@ -29,6 +30,8 @@ export default function WhatsNewDialog({
 }) {
   const uid = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useStandaloneDialogModality(dialogRef);
   useMobileBack(true, onClose);
   useEffect(() => acquireTitleBarDim(), []);
   useEffect(() => {
@@ -52,6 +55,7 @@ export default function WhatsNewDialog({
       }}
     >
       <section
+        ref={dialogRef}
         className="settings-confirm-dialog settings-changelog-dialog"
         role="dialog"
         aria-modal="true"

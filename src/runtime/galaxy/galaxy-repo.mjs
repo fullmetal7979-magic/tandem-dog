@@ -282,12 +282,29 @@ export async function fetchGalaxy(dir = galaxyDir()) {
   return { remote, fetched: true };
 }
 
+// A git that crashed mid-write in the Galaxy leaves .git/index.lock behind and
+// every later git command refuses to run. Only called with cosmos.lock held, so
+// no git of ours is writing this index; an old lock is a leftover.
+const INDEX_LOCK_STALE_MS = 2 * 60_000;
+export async function clearStaleIndexLock(dir, { staleMs = INDEX_LOCK_STALE_MS, now = Date.now() } = {}) {
+  const lock = join(dir, '.git', 'index.lock');
+  try {
+    const info = await stat(lock);
+    if (now - info.mtimeMs < staleMs) return false;
+    await rm(lock, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Line the working copy up with the fetched `main` (or HEAD when the Galaxy is
  * local-only / the remote is still empty). Only call with the lock held. Does
  * nothing when the tree already is there: no reset, no clean.
  */
 async function syncWorktree(dir) {
+  await clearStaleIndexLock(dir);
   const target = (await hasCommits(dir, remoteRef)) ? remoteRef : (await hasCommits(dir)) ? 'HEAD' : null;
   const dirty = (await git(dir, ['status', '--porcelain', '--untracked-files=all'])).trim() !== '';
   if (target) {

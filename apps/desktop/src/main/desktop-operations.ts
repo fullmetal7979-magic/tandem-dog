@@ -207,13 +207,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `term_cosmos_run_<first 16 hex of SHA-256(project path)>[_<nonce>]`, the
  * same derivation as `runTerminalId` in renderer/cosmos/run-tasks.ts.
  */
-export function cosmosRunTerminals(terminals: Pick<TerminalManager, 'list'>, projectPath: unknown): string[] {
+export function cosmosRunTerminals(
+  terminals: Pick<TerminalManager, 'list'>,
+  projectPath: unknown
+): Array<{ id: string; busy: boolean | null; exited: boolean }> {
   if (typeof projectPath !== 'string' || !projectPath) return [];
   const base = `term_cosmos_run_${createHash('sha256').update(projectPath, 'utf8').digest('hex').slice(0, 16)}`;
+  // Exited ones too: the pane shows their output and offers ✕ instead of
+  // claiming they still run.
   return terminals
-    .list(base)
-    .map((entry) => entry.id)
-    .filter((id) => id === base || id.startsWith(`${base}_`));
+    .list(base, { includeExited: true })
+    .filter((entry) => entry.id === base || entry.id.startsWith(`${base}_`))
+    .map((entry) => ({ id: entry.id, busy: entry.busy, exited: entry.exited }));
 }
 
 const STATIC_OPERATIONS = {
@@ -227,6 +232,7 @@ const STATIC_OPERATIONS = {
   cosmosHeartbeat: cosmos.cosmosHeartbeat,
   cosmosSetPreference: cosmos.cosmosSetPreference,
   cosmosRemoteWriteRefusal: cosmos.cosmosRemoteWriteRefusal,
+  cosmosRemoteWriteVerdict: cosmos.cosmosRemoteWriteVerdict,
   deleteEditorBackup: editorBackups.deleteEditorBackup,
   ghPrCheckout: gh.ghPrCheckout,
   ghPrCreate: gh.ghPrCreate,

@@ -148,7 +148,7 @@ test('a protected branch is "rejected", and 내려놓기 --force frees the seat 
   const planetId = (await planetForRoot(w.a.project)).id;
   assert.equal((await readSeat(planetId, { dir: w.a.dir })).holder?.name, 'a', 'without force the seat stays');
 
-  const forced = await as(w.a, () => moon({ ...opts, force: true }));
+  const forced = await as(w.a, () => moon({ ...opts, forcePush: true }));
   assert.equal(forced.seat.holder, null);
   assert.equal(forced.project.ok, false);
   assert.equal(forced.unpushed.reason, 'rejected');

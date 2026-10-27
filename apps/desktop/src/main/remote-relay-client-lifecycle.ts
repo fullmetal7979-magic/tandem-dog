@@ -33,7 +33,13 @@ export interface RelayClientLifecycleDeps {
   ): Promise<RelayClientCallOutcome>;
   resyncClient(clientId: string, state: RelayClientState): void;
   onClientClaim?: (claim: RemoteClientClaim) => Promise<boolean>;
+  /** A browser this desktop revoked: refused at open and at hello whatever it proves. */
+  isRevoked?: (clientId: string) => boolean;
+  /** The user approved a new pairing for this browser (lifts a revocation). */
+  onClaimApproved?: (clientId: string) => Promise<void> | void;
 }
+
+const REVOKED = 'remote client revoked';
 
 const HANDSHAKE_REQUIRED = 'relay encryption handshake required';
 
@@ -45,6 +51,10 @@ export interface RelayClientLifecycle {
 
 export function createRelayClientLifecycle(deps: RelayClientLifecycleDeps): RelayClientLifecycle {
   const open = (clientId: string): void => {
+    if (deps.isRevoked?.(clientId)) {
+      deps.sendEnvelope({ type: 'close-client', clientId, reason: REVOKED });
+      return;
+    }
     const challenge = {
       ...createRelayE2EEChallenge(),
       ...(deps.relayBinaryFrames() ? { binaryFrames: 1 as const } : {}),
@@ -80,7 +90,10 @@ export function createRelayClientLifecycle(deps: RelayClientLifecycleDeps): Rela
           browser: String(envelope.browser || '').slice(0, 80),
           expiresAt,
         });
-        if (approved) sealed = await sealRelayE2EEPairingMaterial(deps.pairing, publicKey);
+        if (approved) {
+          await deps.onClaimApproved?.(clientId);
+          sealed = await sealRelayE2EEPairingMaterial(deps.pairing, publicKey);
+        }
       } catch {
         sealed = null;
       }
@@ -106,6 +119,12 @@ export function createRelayClientLifecycle(deps: RelayClientLifecycleDeps): Rela
     }
     if (!isRelayE2EEHello(hello)) {
       deps.clients.close(clientId, HANDSHAKE_REQUIRED);
+      return;
+    }
+    // A valid hello proves the shared pairing secret, not that this browser
+    // is still allowed: a revoked one stays out even if the relay let it in.
+    if (deps.isRevoked?.(clientId)) {
+      deps.clients.close(clientId, REVOKED);
       return;
     }
     try {

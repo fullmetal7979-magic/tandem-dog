@@ -6,6 +6,7 @@ import type { EditorFileLoad } from './editor-file-loader';
 import type { EditorOutlineItem } from './editor-language-store';
 import { normalizedFilePath } from './editor-lsp-conversion';
 import { t } from './i18n';
+import { platformShortcut } from './shortcut-display';
 import { wrappedNavigationIndex } from './list-navigation';
 import {
   breadcrumbPickerAnchor,
@@ -384,7 +385,7 @@ export function EditorBreadcrumbs({
               disabled={saving || reverting}
               onClick={onSave}
               aria-label={t('Save')}
-              data-tooltip={t('Save (Ctrl+S)')}
+              data-tooltip={t('Save ({{key}})', { key: platformShortcut('Ctrl+S') })}
             >
               <Save size={16} aria-hidden="true" />
             </button>

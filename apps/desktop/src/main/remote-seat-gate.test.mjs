@@ -3,7 +3,7 @@
 // were opened in.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { gateRemoteWrites, SEAT_GATED_GIT_METHODS } from './remote-seat-gate.ts';
+import { gateRemoteWrites, REMOTE_INSTALL_MESSAGE, SEAT_GATED_GIT_METHODS } from './remote-seat-gate.ts';
 
 function table(calls) {
   const record = (name) => (params) => {
@@ -290,4 +290,67 @@ test('an empty seat elsewhere does not block a folder-less write; a failed proje
     },
   });
   await assert.rejects(broken.submitNewTask(['hi', {}, {}]), (error) => error.code === 'seat_refused');
+});
+
+// ------------------------------------------------------------------ round 4
+
+test('a registered project that is no planet (`~`) does not open the planets under it', async () => {
+  const calls = [];
+  const held = new Map([['/home/me/app', '🔒 회사 PC에서 app 프로젝트를 작업 중이에요.']]);
+  const methods = gateRemoteWrites(table(calls), {
+    gate: async () => null,
+    // `~` is registered, is not a repo: "go ahead, but I am no planet".
+    verdict: async (cwd) => (cwd === '/home/me/app' ? { refusal: held.get(cwd), planet: true } : { refusal: null, planet: false }),
+    heldGate: async (folder) => held.get(folder) ?? null,
+    projectDirectory: async (id) => (id === 'home' ? '/home/me' : '/home/me/app'),
+    projectDirectories: async () => ['/home/me', '/home/me/app'],
+    sessionCwd: async () => null,
+  });
+  // A file written through the `~` project would land in app: refused while app is held elsewhere.
+  await assert.rejects(methods.writeProjectFile(['home', 'app/src/x.ts', 'x']), /회사 PC에서 app 프로젝트를 작업 중/);
+  await assert.rejects(methods.gitCommit(['/home/me', 'msg']), /app 프로젝트/);
+  // Nothing held anywhere: the plain folder writes freely again.
+  held.clear();
+  assert.equal(await methods.writeProjectFile(['home', 'notes.txt', 'x']), 'ok');
+});
+
+test('session writers follow the session folder; a deny never needs the seat; installs never run from the phone', async () => {
+  const calls = [];
+  const asked = [];
+  const base = table(calls);
+  for (const name of ['resolveToolApprovalForSession', 'inheritSession', 'invokeCapability']) {
+    base[name] = (params, context) => {
+      calls.push([name, context?.clientId ?? null, ...params]);
+      return 'ok';
+    };
+  }
+  const methods = gateRemoteWrites(base, {
+    gate: async (cwd) => {
+      asked.push(cwd);
+      return cwd === '/locked' || cwd === null ? '🔒 다른 기기에서 작업 중이에요.' : null;
+    },
+    projectDirectory: async () => null,
+    sessionCwd: async (id) => (id === 's-locked' ? '/locked' : '/free'),
+  });
+  const caller = { clientId: 'browser-1' };
+  // Approving lets the agent write: gated. Denying is always allowed.
+  await assert.rejects(methods.resolveToolApprovalForSession(['s-locked', 'a1', { approved: true }], caller), /작업 중/);
+  assert.equal(await methods.resolveToolApprovalForSession(['s-locked', 'a1', { approved: false }], caller), 'ok');
+  await assert.rejects(methods.inheritSession(['s-locked', null], caller), /작업 중/);
+  assert.equal(await methods.inheritSession(['s-free', null], caller), 'ok');
+  // Reverting a turn rewrites the session's files.
+  await assert.rejects(methods.invokeCapability([{ capability: 'revertTurnReview', args: [], sessionId: 's-locked' }], caller), /작업 중/);
+  assert.equal(await methods.invokeCapability([{ capability: 'revertTurnReviewFile', args: [], sessionId: 's-free' }], caller), 'ok');
+  // A scheduled run names no folder: the every-project rule (here: no folder → refused).
+  await assert.rejects(methods.invokeCapability([{ capability: 'runScheduleNow', args: ['x'] }], caller), /작업 중/);
+  // Installers are refused outright, in the phone user's words.
+  for (const capability of ['addMcpServer', 'addPlugin', 'installBuiltinFeature', 'installLocalProviderModel', 'enablePluginMcp', 'setSystemShell']) {
+    await assert.rejects(methods.invokeCapability([{ capability, args: [] }], caller), (error) => error.message === REMOTE_INSTALL_MESSAGE);
+  }
+  // Read-only capabilities pass unasked.
+  asked.length = 0;
+  assert.equal(await methods.invokeCapability([{ capability: 'getTurnReviewDiff', args: [], sessionId: 's-locked' }], caller), 'ok');
+  assert.deepEqual(asked, []);
+  // The caller's identity reaches the wrapped method.
+  assert.ok(calls.filter(([name]) => name === 'invokeCapability').every(([, clientId]) => clientId === 'browser-1'));
 });

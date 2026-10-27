@@ -11,12 +11,13 @@ import {
   connectGalaxy,
   galaxyReader,
   readGalaxyJson,
+  clearStaleIndexLock,
   transact,
   withLock,
   writeGalaxyJson,
 } from './galaxy-repo.mjs';
 import { moon, overview, sun } from './cosmos.mjs';
-import { buildConversationExport, safeConversationId, writeConversationIn, readConversationIn, CONVERSATION_LIMIT_BYTES } from './conversations.mjs';
+import { buildConversationExport, listConversationsIn, safeConversationId, writeConversationIn, readConversationIn, CONVERSATION_LIMIT_BYTES } from './conversations.mjs';
 import { baseFor, insideDataDir, isSkipped, planSync, readSyncState, redactConfigValue, syncEnvironmentIn } from './environment.mjs';
 import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import { runCosmosCli } from './cosmos-cli.mjs';
@@ -485,12 +486,23 @@ test('moon refuses a star that does not hold the seat, and writes nothing', asyn
   assert.match(git(w.galaxyRemote, 'show', `main:planets/${Object.keys(JSON.parse(git(w.galaxyRemote, 'show', 'main:planets.json')).planets)[0].toLowerCase().replace(/[^a-z0-9._-]+/g, '__').replace(/^_+|_+$/g, '').slice(0, 120)}/seat.json`), /"name": "a"/);
   assert.equal(readFileSync(join(w.b.project, 'b-work.txt'), 'utf8'), 'unsaved\n');
 
-  // The holder can still leave, and an explicit force is the only override.
+  // forcePush ("그래도 내려놓기") never skips the holder check: b, holding
+  // nothing, is refused and none of its work is committed or pushed.
+  const headBefore = git(w.b.project, 'rev-parse', 'HEAD');
+  await as(w.b, () =>
+    assert.rejects(moon({ root: w.b.project, dir: w.b.dir, home: w.b.home, forcePush: true }), (error) => error.code === 'seat_occupied')
+  );
+  assert.equal(git(w.b.project, 'rev-parse', 'HEAD'), headBefore);
+  assert.throws(() => git(w.planetRemote, 'show', 'main:b-work.txt'));
+
+  // The holder can still leave; afterwards b still holds nothing, forced or not.
   const left = await as(w.a, () => moon({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
   assert.equal(left.seat.holder, null);
   await as(w.b, () => assert.rejects(moon({ root: w.b.project, dir: w.b.dir, home: w.b.home }), (error) => error.code === 'seat_not_held'));
-  const forced = await as(w.b, () => moon({ root: w.b.project, dir: w.b.dir, home: w.b.home, force: true }));
-  assert.equal(forced.project.pushed, true);
+  await as(w.b, () =>
+    assert.rejects(moon({ root: w.b.project, dir: w.b.dir, home: w.b.home, forcePush: true }), (error) => error.code === 'seat_not_held')
+  );
+  assert.throws(() => git(w.planetRemote, 'show', 'main:b-work.txt'));
 });
 
 test('a refused sun does not touch the checkout (rescue runs only after the seat is won)', async (t) => {
@@ -511,7 +523,7 @@ test('a refused sun does not touch the checkout (rescue runs only after the seat
   assert.equal(git(w.a.project, 'branch', '--show-current'), 'main');
 });
 
-test('moon keeps the seat when the project could not be pushed (force overrides)', async (t) => {
+test('moon keeps the seat when the project could not be pushed (forcePush overrides)', async (t) => {
   const w = planetWorld(t);
   for (const s of [w.a, w.b]) {
     await as(s, async () => {
@@ -540,7 +552,7 @@ test('moon keeps the seat when the project could not be pushed (force overrides)
   assert.doesNotMatch(git(w.galaxyRemote, 'ls-tree', '-r', '--name-only', 'main'), /conversations\//);
   await as(w.b, () => assert.rejects(sun({ root: w.b.project, dir: w.b.dir, home: w.b.home }), (error) => error.code === 'seat_occupied'));
 
-  const forced = await as(w.a, () => moon({ root: w.a.project, dir: w.a.dir, home: w.a.home, force: true }));
+  const forced = await as(w.a, () => moon({ root: w.a.project, dir: w.a.dir, home: w.a.home, forcePush: true }));
   assert.equal(forced.project.ok, false);
   assert.equal(forced.seat.holder, null);
 });
@@ -588,4 +600,44 @@ test('a long Galaxy history is squashed to one commit without losing files, with
   }, { dir: other });
   assert.equal(git(w.remote, 'rev-list', '--count', 'main'), '2');
   assert.ok(SQUASH_COMMIT_THRESHOLD >= 100);
+});
+
+// ------------------------------------------------------------------ round 4
+
+test('a crashed git left index.lock in the Galaxy: the next transaction clears a stale one, never a fresh one', async (t) => {
+  const w = await galaxyWorld(t);
+  const lock = join(w.dir, '.git', 'index.lock');
+  writeFileSync(lock, '');
+  // Fresh: maybe a git of someone else that is still writing. Left alone.
+  assert.equal(await clearStaleIndexLock(w.dir), false);
+  assert.equal(existsSync(lock), true);
+  const old = new Date(Date.now() - 5 * 60_000);
+  utimesSync(lock, old, old);
+  await transact(async ({ dir }) => {
+    await writeGalaxyJson(dir, 'after-crash.json', { ok: true });
+    return { value: null, message: 'after crash' };
+  }, { dir: w.dir });
+  assert.equal(existsSync(lock), false);
+  assert.deepEqual(JSON.parse(git(w.remote, 'show', 'main:after-crash.json')), { ok: true });
+});
+
+test('pruning conversations never deletes the one just written, whatever the other clocks say', async (t) => {
+  const root = tmp(t, 'conv-prune-');
+  const planetId = 'github.com/me/app';
+  const doc = (id, exportedAt) => ({
+    ...buildConversationExport({ id, title: id, messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'yo' }] }, { planetId }),
+    exportedAt,
+  });
+  // Six documents from a machine whose clock runs a day ahead.
+  const ahead = Date.now() + 24 * 3_600_000;
+  for (let i = 0; i < 6; i += 1) await writeConversationIn(root, doc(`ahead_${i}`, ahead + i));
+  await writeConversationIn(root, doc('mine_now', Date.now()));
+  const ids = (await listConversationsIn(root, planetId)).map((entry) => entry.id);
+  assert.ok(ids.includes('mine_now'), 'the document just written survives');
+  assert.equal(ids.length, 6);
+  assert.equal((await readConversationIn(root, planetId)).id, 'mine_now');
+  // Equal timestamps break on the file name, so every machine prunes alike.
+  const tie = tmp(t, 'conv-tie-');
+  for (const id of ['b', 'a', 'c']) await writeConversationIn(tie, doc(id, 1_000));
+  assert.deepEqual((await listConversationsIn(tie, planetId)).map((entry) => entry.id), ['c', 'b', 'a']);
 });

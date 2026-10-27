@@ -56,7 +56,7 @@ import {
 } from './ipc-validation';
 import { absoluteLocalPath } from './local-files';
 import { MAX_SELECTED_FILE_GRANTS, owningProject, sameGrantedPath, selectedFileGrantKey } from './selected-file-grants';
-import { gateRemoteWrites, type SeatGate } from './remote-seat-gate';
+import { gateRemoteWrites, type RemoteCallContext, type SeatGate, type SeatVerdict } from './remote-seat-gate';
 import {
   requiredCommitHash,
   requiredGitIgnoreScope,
@@ -133,9 +133,11 @@ export interface RemoteMethodDependencies {
   browserRemote?: (method: 'stream' | 'control' | 'release', args: unknown[]) => Promise<unknown>;
   /** 조종석 gate: the relay leg refuses writes unless the phone holds the seat. */
   seatGate?: SeatGate;
+  /** Planet-aware seat answer (see SeatVerdict); widens a non-planet folder to every project. */
+  seatVerdict?: SeatVerdict;
 }
 
-type RemoteMethod = (params: unknown[]) => unknown;
+type RemoteMethod = (params: unknown[], context?: RemoteCallContext) => unknown;
 type InvokeDesktopOperation = (name: string, args: unknown[]) => Promise<unknown>;
 
 /** Permissions this bridge issued for paths outside every registered project. */
@@ -611,6 +613,7 @@ export function createRemoteMethods({
   push,
   browserRemote,
   seatGate,
+  seatVerdict,
 }: RemoteMethodDependencies): Record<string, RemoteMethod> {
   const invokeDesktopOperation = (name: string, args: unknown[]): Promise<unknown> =>
     host.invokeDesktopOperation(name, args);
@@ -634,7 +637,11 @@ export function createRemoteMethods({
     startProjectTask: ([projectPath]) => host.startProjectTask(requiredString(projectPath, 'projectPath')),
     startTask: () => host.startTask(),
     listProjects: () => host.listProjects(),
-    addProject: ([projectPath]) => host.addProject(requiredString(projectPath, 'projectPath')),
+    // A project registered from the phone would widen what it may write (a
+    // registered `~` reaches every project under it): PC only.
+    addProject: () => {
+      throw new TypeError('폰에서는 프로젝트를 추가할 수 없어요. PC에서 추가해 주세요.');
+    },
     renameProject: ([projectPath, alias]) =>
       host.renameProject(requiredString(projectPath, 'projectPath'), projectDisplayName(alias)),
     removeProject: ([projectPath]) => host.removeProject(requiredString(projectPath, 'projectPath')),
@@ -831,6 +838,7 @@ export function createRemoteMethods({
   if (seatGate) {
     gateRemoteWrites(methods, {
       gate: seatGate,
+      verdict: seatVerdict,
       // The every-registered-project rule (a write with no folder, or outside
       // every project): only a project another device holds refuses it.
       heldGate: (cwd) =>
@@ -865,16 +873,21 @@ export function createRemoteMethods({
  * shared preferences stay desktop-local.
  */
 function cosmosRemoteMethods(host: DesktopService, invokeDesktopOperation: InvokeDesktopOperation): Record<string, RemoteMethod> {
-  const guestOf = (value: unknown) => {
-    if (!value || typeof value !== 'object') throw new TypeError('guest is required.');
-    return value;
+  // The phone's star is the relay's authenticated client id (the browser id it
+  // paired with), never an id the phone puts in its own request: one paired
+  // phone cannot act as another. Only the display name comes from the call.
+  const guestOf = (value: unknown, context?: RemoteCallContext) => {
+    const clientId = context?.clientId;
+    if (typeof clientId !== 'string' || !clientId) throw new TypeError('이 연결의 기기를 확인하지 못했어요. 다시 연결해 주세요.');
+    const name = value && typeof value === 'object' ? (value as { name?: unknown }).name : null;
+    return { id: clientId, name: typeof name === 'string' ? name : null };
   };
   // The phone names a planet, never a path: whatever it sends must be one of
   // this PC's registered projects (id or path) and is replaced by that
   // project's own directory before anything touches git or the disk.
   const projectCwd = async (value: unknown): Promise<string> =>
     host.projectDirectory(requiredString(value, 'cwd', 4_096)).catch(() => {
-      throw new TypeError('이 PC에 등록된 프로젝트가 아니에요.');
+      throw new TypeError('연결된 기기에 등록된 프로젝트가 아니에요.');
     });
   const optionalProjectCwd = (value: unknown): Promise<string | null> =>
     typeof value === 'string' && value ? projectCwd(value) : Promise.resolve(null);
@@ -887,19 +900,22 @@ function cosmosRemoteMethods(host: DesktopService, invokeDesktopOperation: Invok
   };
   const moonRequest = (value: unknown) => {
     const body = fields(value);
-    return { note: body.note, handoffTo: body.handoffTo, sessionId: body.sessionId, force: body.force === true };
+    // `force` from the phone is "그래도 내려놓기" after a push_failed refusal and
+    // nothing else: it travels as forcePush, which never skips the holder check.
+    return { note: body.note, handoffTo: body.handoffTo, sessionId: body.sessionId, forcePush: body.force === true };
   };
   return {
-    cosmosOverview: async ([cwd, options, guest]) =>
-      invokeDesktopOperation('cosmosOverview', [await optionalProjectCwd(cwd), overviewOptions(options), guestOf(guest)]),
-    cosmosSun: async ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosSun', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
-    // `force: true` is 그래도 내려놓기 after a push_failed refusal: the seat is
-    // released and the unpushed work stays on this PC.
-    cosmosMoon: async ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosMoon', [await projectCwd(cwd), moonRequest(request), guestOf(guest)]),
-    cosmosRequest: async ([cwd, request, guest]) =>
-      invokeDesktopOperation('cosmosRequest', [await projectCwd(cwd), request ?? null, guestOf(guest)]),
+    cosmosOverview: async ([cwd, options, guest], context) =>
+      invokeDesktopOperation('cosmosOverview', [await optionalProjectCwd(cwd), overviewOptions(options), guestOf(guest, context)]),
+    cosmosSun: async ([cwd, request, guest], context) =>
+      invokeDesktopOperation('cosmosSun', [await projectCwd(cwd), request ?? null, guestOf(guest, context)]),
+    // `force: true` is 그래도 내려놓기 after a push_failed refusal (forcePush):
+    // the seat is released and the unpushed work stays on this PC. The holder
+    // check still applies; a phone that does not hold the seat is refused.
+    cosmosMoon: async ([cwd, request, guest], context) =>
+      invokeDesktopOperation('cosmosMoon', [await projectCwd(cwd), moonRequest(request), guestOf(guest, context)]),
+    cosmosRequest: async ([cwd, request, guest], context) =>
+      invokeDesktopOperation('cosmosRequest', [await projectCwd(cwd), request ?? null, guestOf(guest, context)]),
     // The phone has no beat of its own; its seat lives on this PC's beat.
     cosmosHeartbeat: ([planets]) => invokeDesktopOperation('cosmosHeartbeat', [Array.isArray(planets) ? planets : []]),
     cosmosContinueConversation: async ([cwd, conversationId]) =>
@@ -931,7 +947,8 @@ export interface RemoteFrameResponse {
 // response frame is owed (fire-and-forget lane or an unparseable frame).
 export async function executeRemoteFrame(
   methods: Record<string, RemoteMethod>,
-  raw: string
+  raw: string,
+  context?: RemoteCallContext
 ): Promise<RemoteFrameResponse | undefined> {
   let message: { id?: unknown; method?: unknown; params?: unknown };
   try {
@@ -946,7 +963,7 @@ export async function executeRemoteFrame(
     // Fire-and-forget lane (terminal keystrokes/resize): no response frame.
     if (handler && (method === 'termWrite' || method === 'termResize')) {
       try {
-        await handler(params);
+        await handler(params, context);
       } catch {
         /* keystroke lost */
       }
@@ -956,7 +973,7 @@ export async function executeRemoteFrame(
   const id = message.id;
   if (!handler) return { id, ok: false, error: `unknown method: ${method || '(none)'}` };
   try {
-    const value = await handler(params);
+    const value = await handler(params, context);
     return { id, ok: true, value: value === undefined ? null : value };
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;

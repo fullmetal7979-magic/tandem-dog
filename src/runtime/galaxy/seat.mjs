@@ -51,12 +51,16 @@ export function holderLastSeen(seat, beats = {}) {
   return Math.max(Number(seat.holder.since) || 0, Number(beat?.at) || 0, Number(hostBeat?.at) || 0);
 }
 
-/** Is the PC a phone holder drives (holder.host) still alive? Its beat, or the phone's sit time through it. */
+/**
+ * Is the PC a phone holder drives (holder.host) still alive? Its beat only:
+ * the phone's sit time says nothing about the PC (a lid closed right after the
+ * phone sat down must not pin the phone to it for half an hour).
+ */
 export function hostAlive(seat, beats = {}, now = Date.now(), staleMs = SEAT_STALE_MS) {
   const hostId = seat?.holder?.host;
   if (!hostId) return false;
-  const seen = Math.max(Number(seat.holder.since) || 0, Number(beats?.[hostId]?.at) || 0);
-  return now - seen <= staleMs;
+  const seen = Number(beats?.[hostId]?.at) || 0;
+  return seen > 0 && now - seen <= staleMs;
 }
 
 /**
@@ -72,7 +76,7 @@ export function seatState(seat, starId, { beats = {}, now = Date.now(), staleMs 
 
 /**
  * A PC and the phone driving it share one working copy, so the baton passes
- * between them directly (폰으로 이어하기 / 되찾기) without a 달. Anyone else
+ * between them directly (폰으로 이어하기 / 이어받기) without a 내려놓기. Anyone else
  * still has to ask.
  */
 export function sameMachine(holder, star, host = null) {
@@ -96,10 +100,13 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
     const to = host ?? null;
     if (from === to) return { seat, changed: false, state };
     // The PC the phone drove still holds that phone's uncommitted work. While
-    // it is alive the move is refused (its user has to 내려놓기 there first);
-    // only a PC that stopped answering may be left behind.
-    if (from && hostAlive(seat, beats, now)) {
-      return { seat, changed: false, state, refused: 'host_active', host: { id: from, name: beats?.[from]?.name || null } };
+    // it is alive the move is refused, even with `force` (its user has to
+    // 내려놓기 there first); a PC that stopped answering may be left behind,
+    // but only on purpose (`force`), like any stale holder.
+    if (from) {
+      const hostInfo = { id: from, name: beats?.[from]?.name || null };
+      if (hostAlive(seat, beats, now)) return { seat, changed: false, state, refused: 'host_active', host: hostInfo };
+      if (!force) return { seat, changed: false, state, refused: 'host_stale', host: hostInfo };
     }
     const history = [...seat.history];
     const open = history.findLastIndex((entry) => entry.star === star.id && !entry.to);
@@ -135,7 +142,7 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
     const open = history.findLastIndex((entry) => entry.star === seat.holder.star && !entry.to);
     if (open >= 0) {
       history[open] = sibling
-        ? { ...history[open], to: now, memo: history[open].memo || (star.kind === 'phone' ? '폰으로 이어감' : '이 PC로 되찾음') }
+        ? { ...history[open], to: now, memo: history[open].memo || (star.kind === 'phone' ? '폰으로 이어감' : '이 기기로 이어받음') }
         : { ...history[open], to: now, memo: history[open].memo || '응답이 없어 넘겨받음', forced: true };
     }
   }
@@ -184,10 +191,25 @@ export function withdrawTransition(seat, star) {
   return { seat: { ...seat, requests: seat.requests.filter((request) => request.star !== star.id) }, changed: true };
 }
 
+/** The PC a phone drove stopped answering: the phone may move with force. */
+export function hostStaleMessage(host) {
+  const name = host?.name || '이전 기기';
+  return `${name}이(가) 오래 응답이 없어요. ${name}에 남은 작업은 그대로 두고 이 기기에서 강제로 이어받을 수 있어요.`;
+}
+
 /** Why a phone may not move to another PC while the one it drove is alive. */
 export function hostActiveMessage(host) {
   const name = host?.name || '이전 기기';
   return `${name}에 아직 작업이 남아 있어요. ${name}에서 먼저 내려놓기를 한 뒤 이 기기에서 이어받아 주세요.`;
+}
+
+/**
+ * The error code of a refused sit. A stale host is reported as `seat_stale`
+ * (with canForce) so every caller that offers "강제로 이어받기" for a stale
+ * holder offers it here too.
+ */
+export function seatRefusal(refused, message) {
+  return [refused === 'host_stale' ? 'seat_stale' : `seat_${refused}`, message];
 }
 
 // ------------------------------------------------------------------ io
@@ -224,8 +246,9 @@ export async function sit(planetId, star, options = {}) {
       stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
       reserved: '다른 기기를 위해 작업 자리를 비워 두었어요.',
       host_active: hostActiveMessage(result.host),
+      host_stale: hostStaleMessage(result.host),
     };
-    throw new GalaxyError(`seat_${result.refused}`, messages[result.refused], { seat: result.seat, host: result.host || null });
+    throw new GalaxyError(...seatRefusal(result.refused, messages[result.refused]), { seat: result.seat, host: result.host || null, canForce: result.refused === 'host_stale' || result.refused === 'stale' });
   }
   return result;
 }

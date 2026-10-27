@@ -123,7 +123,7 @@ export function runCosmosAction(action: CosmosAction, { projectPath, entry, sess
   else if (action === 'carry') void cosmosSit(projectPath);
   else if (action === 'reclaim') {
     const holder = view?.seat?.holder?.name || '폰';
-    if (window.confirm(`${josa(holder, '이가')} 작업 중이에요. 이 PC로 되찾을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 PC에 그대로 있어요.`)) {
+    if (window.confirm(`${josa(holder, '이가')} 작업 중이에요. 이 기기로 이어받을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 기기에 그대로 있어요.`)) {
       void cosmosSit(projectPath);
     }
   }
@@ -285,7 +285,7 @@ function sunSteps(entry: CosmosEntry): Step[] {
       state: result.conversation ? 'done' : 'skip',
     },
     {
-      label: result.took ? `이어받기 · ${result.took.name}에게서 넘겨받음` : extra.moved ? '이어받기 · 폰의 작업 자리를 이 PC로 옮김' : '이어받기',
+      label: result.took ? `이어받기 · ${result.took.name}에게서 넘겨받음` : extra.moved ? '이어받기 · 폰의 작업 자리를 이 기기로 옮김' : '이어받기',
       state: result.took ? 'warn' : 'done',
     },
     ...(extra.rescue
@@ -474,7 +474,7 @@ export function GalaxySetup({
     const result = await cosmosSetupGalaxy(projectPath, { remoteUrl: `https://github.com/${status.login}/${GALAXY_REPO}.git` });
     if (!result) {
       clearCosmosNotice(projectPath);
-      setNotice(`${status.login} 계정에서 ${GALAXY_REPO} 저장소를 찾지 못했어요. 다른 PC에서 먼저 만들었는지, 같은 GitHub 계정인지 확인해 주세요.`);
+      setNotice(`${status.login} 계정에서 ${GALAXY_REPO} 저장소를 찾지 못했어요. 다른 기기에서 먼저 만들었는지, 같은 GitHub 계정인지 확인해 주세요.`);
     }
   };
   return (
@@ -668,7 +668,7 @@ export function NewStarChecklist({
     { id: 'galaxy', label: '동기화 저장소 연결', done: view.ready, hint: '위의 은하수 연결을 눌러 주세요.' },
     { id: 'sync', label: '이 기기 동기화', done: Boolean(view.syncedAt), hint: '이어받기를 한 번 하면 맞춰져요.' },
     { id: 'ai', label: 'AI 계정', done: providerConnected(values.providerSetup), hint: '' },
-    { id: 'project', label: '이 PC의 프로젝트', done: Boolean(view.planet?.id), hint: '' },
+    { id: 'project', label: '이 기기의 프로젝트', done: Boolean(view.planet?.id), hint: '' },
     { id: 'devices', label: '다른 기기 연결', done: view.stars.length > 1, hint: '다른 기기에서도 같은 은하수를 연결하세요.' },
   ];
   const done = items.filter((item) => item.done).length;
@@ -713,7 +713,7 @@ export function NewStarChecklist({
             )}
             {!item.done && item.id === 'project' && (
               <button type="button" className="cosmos-button cosmos-button--plain" disabled={busy} onClick={startClone}>
-                {busy ? '받는 중…' : '이 PC에 프로젝트 받기'}
+                {busy ? '받는 중…' : '이 기기에 프로젝트 받기'}
               </button>
             )}
           </li>

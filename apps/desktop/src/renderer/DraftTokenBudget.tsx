@@ -2,6 +2,7 @@ import { memo, useDeferredValue, useEffect, useId, useMemo, useState } from 'rea
 import type { ComposerAttachment } from './composer-support';
 import { draftTokenBudget } from './draft-token-budget';
 import { t } from './i18n';
+import { platformShortcut } from './shortcut-display';
 
 // The "Large input" warning starts at this many draft tokens.
 const DRAFT_TOKEN_WARNING = 8000;
@@ -40,6 +41,6 @@ export const DraftTokenBudget = memo(function DraftTokenBudget({ draft, attachme
     </span>
     <span id={helpId} className="sr-only">{help}</span>
     <span className="draft-token-guidance">{budget.tokens >= DRAFT_TOKEN_WARNING ? t('Large input · attach only relevant excerpts')
-      : turnBusy ? t('Switch models between turns · reasoning changes apply next turn') : t('⌘/Ctrl + Shift + M · models')}</span>
+      : turnBusy ? t('Switch models between turns · reasoning changes apply next turn') : t('{{keys}} · models', { keys: platformShortcut('Ctrl+Shift+M') })}</span>
   </div>;
 });

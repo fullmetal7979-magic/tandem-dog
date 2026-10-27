@@ -9,6 +9,7 @@ import { acquireTitleBarDim } from '../titlebar-dim';
 import { CopyControl } from '../transcript-primitives';
 import type { ChangelogRelease } from './changelog';
 import { loadReleases } from './changelog-source';
+import { useStandaloneDialogModality } from './use-standalone-dialog';
 import './changelog-dialog.css';
 
 let RELEASES: ChangelogRelease[] = [];
@@ -30,6 +31,8 @@ export const prepareChangelog = async () => {
 export default function ChangelogDialog({ onClose }: { onClose(): void }) {
   const uid = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useStandaloneDialogModality(dialogRef);
   // Newest release starts expanded; the rest stay collapsed until opened.
   const [open, setOpen] = useState(() => new Set(RELEASES.slice(0, 1).map((release) => release.version)));
   const toggle = (release: ChangelogRelease) => {
@@ -58,6 +61,7 @@ export default function ChangelogDialog({ onClose }: { onClose(): void }) {
       }}
     >
       <section
+        ref={dialogRef}
         className="settings-confirm-dialog settings-changelog-dialog"
         role="dialog"
         aria-modal="true"

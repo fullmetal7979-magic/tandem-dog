@@ -285,8 +285,6 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
   const opts = record(options);
   const guest = cosmosGuest(guestInput);
   const force = opts.force === true;
-  const joinable = fetchFlight !== null && fetchFlight.epoch === fetchEpoch;
-  const fetch = opts.fetch !== false && (force || joinable || Date.now() - lastFetchAt >= FETCH_INTERVAL_MS);
   let root: string | null = null;
   if (typeof cwd === 'string' && cwd.trim()) {
     try {
@@ -295,6 +293,10 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
       root = null;
     }
   }
+  // Root discovery yields. Re-evaluate after it: another planet may have
+  // finished the shared fetch while this root was still being resolved.
+  const joinable = fetchFlight !== null && fetchFlight.epoch === fetchEpoch;
+  const fetch = opts.fetch !== false && (force || joinable || Date.now() - lastFetchAt >= FETCH_INTERVAL_MS);
   const key = `${root ?? ''}\0${fetch}\0${guest?.id ?? ''}`;
   const pending = overviewFlights.get(key);
   if (pending) return pending;
@@ -371,13 +373,14 @@ export async function cosmosMoon(cwd: unknown, request?: unknown, guestInput?: u
   const handoffTo = typeof body.handoffTo === 'string' && body.handoffTo ? body.handoffTo : null;
   const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
   // 그래도 내려놓기: release the seat even though the push failed; the
-  // unpushed work stays on this device. Only an explicit `true` counts.
-  const force = body.force === true;
+  // unpushed work stays on this device. Only an explicit `true` counts, and
+  // it only ever overrides the push: the runtime always checks the holder.
+  const forcePush = body.forcePush === true || body.force === true;
   const root = await resolveRoot(cwd);
   return serialized(root, () =>
     outcome(async () => {
       const session = await sessionToCarry(root, sessionId);
-      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session, guest, force });
+      const result = await (await cosmosCore()).moon({ root, note, handoffTo, session, guest, forcePush });
       invalidateOverview();
       return result as CosmosMoonResult;
     })
@@ -414,6 +417,25 @@ export async function cosmosHeartbeat(planets: unknown): Promise<void> {
  * it refuses only while another device (this PC included) holds the seat, so
  * an empty seat elsewhere does not block a folder-less terminal.
  */
+/**
+ * cosmosRemoteWriteRefusal plus whether the folder is a planet at all. A
+ * folder that is not (no repo, no remote, no Galaxy) answers null but says
+ * nothing about the planets under it; the relay gate then also asks every
+ * registered project (see remote-seat-gate.ts SeatVerdict).
+ */
+export async function cosmosRemoteWriteVerdict(cwd: string | null): Promise<{ refusal: string | null; planet: boolean }> {
+  if (!cwd) return { refusal: null, planet: false };
+  let root: string;
+  try {
+    root = await resolveRoot(cwd);
+  } catch {
+    return { refusal: null, planet: false };
+  }
+  const view = (await (await cosmosCore()).overview({ root, fetch: false })) as CosmosOverview;
+  if (!view.ready || !view.planet?.id) return { refusal: null, planet: false };
+  return { refusal: remoteRefusalText(view, false), planet: true };
+}
+
 export async function cosmosRemoteWriteRefusal(cwd: string | null, options?: unknown): Promise<string | null> {
   if (!cwd) return null;
   const heldOnly = record(options).scope === 'held';
@@ -424,16 +446,21 @@ export async function cosmosRemoteWriteRefusal(cwd: string | null, options?: unk
     return null;
   }
   const view = (await (await cosmosCore()).overview({ root, fetch: false })) as CosmosOverview;
+  return remoteRefusalText(view, heldOnly);
+}
+
+/** The refusal a phone's write gets for one planet's seat, or null to go ahead. */
+function remoteRefusalText(view: CosmosOverview, heldOnly: boolean): string | null {
   if (!view.ready || !view.planet?.id || view.state === 'remote') return null;
   const holder = view.seat?.holder;
   if (heldOnly) {
     if (!holder) return null;
     const project = view.planet.name || '다른 프로젝트';
     return view.state === 'mine'
-      ? `🔒 이 PC(${holder.name})가 ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요. 폰에서 ${project}을(를) 이어받아 주세요.`
+      ? `🔒 ${holder.name}에서 ${project} 프로젝트를 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요. 폰에서 ${project}을(를) 이어받아 주세요.`
       : `🔒 ${holder.name}이(가) ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요.`;
   }
-  if (view.state === 'mine') return `🔒 이 PC(${holder?.name ?? '이 기기'})가 작업 중이에요. 폰에서 이어받기를 누르면 이어서 할 수 있어요.`;
+  if (view.state === 'mine') return `🔒 ${holder?.name ?? '연결된 기기'}에서 작업 중이에요. 폰에서 이어받기를 누르면 이어서 할 수 있어요.`;
   if (holder) return `🔒 ${holder.name}이(가) 작업 중이에요. 폰에서 넘겨 달라고 요청해 주세요.`;
   return '☄️ 지금은 아무도 작업하지 않아요. 폰에서 먼저 이어받기를 눌러 주세요.';
 }

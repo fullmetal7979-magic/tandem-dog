@@ -121,6 +121,28 @@ const SESSION_TERMINAL_PREFIX = 'session-terminal:';
 const SESSION_TERMINAL_ID = /^session-terminal:[A-Za-z0-9_-]{1,120}(?::[1-9]\d{0,2})?$/;
 
 /** Shell label for a spawn path: `C:\\...\\pwsh.exe` → `pwsh`. */
+export interface TerminalListEntry {
+  id: string;
+  cwd: string | null;
+  shell: string;
+  exited: boolean;
+  busy: boolean | null;
+}
+
+/** Is a command (not the shell itself) in the terminal's foreground? */
+function foregroundBusy(entry: { pty: unknown; shell: string }): boolean | null {
+  if (process.platform === 'win32') return null;
+  let title: unknown;
+  try {
+    title = (entry.pty as { process?: unknown }).process;
+  } catch {
+    return null;
+  }
+  if (typeof title !== 'string' || !title) return null;
+  const foreground = shellLabel(title.trim()).replace(/^-/, '');
+  return foreground !== shellLabel(entry.shell).replace(/^-/, '');
+}
+
 function shellLabel(shell: string): string {
   return (
     shell
@@ -256,15 +278,19 @@ export class TerminalManager {
   }
 
   /** Read-only: the live (not exited) terminals whose id starts with
-   *  `prefix`, oldest first. A reloaded ▶ 실행 pane uses it to find the run
-   *  PTYs it started before the reload. */
-  list(prefix: string): Array<{ id: string; cwd: string | null; shell: string }> {
+   *  `prefix`, oldest first; with `includeExited`, exited ones too (their
+   *  output is still there to read). A reloaded ▶ 실행 pane uses it to find
+   *  the run PTYs it started before the reload. `busy` says whether a command
+   *  holds the foreground (a dev server still running) rather than the idle
+   *  shell; null where that cannot be told (Windows reports only the shell). */
+  list(prefix: string, { includeExited = false }: { includeExited?: boolean } = {}): TerminalListEntry[] {
     if (!prefix.startsWith('term_')) return [];
-    const live: Array<{ id: string; cwd: string | null; shell: string }> = [];
+    const found: TerminalListEntry[] = [];
     for (const [id, entry] of this.terminals) {
-      if (!entry.disposed && id.startsWith(prefix)) live.push({ id, cwd: entry.cwd, shell: entry.shell });
+      if (!id.startsWith(prefix) || (entry.disposed && !includeExited)) continue;
+      found.push({ id, cwd: entry.cwd, shell: entry.shell, exited: entry.disposed, busy: entry.disposed ? false : foregroundBusy(entry) });
     }
-    return live;
+    return found;
   }
 
   /** Read-only: the tabs of one session's terminal, ordered by tab number.

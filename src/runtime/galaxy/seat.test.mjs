@@ -14,6 +14,8 @@ import {
   readSeat,
   requestSeat,
   requestTransition,
+  hostStaleMessage,
+  seatRefusal,
   seatState,
   sit,
   sitTransition,
@@ -78,9 +80,14 @@ test('a phone that picks its seat up through another PC moves the seat to that P
   // Same PC again: nothing changes.
   assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: home.id }).changed, false);
 
-  // Through 회사 PC once 집 맥북 stopped answering: the seat follows, so 회사 PC's gate accepts the phone.
+  // Through 회사 PC once 집 맥북 stopped answering: leaving 집 맥북's work
+  // behind takes an explicit force, then the seat follows so 회사 PC's gate
+  // accepts the phone.
   const later = 1_000 + 31 * 60_000;
-  const moved = sitTransition(seat, phone, { now: later, via: 'relay', host: work.id });
+  const asked = sitTransition(seat, phone, { now: later, via: 'relay', host: work.id });
+  assert.equal(asked.refused, 'host_stale');
+  assert.equal(asked.changed, false);
+  const moved = sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, force: true });
   assert.equal(moved.changed, true);
   assert.deepEqual(moved.moved, { from: home.id, to: work.id });
   assert.equal(moved.took, null);
@@ -112,12 +119,19 @@ test('a phone cannot move to another PC while the PC it drove is alive (내려�
   assert.equal(hostAlive(seat, beats, later), true);
   // Even `force` does not leave a live PC's work behind.
   assert.equal(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats, force: true }).refused, 'host_active');
-  // Right after sitting through 집 맥북 (no beat yet) it also counts as alive.
-  assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: work.id }).refused, 'host_active');
-  // Once 집 맥북's beat is stale the move goes through.
+  // Liveness is the beat only: the phone's own sit time says nothing about the
+  // PC (a lid closed right after the phone sat down must not pin it there).
+  assert.equal(hostAlive(seat, {}, 2_000), false);
+  assert.equal(sitTransition(seat, phone, { now: 2_000, via: 'relay', host: work.id }).refused, 'host_stale');
+  // A stale host is left behind only on purpose (force), never by default.
   const stale = { [home.id]: { at: later - 31 * 60_000 } };
   assert.equal(hostAlive(seat, stale, later), false);
-  assert.deepEqual(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats: stale }).moved, { from: home.id, to: work.id });
+  assert.equal(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats: stale }).refused, 'host_stale');
+  assert.deepEqual(sitTransition(seat, phone, { now: later, via: 'relay', host: work.id, beats: stale, force: true }).moved, { from: home.id, to: work.id });
+  // A stale host surfaces as seat_stale (with force offered) like any silent holder.
+  assert.deepEqual(seatRefusal('host_stale', 'x'), ['seat_stale', 'x']);
+  assert.deepEqual(seatRefusal('host_active', 'x'), ['seat_host_active', 'x']);
+  assert.match(hostStaleMessage({ name: '집 맥북' }), /집 맥북에 남은 작업은 그대로 두고/);
 
   const message = hostActiveMessage({ id: home.id, name: '집 맥북' });
   assert.match(message, /집 맥북에서 먼저 내려놓기/);

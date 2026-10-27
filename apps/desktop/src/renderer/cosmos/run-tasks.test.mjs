@@ -3,7 +3,13 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   adoptRuns,
+  clearRunTerminalViewState,
+  TERMINAL_VIEW_STATE_KEY,
+  forgetRun,
   isAdoptedRun,
+  normalizeLiveRuns,
+  reattachRuns,
+  runTerminalTaskTag,
   isRunnableName,
   makeTargets,
   makeTasks,
@@ -172,4 +178,43 @@ test('a reloaded pane re-adopts only its own live run terminals, once', () => {
   const runs = projectRuns(project);
   assert.deepEqual(runs.map((entry) => entry.terminalId), [`${base}_a1`, `${base}_b2`]);
   assert.ok(runs.every((entry) => isAdoptedRun(entry.taskId)));
+});
+
+// ------------------------------------------------------------------ round 4: runs found again after a reload
+
+test('the service says whether an adopted run still runs; unknown stays unknown', () => {
+  assert.deepEqual(
+    normalizeLiveRuns(['a', { id: 'b', busy: true, exited: false }, { id: 'c', busy: false, exited: false }, { id: 'd', exited: true }, { id: 'e' }, null, { busy: true }]),
+    [
+      { id: 'a', running: null },
+      { id: 'b', running: true },
+      { id: 'c', running: false },
+      { id: 'd', running: false },
+      { id: 'e', running: null },
+    ]
+  );
+});
+
+test('an adopted run carrying a task tag goes back to that task, so ▶ restarts instead of duplicating', () => {
+  const project = '/work/reattach';
+  const tagged = runTerminalId(project, 'n1', 'script:dev');
+  assert.equal(runTerminalTaskTag(project, tagged).length, 9);
+  assert.equal(runTerminalTaskTag(project, runTerminalId(project, 'n2')), '', 'untagged (older) runs carry no tag');
+  adoptRuns(project, [{ id: tagged, busy: true, exited: false }]);
+  assert.ok(isAdoptedRun(projectRuns(project)[0].taskId));
+  assert.deepEqual(reattachRuns(project, ['script:build', 'script:dev']), ['script:dev']);
+  assert.deepEqual(projectRuns(project), [{ taskId: 'script:dev', terminalId: tagged }]);
+  // Closing its tab forgets it.
+  assert.equal(forgetRun(project, tagged), true);
+  assert.deepEqual(projectRuns(project), []);
+  assert.equal(forgetRun(project, tagged), false);
+});
+
+test('closing a run tab clears its saved terminal view', () => {
+  const store = new Map();
+  const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  const id = runTerminalId('/work/view', 'v1');
+  storage.setItem(TERMINAL_VIEW_STATE_KEY, JSON.stringify({ [id]: { scroll: 3 }, other: { scroll: 1 } }));
+  clearRunTerminalViewState(id, storage);
+  assert.deepEqual(JSON.parse(store.get(TERMINAL_VIEW_STATE_KEY)), { other: { scroll: 1 } });
 });

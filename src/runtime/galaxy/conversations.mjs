@@ -98,8 +98,10 @@ export async function writeConversationIn(galaxy, doc) {
     exportedAt: doc.exportedAt,
     messageCount: doc.messageCount,
   });
-  const entries = await listConversationsIn(galaxy, doc.planet);
-  for (const stale of entries.slice(KEEP_PER_PLANET)) {
+  // The document just written always stays: another machine's clock running
+  // ahead must not make it look like the oldest one and prune it at once.
+  const entries = (await listConversationsIn(galaxy, doc.planet)).filter((entry) => entry.file !== id);
+  for (const stale of entries.slice(KEEP_PER_PLANET - 1)) {
     // `file` comes from the directory listing, never from the document's own id field.
     await rm(join(galaxy, dir, `${stale.file}.json`), { force: true });
   }
@@ -117,7 +119,9 @@ export async function listConversationsIn(galaxy, planetId) {
       docs.push({ id: doc.id, file: name.slice(0, -'.json'.length), title: doc.title, star: doc.star, exportedAt: doc.exportedAt, messageCount: doc.messageCount });
     }
   }
-  return docs.sort((a, b) => (b.exportedAt || 0) - (a.exportedAt || 0));
+  // Ties (same millisecond, or no timestamp) break on the file name, so every
+  // machine prunes the same documents.
+  return docs.sort((a, b) => (b.exportedAt || 0) - (a.exportedAt || 0) || (a.file < b.file ? 1 : a.file > b.file ? -1 : 0));
 }
 
 export async function readConversationIn(galaxy, planetId, id = null) {

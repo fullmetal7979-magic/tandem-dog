@@ -430,7 +430,7 @@ async function onSeatAction(event: Event): Promise<void> {
       done = await cosmosSit(key, { force: true });
     }
   } else if (state === 'remote') {
-    if (window.confirm(`${josa(holder || '폰', '이가')} 작업 중이에요. 이 PC로 되찾을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 PC에 그대로 있어요.`)) {
+    if (window.confirm(`${josa(holder || '폰', '이가')} 작업 중이에요. 이 기기로 이어받을까요?\n폰은 잠기고, 폰에서 하던 작업은 이 기기에 그대로 있어요.`)) {
       done = await cosmosSit(key);
     }
   } else openGalaxyScreen(); // already seated, or someone else is: show where things stand

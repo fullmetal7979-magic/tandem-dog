@@ -33,14 +33,16 @@ function fixture() {
 }
 
 const GUEST = { id: 'phone-123456', name: 'iPhone' };
+/** The relay's authenticated caller: the phone's star comes from here, not from GUEST.id. */
+const CALLER = { clientId: 'browser-abcdef12' };
 
 test('cosmos verbs run in the registered project directory', async () => {
   const { methods, operations, continued } = fixture();
-  await methods.cosmosSun(['p1', {}, GUEST]);
-  await methods.cosmosMoon(['/Users/me/planet', { note: 'x' }, GUEST]);
-  await methods.cosmosRequest(['p1', {}, GUEST]);
-  await methods.cosmosOverview(['p1', null, GUEST]);
-  await methods.cosmosOverview([null, null, GUEST]);
+  await methods.cosmosSun(['p1', {}, GUEST], CALLER);
+  await methods.cosmosMoon(['/Users/me/planet', { note: 'x' }, GUEST], CALLER);
+  await methods.cosmosRequest(['p1', {}, GUEST], CALLER);
+  await methods.cosmosOverview(['p1', null, GUEST], CALLER);
+  await methods.cosmosOverview([null, null, GUEST], CALLER);
   await methods.cosmosContinueConversation(['p1', 'c1']);
   assert.deepEqual(
     operations.map(([name, cwd]) => [name, cwd]),
@@ -58,27 +60,41 @@ test('cosmos verbs run in the registered project directory', async () => {
 test('a cwd that is not a registered project is rejected before anything runs', async () => {
   const { methods, operations, continued } = fixture();
   for (const cwd of ['/etc', '/Users/me/other', '../../root', 'C:\\Windows']) {
-    await assert.rejects(methods.cosmosSun([cwd, {}, GUEST]), /등록된 프로젝트가 아니에요/, cwd);
-    await assert.rejects(methods.cosmosMoon([cwd, {}, GUEST]), /등록된 프로젝트가 아니에요/, cwd);
-    await assert.rejects(methods.cosmosRequest([cwd, {}, GUEST]), /등록된 프로젝트가 아니에요/, cwd);
-    await assert.rejects(methods.cosmosOverview([cwd, null, GUEST]), /등록된 프로젝트가 아니에요/, cwd);
+    await assert.rejects(methods.cosmosSun([cwd, {}, GUEST], CALLER), /등록된 프로젝트가 아니에요/, cwd);
+    await assert.rejects(methods.cosmosMoon([cwd, {}, GUEST], CALLER), /등록된 프로젝트가 아니에요/, cwd);
+    await assert.rejects(methods.cosmosRequest([cwd, {}, GUEST], CALLER), /등록된 프로젝트가 아니에요/, cwd);
+    await assert.rejects(methods.cosmosOverview([cwd, null, GUEST], CALLER), /등록된 프로젝트가 아니에요/, cwd);
     await assert.rejects(methods.cosmosContinueConversation([cwd, null]), /등록된 프로젝트가 아니에요/, cwd);
   }
-  await assert.rejects(methods.cosmosSun([undefined, {}, GUEST]), /cwd/);
+  await assert.rejects(methods.cosmosSun([undefined, {}, GUEST], CALLER), /cwd/);
   assert.deepEqual(operations, []);
   assert.deepEqual(continued, []);
 });
 
 test('the phone can 그래도 내려놓기 (force) but never asks for the PC run terminals', async () => {
   const { methods, operations } = fixture();
-  await methods.cosmosMoon(['p1', { note: 'x', force: true, extra: 'dropped' }, GUEST]);
-  await methods.cosmosMoon(['p1', { force: 'yes' }, GUEST]);
-  await methods.cosmosOverview(['p1', { fetch: false, runs: true }, GUEST]);
+  await methods.cosmosMoon(['p1', { note: 'x', force: true, extra: 'dropped' }, GUEST], CALLER);
+  await methods.cosmosMoon(['p1', { force: 'yes' }, GUEST], CALLER);
+  await methods.cosmosOverview(['p1', { fetch: false, runs: true }, GUEST], CALLER);
   const moons = operations.filter(([name]) => name === 'cosmosMoon').map(([, , request]) => request);
-  assert.equal(moons[0].force, true);
+  // force from the phone travels as forcePush only: the runtime never lets it
+  // skip the holder check (a phone not holding the seat is refused there).
+  assert.equal(moons[0].forcePush, true);
+  assert.equal('force' in moons[0], false);
   assert.equal(moons[0].note, 'x');
   assert.equal('extra' in moons[0], false);
-  assert.equal(moons[1].force, false, 'only an explicit true forces');
+  assert.equal(moons[1].forcePush, false, 'only an explicit true forces the push');
   const [, , options] = operations.find(([name]) => name === 'cosmosOverview');
   assert.deepEqual(options, { fetch: false });
+});
+
+test('the phone is the relay client it authenticated as, whatever id its request names', async () => {
+  const { methods, operations } = fixture();
+  await methods.cosmosSun(['p1', {}, { id: 'someone-elses-phone', name: 'iPhone' }], CALLER);
+  await methods.cosmosMoon(['p1', { force: true }, { id: 'someone-elses-phone', name: 'iPhone' }], CALLER);
+  for (const [, , , guest] of operations) assert.deepEqual(guest, { id: CALLER.clientId, name: 'iPhone' });
+  // No authenticated caller (not over the relay): refused before anything runs.
+  const before = operations.length;
+  await assert.rejects(methods.cosmosSun(['p1', {}, GUEST]), /기기를 확인하지 못했어요/);
+  assert.equal(operations.length, before);
 });

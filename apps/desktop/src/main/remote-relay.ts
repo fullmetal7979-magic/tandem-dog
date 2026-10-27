@@ -29,6 +29,7 @@ import { createPushSubscriptionStore } from './push-subscription-store';
 import { loadOrCreateRelayE2EEIdentity } from './remote-e2ee';
 import type { RemoteClientClaim } from './remote-relay-claim';
 import { createRelayClientLifecycle } from './remote-relay-client-lifecycle';
+import { loadRevokedClientStore } from './remote-revoked-clients';
 import { createRelayCatalogs } from './remote-relay-catalog';
 import { createRelayClientCallDispatch } from './remote-relay-client-calls';
 import { createRelayClientRegistry, type RelayClientState } from './remote-relay-clients';
@@ -168,12 +169,18 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
   // Web Push belongs to the relay leg: this is the only surface where a client
   // can be absent from the socket and still want to hear that a turn finished.
   const pushStore = createPushSubscriptionStore(options.userDataPath);
+  const revokedClients = await loadRevokedClientStore(options.userDataPath);
   const methods = createRemoteMethods({
     ...options,
     push: pushStore,
     // 조종석: a phone writes only while it holds the planet's seat here.
     seatGate: (cwd) =>
       options.host.invokeDesktopOperation('cosmosRemoteWriteRefusal', [cwd]).then((value) => (typeof value === 'string' ? value : null)),
+    seatVerdict: (cwd) =>
+      options.host.invokeDesktopOperation('cosmosRemoteWriteVerdict', [cwd]).then((value) => {
+        const answer = value && typeof value === 'object' ? (value as { refusal?: unknown; planet?: unknown }) : {};
+        return { refusal: typeof answer.refusal === 'string' ? answer.refusal : null, planet: answer.planet === true };
+      }),
   });
   let socket: WebSocket | null = null;
   let closed = false;
@@ -456,6 +463,8 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
     dispatchClientCall,
     resyncClient: sessionWiring.resyncClient,
     onClientClaim: options.onClientClaim,
+    isRevoked: (clientId) => revokedClients.has(clientId),
+    onClaimApproved: (clientId) => revokedClients.restore(clientId),
   });
   const handleRelayCapabilities = (envelope: Record<string, unknown>): void => {
     relayBinaryFrames = envelope.binaryFrames === 1;
@@ -648,6 +657,10 @@ export async function startRemoteRelay(options: RemoteRelayOptions): Promise<Rem
     revokeClient: async (clientId: string): Promise<void> => {
       browserStreams.dropClient(clientId);
       if (!/^[0-9a-f-]{8,64}$/u.test(clientId)) throw new TypeError('Invalid remote client id.');
+      // Remembered here first: even if the relay never applies the revocation,
+      // this desktop refuses the browser at its next open and hello.
+      await revokedClients.revoke(clientId);
+      if (clients.get(clientId)) clients.close(clientId, 'remote client revoked');
       // Per-browser credentials are isolated: revoking one deletes only that
       // browser's token on the relay. The QR bootstrap token never rotates
       // here, so every other paired browser keeps working untouched.

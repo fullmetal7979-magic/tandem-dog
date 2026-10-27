@@ -4,6 +4,33 @@ import type React from 'react';
 
 import { CosmosMark } from './cosmos/CosmosParts';
 import { t } from './i18n';
+import { modKeyCap, shortcutKeyCaps } from './shortcut-display';
+
+/** [label, key caps]; ⌘ on macOS where the workbench binds `mod` to it. */
+const WELCOME_SHORTCUTS: ReadonlyArray<readonly [string, string[]]> = [
+  ['New task', shortcutKeyCaps('Ctrl+N')],
+  ['Switch tab', [modKeyCap(), '←', '/', '→']],
+  ['Sidebar', shortcutKeyCaps('Ctrl+B')],
+  ['Open Tandem', shortcutKeyCaps('Ctrl+Shift+D')],
+  ['Settings', shortcutKeyCaps('Ctrl+,')],
+];
+
+function KeyCaps({ keys }: { keys: string[] }): React.JSX.Element {
+  return (
+    <span className="welcome-keys">
+      {keys.map((key, index) =>
+        key === '/' ? (
+          <i key={index}>/</i>
+        ) : (
+          <span key={index}>
+            {index > 0 && keys[index - 1] !== '/' && !'⌘⇧⌥⌃'.includes(keys[index - 1]) && <i>+</i>}
+            <kbd>{key}</kbd>
+          </span>
+        )
+      )}
+    </span>
+  );
+}
 
 export function WorkspaceEmptyState(): React.JSX.Element {
   return (
@@ -18,50 +45,12 @@ export function WorkspaceEmptyState(): React.JSX.Element {
         <h1 className="sr-only">COSMOS</h1>
         {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: labels the plain shortcuts container for assistive tech; adding a role would change semantics */}
         <div className="welcome-shortcuts" aria-label={t('Keyboard shortcuts')}>
-          <div>
-            <span>{t('New task')}</span>
-            <span className="welcome-keys">
-              <kbd>Ctrl</kbd>
-              <i>+</i>
-              <kbd>N</kbd>
-            </span>
-          </div>
-          <div>
-            <span>{t('Switch tab')}</span>
-            <span className="welcome-keys">
-              <kbd>Ctrl</kbd>
-              <i>+</i>
-              <kbd>←</kbd>
-              <i>/</i>
-              <kbd>→</kbd>
-            </span>
-          </div>
-          <div>
-            <span>{t('Sidebar')}</span>
-            <span className="welcome-keys">
-              <kbd>Ctrl</kbd>
-              <i>+</i>
-              <kbd>B</kbd>
-            </span>
-          </div>
-          <div>
-            <span>{t('Open Tandem')}</span>
-            <span className="welcome-keys">
-              <kbd>Ctrl</kbd>
-              <i>+</i>
-              <kbd>Shift</kbd>
-              <i>+</i>
-              <kbd>D</kbd>
-            </span>
-          </div>
-          <div>
-            <span>{t('Settings')}</span>
-            <span className="welcome-keys">
-              <kbd>Ctrl</kbd>
-              <i>+</i>
-              <kbd>,</kbd>
-            </span>
-          </div>
+          {WELCOME_SHORTCUTS.map(([label, keys]) => (
+            <div key={label}>
+              <span>{t(label)}</span>
+              <KeyCaps keys={keys} />
+            </div>
+          ))}
         </div>
       </div>
     </div>

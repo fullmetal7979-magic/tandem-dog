@@ -11,10 +11,23 @@
 // while any project is held by another device, it is refused.
 import { resolve, sep } from 'node:path';
 
-type RemoteMethod = (params: unknown[]) => unknown;
+/** Who is calling: the relay's authenticated client (one paired browser). */
+export interface RemoteCallContext {
+  clientId?: string;
+}
+type RemoteMethod = (params: unknown[], context?: RemoteCallContext) => unknown;
 
 /** Resolves to the refusal text, or null when the write may go ahead. */
 export type SeatGate = (cwd: string | null) => Promise<string | null>;
+
+/**
+ * The seat's answer for one folder, plus whether that folder is a planet at
+ * all. "Go ahead" for a folder that is no planet (not a repo, no remote) says
+ * nothing about the planets inside or around it: `~` registered as a project
+ * must not open every project under it, so such a folder is also judged by
+ * the every-project rule.
+ */
+export type SeatVerdict = (cwd: string | null) => Promise<{ refusal: string | null; planet: boolean }>;
 
 export interface SeatGateResolvers {
   gate: SeatGate;
@@ -41,6 +54,8 @@ export interface SeatGateResolvers {
    * it answers null. Defaults to `gate`, which is stricter.
    */
   heldGate?: SeatGate;
+  /** Planet-aware form of `gate`; when given, a non-planet folder also meets the every-project rule. */
+  verdict?: SeatVerdict;
 }
 
 /** Git lanes that change the checkout, the index, refs or the remote. */
@@ -93,6 +108,28 @@ export const SEAT_GATED_PROJECT_METHODS = [
 /** Lanes whose first argument is a folder that must be one of the host's registered projects. */
 export const SEAT_GATED_PROJECT_CWD_METHODS = ['cosmosContinueConversation'] as const;
 
+/**
+ * Capabilities a phone may never run: each installs or reconfigures something
+ * that executes commands on this PC (an MCP server, a plugin, a local model, a
+ * shell). Distinct from the secret/OAuth deny-list in remote-methods.ts, which
+ * answers in English for the API surface; this one speaks to the phone's user.
+ */
+export const REMOTE_INSTALL_CAPABILITIES: ReadonlySet<string> = new Set([
+  'installBuiltinFeature',
+  'installLocalProviderModel',
+  'addMcpServer',
+  'enablePluginMcp',
+  'addPlugin',
+  'updatePlugin',
+  'setSystemShell',
+]);
+export const REMOTE_INSTALL_MESSAGE = '폰에서는 설치할 수 없어요. PC에서 해 주세요.';
+
+/** Capabilities that change a session's project files: judged by that session's folder. */
+export const SEAT_GATED_SESSION_CAPABILITIES: ReadonlySet<string> = new Set(['revertTurnReview', 'revertTurnReviewFile']);
+/** Capabilities that start agent work whose folder the call does not name: the every-project rule. */
+export const SEAT_GATED_ANYWHERE_CAPABILITIES: ReadonlySet<string> = new Set(['runScheduleNow']);
+
 export class SeatRefusedError extends Error {
   readonly code = 'seat_refused';
 }
@@ -111,16 +148,25 @@ async function checked(gate: SeatGate, cwd: string | null): Promise<void> {
   if (refusal) throw new SeatRefusedError(refusal);
 }
 
-function guarded(method: RemoteMethod, where: (params: unknown[]) => Promise<string | null>, gate: SeatGate): RemoteMethod {
-  return async (params) => {
-    let cwd: string | null;
+/**
+ * `where` names the folder a call writes in; `undefined` means this call does
+ * not write (a deny, a read-only capability) and goes ahead unasked.
+ */
+function guarded(
+  method: RemoteMethod,
+  where: (params: unknown[]) => Promise<string | null | undefined>,
+  gate: SeatGate
+): RemoteMethod {
+  return async (params, context) => {
+    let cwd: string | null | undefined;
     try {
       cwd = await where(params);
-    } catch {
+    } catch (error) {
+      if (error instanceof SeatRefusedError) throw error;
       throw new SeatRefusedError(SEAT_UNVERIFIED_MESSAGE);
     }
-    await checked(gate, cwd);
-    return method(params);
+    if (cwd !== undefined) await checked(gate, cwd);
+    return method(params, context);
   };
 }
 
@@ -148,9 +194,20 @@ const PROJECT_LIST_MS = 2_000;
  * that project's seat; no folder, or one outside every project, asks every
  * project with the held-elsewhere rule.
  */
-export function folderJudge(resolvers: Pick<SeatGateResolvers, 'gate' | 'heldGate' | 'projectDirectories'>): SeatGate {
-  const { gate, projectDirectories } = resolvers;
-  const held = resolvers.heldGate ?? gate;
+export function folderJudge(resolvers: Pick<SeatGateResolvers, 'gate' | 'heldGate' | 'projectDirectories' | 'verdict'>): SeatGate {
+  const { projectDirectories, verdict } = resolvers;
+  const held = resolvers.heldGate ?? resolvers.gate;
+  // A folder's own seat. With a verdict, a folder that is no planet adds the
+  // every-project rule on top (see SeatVerdict).
+  const own = async (cwd: string | null): Promise<{ refusal: string | null; planet: boolean }> =>
+    verdict ? verdict(cwd) : { refusal: await resolvers.gate(cwd), planet: true };
+  const everyProject = async (projects: string[]): Promise<string | null> => {
+    for (const folder of projects) {
+      const refusal = await held(folder);
+      if (refusal) return refusal;
+    }
+    return null;
+  };
   let cached: { at: number; folders: Promise<string[]> } | null = null;
   const folders = (): Promise<string[]> => {
     if (!projectDirectories) return Promise.resolve([]);
@@ -167,20 +224,22 @@ export function folderJudge(resolvers: Pick<SeatGateResolvers, 'gate' | 'heldGat
   };
   return async (cwd) => {
     // Without a project list there is nothing to widen to: ask about the folder as given.
-    if (!projectDirectories) return gate(cwd);
+    if (!projectDirectories) return (await own(cwd)).refusal;
     const projects = await folders();
-    if (cwd && insideAnyFolder(cwd, projects)) return gate(cwd);
+    if (cwd && insideAnyFolder(cwd, projects)) {
+      const answer = await own(cwd);
+      if (answer.refusal || answer.planet) return answer.refusal;
+      // Inside a registered project that is no planet (`~`, a plain folder):
+      // its planets are reachable from here, so every project is asked too.
+      return everyProject(projects);
+    }
     // Outside every project: the folder's own seat still counts (a planet
     // reached through another spelling of its path stays gated), and then
     // every project is asked.
-    if (!projects.length) return gate(cwd);
-    const own = cwd ? await gate(cwd) : null;
-    if (own) return own;
-    for (const folder of projects) {
-      const refusal = await held(folder);
-      if (refusal) return refusal;
-    }
-    return null;
+    if (!projects.length) return (await own(cwd)).refusal;
+    const mine = cwd ? (await own(cwd)).refusal : null;
+    if (mine) return mine;
+    return everyProject(projects);
   };
 }
 
@@ -194,7 +253,7 @@ const TERMINAL_VERDICT_MS = 1_500;
 export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolvers: SeatGateResolvers): Record<string, RemoteMethod> {
   const { projectDirectory, sessionCwd } = resolvers;
   const gate = folderJudge(resolvers);
-  const wrap = (name: string, where: (params: unknown[]) => Promise<string | null>) => {
+  const wrap = (name: string, where: (params: unknown[]) => Promise<string | null | undefined>) => {
     const method = methods[name];
     if (method) methods[name] = guarded(method, where, gate);
   };
@@ -204,6 +263,23 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
   for (const name of SEAT_GATED_PROJECT_METHODS) wrap(name, ([projectPath]) => projectDirectory(projectPath));
   for (const name of SEAT_GATED_PROJECT_CWD_METHODS) wrap(name, ([cwd]) => projectDirectory(cwd));
   wrap('submitToSession', ([sessionId]) => sessionCwd(sessionId));
+  // Approving a tool call lets the agent write in its session's folder; a deny
+  // never needs the seat (the phone can always say no or stop).
+  wrap('resolveToolApprovalForSession', async ([sessionId, , decision]) => {
+    const approved = Boolean(decision && typeof decision === 'object' && (decision as { approved?: unknown }).approved === true);
+    return approved ? sessionCwd(sessionId) : undefined;
+  });
+  wrap('inheritSession', ([sessionId]) => sessionCwd(sessionId));
+  wrap('invokeCapability', async ([input]) => {
+    const request = input && typeof input === 'object' ? (input as { capability?: unknown; sessionId?: unknown }) : {};
+    const capability = typeof request.capability === 'string' ? request.capability : '';
+    if (REMOTE_INSTALL_CAPABILITIES.has(capability)) throw new SeatRefusedError(REMOTE_INSTALL_MESSAGE);
+    if (SEAT_GATED_SESSION_CAPABILITIES.has(capability)) {
+      return typeof request.sessionId === 'string' && request.sessionId ? sessionCwd(request.sessionId) : null;
+    }
+    if (SEAT_GATED_ANYWHERE_CAPABILITIES.has(capability)) return null;
+    return undefined;
+  });
   wrap('submitNewTask', async ([, , draft]) => {
     const projectPath = draft && typeof draft === 'object' ? (draft as { projectPath?: unknown }).projectPath : null;
     return projectPath ? projectDirectory(projectPath) : null;
@@ -219,8 +295,8 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
   const verdicts = new Map<string, { at: number; refusal: Promise<string | null> }>();
   const ensure = methods.termEnsure;
   if (ensure) {
-    methods.termEnsure = async (params) => {
-      const opened = (await ensure(params)) as { id?: unknown } | null;
+    methods.termEnsure = async (params, context) => {
+      const opened = (await ensure(params, context)) as { id?: unknown } | null;
       if (opened && typeof opened.id === 'string') {
         let cwd: string | null | undefined;
         try {
@@ -247,7 +323,7 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
   };
   const write = methods.termWrite;
   if (write) {
-    methods.termWrite = async (params) => {
+    methods.termWrite = async (params, context) => {
       const id = String(params[0] || '');
       const now = Date.now();
       let verdict = verdicts.get(id);
@@ -258,15 +334,15 @@ export function gateRemoteWrites(methods: Record<string, RemoteMethod>, resolver
       }
       const refusal = await verdict.refusal;
       if (refusal) throw new SeatRefusedError(refusal);
-      return write(params);
+      return write(params, context);
     };
   }
   const dispose = methods.termDispose;
   if (dispose) {
-    methods.termDispose = (params) => {
+    methods.termDispose = (params, context) => {
       terminalCwd.delete(String(params[0] || ''));
       verdicts.delete(String(params[0] || ''));
-      return dispose(params);
+      return dispose(params, context);
     };
   }
   return methods;

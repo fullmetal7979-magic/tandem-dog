@@ -140,6 +140,17 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       action: 'sun',
     };
   }
+  if (view.state === 'mine' && view.pendingRescue) {
+    // The last 이어받기 took the seat but stopped before this checkout was
+    // set aside and caught up: running it again finishes that part.
+    return {
+      level: 'warn',
+      icon: '⚠️',
+      title: '이어받기가 중간에 멈췄어요',
+      detail: '이 기기에 남아 있던 예전 작업을 보관하고 최신으로 맞추는 단계가 끝나지 않았어요. 이어받기를 다시 누르면 마저 해요.',
+      action: 'sun',
+    };
+  }
   if (view.state === 'mine') {
     const request = seat?.requests[0];
     if (request) {
@@ -164,9 +175,9 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     return {
       level: 'warn',
       icon: '📱',
-      title: `${josa(who(seat?.holder), '이가')} 이 PC에서 원격으로 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
-      live: `${josa(who(seat?.holder), '이가')} 이 PC에서 원격으로 작업 중이에요`,
-      detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르거나, 지금 이 PC로 되찾을 수 있어요.',
+      title: `${josa(who(seat?.holder), '이가')} 이 기기에서 원격으로 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
+      live: `${josa(who(seat?.holder), '이가')} 이 기기에서 원격으로 작업 중이에요`,
+      detail: '겹쳐 고치지 않도록 여기서는 잠겨 있어요. 폰에서 내려놓기를 누르거나, 지금 이 기기로 이어받을 수 있어요.',
       action: 'reclaim',
     };
   }
@@ -176,7 +187,7 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
       icon: '💻',
       title: `${josa(who(seat?.holder), '이가')} 작업 중이에요 · ${since(seat?.holder?.since, now)}`,
       live: `${josa(who(seat?.holder), '이가')} 작업 중이에요`,
-      detail: '지금 연결된 바로 그 PC라서 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있어요. 그 PC는 잠겨요.',
+      detail: '지금 연결된 바로 그 기기라서 넘겨 달라고 요청하지 않고 폰으로 이어갈 수 있어요. 그 기기는 잠겨요.',
       action: 'carry',
     };
   }
@@ -225,6 +236,6 @@ export const ACTION_LABEL: Record<Exclude<CosmosAction, null>, string> = {
   request: '🔁 넘겨 달라고 요청',
   withdraw: '요청 취소',
   force: '⚠️ 강제로 넘겨받기',
-  reclaim: '↩️ 이 PC로 되찾기',
+  reclaim: '↩️ 이 기기로 이어받기',
   carry: '📱 폰으로 이어하기',
 };

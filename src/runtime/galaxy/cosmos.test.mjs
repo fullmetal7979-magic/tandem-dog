@@ -11,6 +11,7 @@ import test from 'node:test';
 import { connectGalaxy } from './galaxy-repo.mjs';
 import { moon, overview, requestTurn, sun } from './cosmos.mjs';
 import { updateStar } from './star.mjs';
+import { markPendingRescue, readPendingRescue } from './pending-rescue.mjs';
 import { invalidateConfigReadCache, readConfig, updateConfig } from '../shared/config.mjs';
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } }).toString().trim();
@@ -184,7 +185,7 @@ test('the phone turn: a phone sits through the PC it drives, the PC is locked, o
   assert.equal(memoRow.memo, '폰에서 마무리');
 });
 
-test('the PC reclaims its seat from its own phone at any time (되찾기)', async (t) => {
+test('the PC takes its seat back from its own phone at any time (이어받기)', async (t) => {
   const w = world(t);
   const phone = { id: 'browser-9', name: '내 폰' };
   await as(w.a, () => connectGalaxy({ dir: w.a.dir, remoteUrl: w.galaxyRemote }));
@@ -192,5 +193,49 @@ test('the PC reclaims its seat from its own phone at any time (되찾기)', asyn
   const back = await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
   assert.equal(back.seat.holder.via, 'local');
   assert.equal(back.passed.kind, 'phone');
-  assert.equal(back.seat.history.at(-2).memo, '이 PC로 되찾음');
+  assert.equal(back.seat.history.at(-2).memo, '이 기기로 이어받음');
+});
+
+test('a phone leaves only through the PC it sits on; forcePush never skips that', async (t) => {
+  const w = world(t);
+  const phone = { id: 'browser-other-host', name: '내 폰' };
+  for (const s of [w.a, w.b]) await as(s, () => connectGalaxy({ dir: s.dir, remoteUrl: w.galaxyRemote }));
+  await as(w.a, () => updateStar({ name: '집 맥북', kind: 'mac' }, w.a.home));
+  await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home, guest: phone }));
+  writeFileSync(join(w.b.project, 'b-side.txt'), 'not the phone\'s\n');
+  for (const forcePush of [false, true]) {
+    await as(w.b, () =>
+      assert.rejects(moon({ root: w.b.project, dir: w.b.dir, home: w.b.home, guest: phone, forcePush }), (error) => {
+        assert.equal(error.code, 'seat_other_host');
+        assert.match(error.message, /집 맥북을\(를\) 통해 작업 중/);
+        return true;
+      })
+    );
+  }
+  assert.throws(() => git(w.planetRemote, 'show', 'main:b-side.txt'));
+  // Through 집 맥북 itself the phone leaves normally.
+  const left = await as(w.a, () => moon({ root: w.a.project, dir: w.a.dir, home: w.a.home, guest: phone }));
+  assert.equal(left.seat.holder, null);
+});
+
+test('an 이어받기 that stopped after its seat push is finished by the next one', async (t) => {
+  const w = world(t);
+  await as(w.a, () => connectGalaxy({ dir: w.a.dir, remoteUrl: w.galaxyRemote }));
+  const first = await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
+  // A clean takeover clears its own marker.
+  assert.equal(await readPendingRescue(w.a.home, first.planet.id), null);
+  // Simulate a crash between the seat push and the rescue: the seat reads as
+  // ours, the marker is still there, and stale work sits in the checkout.
+  await markPendingRescue(w.a.home, first.planet.id, { star: first.star.id });
+  writeFileSync(join(w.a.project, 'stale.txt'), 'from before the takeover\n');
+  const view = await as(w.a, () => overview({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
+  assert.equal(view.state, 'mine');
+  assert.equal(view.pendingRescue, true);
+  const again = await as(w.a, () => sun({ root: w.a.project, dir: w.a.dir, home: w.a.home }));
+  assert.equal(again.rescue?.ok, true);
+  assert.match(again.rescue.branch, /^cosmos\/rescue-/);
+  assert.equal(existsSync(join(w.a.project, 'stale.txt')), false);
+  assert.equal(git(w.a.project, 'show', `${again.rescue.branch}:stale.txt`), 'from before the takeover');
+  assert.equal(await readPendingRescue(w.a.home, first.planet.id), null);
+  assert.equal((await as(w.a, () => overview({ root: w.a.project, dir: w.a.dir, home: w.a.home }))).pendingRescue, false);
 });

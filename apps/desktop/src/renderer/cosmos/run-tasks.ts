@@ -197,17 +197,32 @@ export function sha256Hex(input: string): string {
   return Array.from(H, (word) => word.toString(16).padStart(8, '0')).join('');
 }
 
+/** The short, PTY-safe tag of a task id carried in its run terminal ids. */
+export function runTaskTag(taskId: string): string {
+  return `t${sha256Hex(taskId).slice(0, 8)}`;
+}
+
 /**
  * A run terminal id for one run of one project. The project part is a stable
  * 64-bit slice of the path's SHA-256 (the old 32-bit hash made collisions
  * between two projects plausible); `nonce` makes every run its own PTY so a
- * command is never typed into a shell that is still busy. The id must match
+ * command is never typed into a shell that is still busy. With a `taskId` the
+ * id also carries that task's tag (`_t<8 hex>_<nonce>`), so a run found again
+ * after a reload re-attaches to its task. The id must match
  * term_[A-Za-z0-9_-] and keeps the term_cosmos_run_ prefix.
  */
-export function runTerminalId(projectPath: string, nonce = ''): string {
+export function runTerminalId(projectPath: string, nonce = '', taskId = ''): string {
   const base = `term_cosmos_run_${sha256Hex(projectPath).slice(0, 16)}`;
   const suffix = nonce.replace(/[^A-Za-z0-9]/g, '').slice(0, 24);
+  if (taskId) return `${base}_${runTaskTag(taskId)}_${suffix || '0'}`;
   return suffix ? `${base}_${suffix}` : base;
+}
+
+/** The task tag a run terminal id carries, or '' for an untagged (older) run. */
+export function runTerminalTaskTag(projectPath: string, terminalId: string): string {
+  const base = runTerminalId(projectPath);
+  if (!terminalId.startsWith(`${base}_`)) return '';
+  return /^(t[0-9a-f]{8})_/.exec(terminalId.slice(base.length + 1))?.[1] ?? '';
 }
 
 export interface RunTerminalApi {
@@ -225,32 +240,104 @@ export function projectRuns(projectPath: string): Array<{ taskId: string; termin
   return [...(taskRuns.get(projectPath) ?? new Map<string, string>())].map(([taskId, terminalId]) => ({ taskId, terminalId }));
 }
 
+/** Forget one run (its tab was closed). Returns whether it was tracked. */
+export function forgetRun(projectPath: string, terminalId: string): boolean {
+  const runs = taskRuns.get(projectPath);
+  if (!runs) return false;
+  for (const [taskId, id] of runs) {
+    if (id !== terminalId) continue;
+    runs.delete(taskId);
+    if (!runs.size) taskRuns.delete(projectPath);
+    return true;
+  }
+  return false;
+}
+
 const ADOPTED = 'adopted:';
 
-/** A run found live in the service after a reload: its task is not known, only its terminal. */
+/** A run found live in the service after a reload whose task is not (yet) known, only its terminal. */
 export function isAdoptedRun(taskId: string): boolean {
   return taskId.startsWith(ADOPTED);
+}
+
+/**
+ * One live run terminal as the service reports it. Older services send bare
+ * ids; newer ones add whether the shell is busy (a command in the
+ * foreground) and whether it exited. `running` is null when neither is known.
+ */
+export interface LiveRun {
+  id: string;
+  running: boolean | null;
+}
+
+export function normalizeLiveRuns(entries: unknown): LiveRun[] {
+  if (!Array.isArray(entries)) return [];
+  const out: LiveRun[] = [];
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      out.push({ id: entry, running: null });
+      continue;
+    }
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as { id?: unknown; busy?: unknown; exited?: unknown };
+    if (typeof row.id !== 'string') continue;
+    const exited = typeof row.exited === 'boolean' ? row.exited : null;
+    const busy = typeof row.busy === 'boolean' ? row.busy : null;
+    const running = exited === true ? false : busy !== null ? busy : exited === false ? true : null;
+    out.push({ id: row.id, running });
+  }
+  return out;
+}
+
+/** Rebuild a run map with one key renamed in place, so tab order holds. */
+function rekey(runs: Map<string, string>, from: string, to: string): Map<string, string> {
+  return new Map([...runs].map(([key, id]) => [key === from ? to : key, id]));
 }
 
 /**
  * Re-adopt run terminals the desktop service still has for this project (the
  * renderer forgot them on reload, the PTYs and their dev servers did not
  * stop). Only this project's `term_cosmos_run_*` ids are taken; ones already
- * tracked are left alone. Returns the ids newly adopted.
+ * tracked are left alone. A terminal whose id carries the tag of one of
+ * `taskIds` (and that task has no run yet) is re-attached to that task, so ▶
+ * on it restarts the run instead of starting a second one. Entries are bare
+ * ids or `{ id, busy?, exited? }`. Returns the ids newly adopted.
  */
-export function adoptRuns(projectPath: string, terminalIds: readonly unknown[]): string[] {
+export function adoptRuns(projectPath: string, terminalIds: readonly unknown[], taskIds: readonly string[] = []): string[] {
   const base = runTerminalId(projectPath);
   const runs = taskRuns.get(projectPath) ?? new Map<string, string>();
   const known = new Set(runs.values());
   const adopted: string[] = [];
-  for (const id of terminalIds) {
-    if (typeof id !== 'string' || known.has(id) || !(id === base || id.startsWith(`${base}_`))) continue;
+  for (const { id } of normalizeLiveRuns(terminalIds)) {
+    if (known.has(id) || !(id === base || id.startsWith(`${base}_`))) continue;
     runs.set(`${ADOPTED}${id}`, id);
     known.add(id);
     adopted.push(id);
   }
   if (adopted.length) taskRuns.set(projectPath, runs);
+  if (taskIds.length) reattachRuns(projectPath, taskIds);
   return adopted;
+}
+
+/**
+ * Give adopted runs back their task once the task list is known: an adopted
+ * terminal tagged with a task that has no run of its own becomes that task's
+ * run. Returns the task ids re-attached.
+ */
+export function reattachRuns(projectPath: string, taskIds: readonly string[]): string[] {
+  let runs = taskRuns.get(projectPath);
+  if (!runs) return [];
+  const attached: string[] = [];
+  for (const taskId of taskIds) {
+    if (runs.has(taskId)) continue;
+    const tag = runTaskTag(taskId);
+    const found = [...runs].find(([key, id]) => isAdoptedRun(key) && runTerminalTaskTag(projectPath, id) === tag);
+    if (!found) continue;
+    runs = rekey(runs, found[0], taskId);
+    attached.push(taskId);
+  }
+  if (attached.length) taskRuns.set(projectPath, runs);
+  return attached;
 }
 
 /**
@@ -260,7 +347,8 @@ export function adoptRuns(projectPath: string, terminalIds: readonly unknown[]):
  *
  * Each task keeps its own PTY: running `test` leaves a `dev` server that is
  * still up alone. Re-running the same task restarts it, releasing that task's
- * previous PTY first. `previousId` is kept for older callers: it is released
+ * previous PTY first, including one adopted after a reload whose id carries
+ * this task's tag. `previousId` is kept for older callers: it is released
  * only when it is this same task's earlier run, or when the task carries no
  * id (the old one-terminal-per-project behaviour); another task's terminal is
  * never killed on its behalf.
@@ -272,11 +360,21 @@ export async function startRun(
   previousId: string | null,
   nonce: string
 ): Promise<{ terminalId: string; restarted: string | null }> {
+  if (task.id) reattachRuns(projectPath, [task.id]);
   const runs = taskRuns.get(projectPath) ?? new Map<string, string>();
   const ownPrevious = task.id ? (runs.get(task.id) ?? null) : previousId;
   if (ownPrevious) await api.release(ownPrevious).catch(() => undefined);
-  if (task.id) runs.delete(task.id);
-  const wanted = runTerminalId(projectPath, nonce);
+  if (task.id) {
+    // Earlier runs of this task adopted after a reload are its runs too.
+    const tag = runTaskTag(task.id);
+    for (const [key, id] of [...runs]) {
+      if (!isAdoptedRun(key) || runTerminalTaskTag(projectPath, id) !== tag) continue;
+      await api.release(id).catch(() => undefined);
+      runs.delete(key);
+    }
+    runs.delete(task.id);
+  }
+  const wanted = runTerminalId(projectPath, nonce, task.id ?? '');
   const opened = await api.termEnsure(wanted, projectPath, null);
   if (task.id) {
     runs.set(task.id, opened.id);
@@ -284,4 +382,20 @@ export async function startRun(
   }
   api.termWrite(opened.id, `${task.command}\r`);
   return { terminalId: opened.id, restarted: ownPrevious };
+}
+
+/** TerminalPane keeps each terminal's view (size, scroll) under this key. */
+export const TERMINAL_VIEW_STATE_KEY = 'mixdog.desktop-terminal-view.v1';
+
+/** Drop a closed run terminal's saved view so the record does not grow forever. */
+export function clearRunTerminalViewState(terminalId: string, storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.localStorage ?? null): void {
+  try {
+    if (!storage) return;
+    const stored = JSON.parse(storage.getItem(TERMINAL_VIEW_STATE_KEY) || '{}') as Record<string, unknown>;
+    if (!stored || typeof stored !== 'object' || !(terminalId in stored)) return;
+    delete stored[terminalId];
+    storage.setItem(TERMINAL_VIEW_STATE_KEY, JSON.stringify(stored));
+  } catch {
+    // Unavailable or corrupt storage: the saved view is a convenience only.
+  }
 }

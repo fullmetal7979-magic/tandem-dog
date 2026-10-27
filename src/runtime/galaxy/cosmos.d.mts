@@ -18,7 +18,7 @@ export function sun(options: CosmosVerbOptions & { root: string; force?: boolean
  * 'push': connection/other; 'commit' | 'detached' | 'scan': local problems.
  */
 export type CosmosPushFailure = 'behind' | 'rejected' | 'push' | 'commit' | 'detached' | 'scan';
-/** moon({ force: true }) freed the seat although the work did not reach the remote. */
+/** moon({ forcePush: true }) freed the seat although the work did not reach the remote. */
 export interface CosmosUnpushed {
   reason: CosmosPushFailure | string;
   detail: string;
@@ -28,11 +28,14 @@ export interface CosmosUnpushed {
 }
 /**
  * moon() throws GalaxyError code 'push_failed' with { reason, canForce: true, project }
- * when the push fails and `force` is not set; call moon again with force: true
- * ("그래도 내려놓기") to free the seat anyway. Code 'secrets' is never forced.
+ * when the push fails and `forcePush` is not set; call moon again with
+ * forcePush: true ("그래도 내려놓기") to free the seat anyway. Code 'secrets' is
+ * never forced, and nothing skips the holder check: a star (or a phone through
+ * another PC than the one it sits on) that does not hold the seat is refused
+ * with 'seat_occupied' | 'seat_not_held' | 'seat_other_host'.
  */
 export function moon(
-  options: CosmosVerbOptions & { root: string; note?: string; handoffTo?: string | null; session?: unknown; force?: boolean; syncEnvironment?: boolean }
+  options: CosmosVerbOptions & { root: string; note?: string; handoffTo?: string | null; session?: unknown; forcePush?: boolean; syncEnvironment?: boolean }
 ): Promise<any>; // resolves with `unpushed: CosmosUnpushed | null` among its fields
 export function requestTurn(options: CosmosVerbOptions & { root: string; note?: string; withdraw?: boolean }): Promise<any>;
 export function heartbeat(options?: { planets?: string[]; dir?: string; home?: string }): Promise<unknown>;

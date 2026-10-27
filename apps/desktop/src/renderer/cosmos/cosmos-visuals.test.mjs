@@ -83,7 +83,7 @@ test('the seat lock covers an occupied planet and offers a hand-over request', a
   store.resetCosmosStore();
 });
 
-test('a phone driving this PC locks it with a reclaim button', async (t) => {
+test('a phone driving this device locks it with a take-back (이어받기) button', async (t) => {
   const { root, document, window } = installTestDom(t, { rootId: 'root' });
   const remote = view({
     state: 'remote',
@@ -96,8 +96,8 @@ test('a phone driving this PC locks it with a reclaim button', async (t) => {
   await act(async () => root.render(React.createElement(SeatLock, { projectPath: '/work/app' })));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   const card = document.querySelector('.cosmos-lock');
-  assert.match(card.textContent, /내 폰이 이 PC에서 원격으로 작업 중이에요/);
-  assert.ok([...card.querySelectorAll('button')].some((button) => /이 PC로 되찾기/.test(button.textContent)));
+  assert.match(card.textContent, /내 폰이 이 기기에서 원격으로 작업 중이에요/);
+  assert.ok([...card.querySelectorAll('button')].some((button) => /이 기기로 이어받기/.test(button.textContent)));
   store.resetCosmosStore();
 });
 

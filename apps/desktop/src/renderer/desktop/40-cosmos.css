@@ -1209,6 +1209,43 @@ form.composer[data-seat-locked='true'] {
   color: var(--mx-text);
   box-shadow: var(--mx-raised);
 }
+.cosmos-run-tab-item {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 8px;
+}
+.cosmos-run-tab-item.is-on {
+  background: var(--mx-bg-base);
+  box-shadow: var(--mx-raised);
+}
+.cosmos-run-tab-item .cosmos-run-tab.is-on {
+  background: transparent;
+  box-shadow: none;
+}
+.cosmos-run-tab-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mx-text-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cosmos-run-tab-close:hover {
+  background: var(--mx-bg-layer-2);
+  color: var(--mx-text);
+}
+.cosmos-run-tab-close:focus-visible {
+  outline: 2px solid var(--mx-focus);
+  outline-offset: -2px;
+}
 .cosmos-run-terminal-bar {
   display: flex;
   align-items: center;

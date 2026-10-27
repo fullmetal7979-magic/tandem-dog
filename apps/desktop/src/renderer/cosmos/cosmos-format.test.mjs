@@ -44,6 +44,10 @@ test('relative time reads naturally', () => {
 
 test('one verdict per relay state, each with one action', () => {
   assert.equal(cosmosVerdict(view({ ready: false }), NOW).action, 'setup');
+  // An 이어받기 that stopped half-way is finished by pressing it again.
+  const stopped = cosmosVerdict(view({ state: 'mine', pendingRescue: true }), NOW);
+  assert.equal(stopped.action, 'sun');
+  assert.match(stopped.title, /중간에 멈췄어요/);
   assert.equal(cosmosVerdict(view({ state: 'no_remote', planet: { id: null, name: 'app' } }), NOW).action, null);
 
   const empty = cosmosVerdict(view({ project: { branch: 'main', upstream: 'origin/main', ahead: 0, behind: 3, dirty: 0 } }), NOW);

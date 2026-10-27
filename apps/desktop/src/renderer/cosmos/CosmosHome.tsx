@@ -15,8 +15,8 @@ const SUN_FACE: Record<'sun' | 'request' | 'force' | 'reclaim' | 'carry', SunFac
   sun: { tone: 'sun', icon: '☀️', title: '이어받기', sub: '최신 코드·환경·세션을 받아 시작' },
   request: { tone: 'plain', icon: '🔁', title: '넘겨 달라고 요청', sub: '' },
   force: { tone: 'danger', icon: '⚠️', title: '넘겨받기', sub: '응답 없는 기기 대신 이어받기' },
-  reclaim: { tone: 'plain', icon: '↩️', title: '되찾기', sub: '폰에서 작업 중 · 이 PC로 가져오기' },
-  carry: { tone: 'sun', icon: '📱', title: '폰으로 이어하기', sub: '연결된 PC의 작업을 그대로 이어받기' },
+  reclaim: { tone: 'plain', icon: '↩️', title: '이어받기', sub: '폰에서 작업 중 · 이 기기로 가져오기' },
+  carry: { tone: 'sun', icon: '📱', title: '폰으로 이어하기', sub: '연결된 기기의 작업을 그대로 이어받기' },
 };
 
 export function CosmosHome({ projectPath, projectLabel }: { projectPath: string; projectLabel?: string }) {

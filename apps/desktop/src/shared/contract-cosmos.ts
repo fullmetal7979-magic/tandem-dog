@@ -85,6 +85,8 @@ export interface CosmosOverview {
   seat: CosmosSeat | null;
   state: CosmosSeatState | null;
   holderLastSeen?: number;
+  /** The last 이어받기 took the seat but did not finish rescuing and catching up this checkout. */
+  pendingRescue?: boolean;
   /** The holder is on this same machine (this PC ⇄ the phone driving it): take the seat directly. */
   here?: boolean;
   conversations: CosmosConversationSummary[];
@@ -95,8 +97,10 @@ export interface CosmosOverview {
    * Live ▶ 실행 terminals (term_cosmos_run_*) of this project in the desktop
    * service, present only when the overview was asked with `runs: true`: a
    * reloaded run pane re-adopts them instead of leaving dev servers orphaned.
+   * `busy`: a command holds the foreground (null when unknown); `exited`: the
+   * shell itself ended. Older services sent bare ids.
    */
-  runs?: string[];
+  runs?: Array<string | { id: string; busy: boolean | null; exited: boolean }>;
 }
 
 export interface CosmosEnvironmentSummary {

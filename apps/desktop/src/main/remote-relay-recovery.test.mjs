@@ -59,7 +59,7 @@ test('real encrypted clients recover independently and reads bypass a slow read 
       readStarted.resolve();
       return slow.promise;
     },
-    addProject: async (path) => {
+    renameProject: async (path) => {
       writes.push(path);
       return path;
     },
@@ -156,7 +156,7 @@ test('real encrypted clients recover independently and reads bypass a slow read 
     await readStarted.promise;
     await send(a, { id: 4, method: 'getSnapshot', params: [] });
     assert.equal((await waitFor(a, (message) => message.id === 4)).ok, true);
-    await send(a, { id: 5, method: 'addProject', params: ['next-project'] });
+    await send(a, { id: 5, method: 'renameProject', params: ['next-project', 'Next'] });
     await send(a, { id: 6, method: 'getSnapshot', params: [] });
     // Transport recovery still works while the application queue has a barrier.
     await send(a, { method: 'stateResync', params: [] });
