@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { mock } from 'node:test';
 import { flushSearchEmbeddings } from './memory-embed.mjs';
+import { onnxRuntimeSupported } from '../../shared/onnx-runtime-support.mjs';
 
 const embedding = await import('./memory-embed.mjs');
 let flush = async () => ({ succeeded: 0 });
@@ -37,15 +38,29 @@ function failingEmbeddingDb(stage) {
   return { query: async () => ({ rows: [] }), _pool: { connect: async () => client }, releases };
 }
 
+// On darwin-x64 the flush returns before touching the store (that gate is
+// covered by onnx-unsupported.test.mjs); run the store path as arm64 there.
+async function onSupportedRuntime(fn) {
+  if (onnxRuntimeSupported()) return fn();
+  const arch = Object.getOwnPropertyDescriptor(process, 'arch');
+  Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true });
+  try {
+    return await fn();
+  } finally {
+    Object.defineProperty(process, 'arch', arch);
+  }
+}
+
 for (const stage of ['claim', 'commit', 'rollback']) {
-  test(`explicit embedding maintenance propagates ${stage} failures`, async () => {
-    const db = failingEmbeddingDb(stage);
-    await assert.rejects(
-      flushSearchEmbeddings(db),
-      (error) => error.code === 'MEMORY_STORE_FAULT' && error.message.includes(`${stage} failed`)
-    );
-    assert.ok(db.releases.some((error) => error instanceof Error));
-  });
+  test(`explicit embedding maintenance propagates ${stage} failures`, () =>
+    onSupportedRuntime(async () => {
+      const db = failingEmbeddingDb(stage);
+      await assert.rejects(
+        flushSearchEmbeddings(db),
+        (error) => error.code === 'MEMORY_STORE_FAULT' && error.message.includes(`${stage} failed`)
+      );
+      assert.ok(db.releases.some((error) => error instanceof Error));
+    }));
 }
 
 function harness(overrides = {}) {

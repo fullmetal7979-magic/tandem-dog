@@ -2,6 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { flushEmbeddingDirty, flushSearchEmbeddings } from './memory-embed.mjs';
+import { onnxRuntimeSupported } from '../../shared/onnx-runtime-support.mjs';
+
+// On darwin-x64 the flush returns before touching the store (that gate is
+// covered by onnx-unsupported.test.mjs). The transaction handling under test
+// is plain JS, so run it as arm64 there to exercise it on every host.
+const hostArch = Object.getOwnPropertyDescriptor(process, 'arch');
+test.before(() => {
+  if (!onnxRuntimeSupported()) Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true });
+});
+test.after(() => Object.defineProperty(process, 'arch', hostArch));
 
 // Cancellation must survive the transaction teardown: the batch finally block
 // runs COMMIT/ROLLBACK while the abort is already in flight, and a failure

@@ -27,6 +27,10 @@ test('cwd internal tool stays bound to its caller when another runtime owns the 
   process.env.MIXDOG_CONFIG_DIR = join(root, 'config');
   process.env.MIXDOG_SESSION_CWD = 'process-global-must-not-change';
   process.env.MIXDOG_DISABLE_MCP = '1';
+  // The runtime modules load before the standalone env defaults apply, so the
+  // import-time patch prewarm would download the binary in a checkout without
+  // the gitignored native-tools/mixdog-patch.
+  process.env.MIXDOG_PATCH_NATIVE_PREWARM = '0';
 
   const noop = () => {};
   const keychain = {
