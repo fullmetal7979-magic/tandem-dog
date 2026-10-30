@@ -21,11 +21,12 @@
 // URLs are redacted. Files that are too big, credential-named, or symlinks
 // are left alone on both sides: absent from a snapshot never means deleted.
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { cp, lstat, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import { readConfig, updateConfig } from '../shared/config.mjs';
 import { resolvePluginData } from '../shared/plugin-paths.mjs';
 import { SECRET_PLACEHOLDER, hasRedactionMark, isSecretFile, redactJson, redactText, restoreSecrets, scrubUrl, scrubUrlsInText } from './secrets.mjs';
+import { writeFileAtomic } from './fs-atomic.mjs';
 import { galaxyRemote } from './galaxy-repo.mjs';
 import { cosmosHome } from './star.mjs';
 
@@ -169,11 +170,7 @@ export function baseFor(state, identity) {
 }
 
 async function writeSyncState(state, home = cosmosHome()) {
-  const path = statePath(home);
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, canonical(state), 'utf8');
-  await rename(tmp, path);
+  await writeFileAtomic(statePath(home), canonical(state));
 }
 
 // ------------------------------------------------------------------ redaction
@@ -363,11 +360,8 @@ export function planSync(local, galaxy, base, direction, { skip = new Set() } = 
 
 // ------------------------------------------------------------------ apply
 
-async function writeText(path, text) {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, text, 'utf8');
-  await rename(tmp, path);
+function writeText(path, text) {
+  return writeFileAtomic(path, text);
 }
 
 async function present(path) {

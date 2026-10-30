@@ -65,6 +65,10 @@ export interface UniverseFacts {
   nebula: number;
   /** Commits not yet pushed; null when the branch has no upstream to push to. */
   tethered: number | null;
+  /** When the first light (the root commit) was made; only known when the whole history fits. */
+  firstAt?: number | null;
+  /** How many people's commits the loaded lights hold. */
+  hands?: number;
 }
 
 export const UNIVERSE_LIMIT = 240;
@@ -205,12 +209,47 @@ export function universeVerse(facts: UniverseFacts): { line: string; detail: str
 }
 
 /** Plain-language chips: the poetic name first, then what it really is. */
-export function universeChips(facts: UniverseFacts): { name: string; value: string; plain: string }[] {
+export function universeChips(facts: UniverseFacts, now = Date.now()): { name: string; value: string; plain: string }[] {
   if (!facts.hasProject || !facts.repository) return [];
   const chips = [{ name: '빛', value: `${facts.lights}${facts.beyond ? '+' : ''}`, plain: '커밋' }];
   if (facts.nebula > 0) chips.push({ name: '성운', value: String(facts.nebula), plain: '커밋 전 변경' });
   if (facts.tethered) chips.push({ name: '매인 빛', value: String(facts.tethered), plain: '푸시 전' });
+  if (facts.firstAt && !facts.beyond) chips.push({ name: '첫 빛', value: ago(facts.firstAt, now), plain: '첫 커밋' });
+  if ((facts.hands ?? 0) > 1) chips.push({ name: '손길', value: `${facts.hands}${facts.beyond ? '+' : ''}명`, plain: '커밋한 사람' });
   return chips;
+}
+
+/** The first light and the hands that made the loaded ones, for the chips. */
+export function lightsLineage(lights: readonly UniverseLight[]): { firstAt: number | null; hands: number } {
+  // The oldest origin (a history can have more than one root): lights run newest → oldest.
+  const origin = [...lights].reverse().find((light) => light.kind === 'origin') ?? null;
+  const authors = new Set(lights.map((light) => light.author.trim().toLowerCase()).filter(Boolean));
+  return { firstAt: origin?.at || null, hands: authors.size };
+}
+
+/** What a screen reader hears after the summary: the newest few lights by name. */
+export function recentLightsSentence(lights: readonly UniverseLight[], now = Date.now(), count = 3): string {
+  const recent = lights.slice(0, count).filter((light) => light.subject);
+  if (!recent.length) return '';
+  return `가장 새 빛: ${recent.map((light) => `${light.subject}${light.at ? ` (${ago(light.at, now)})` : ''}`).join(' · ')}.`;
+}
+
+export type LightKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown' | 'Home' | 'End' | 'PageUp' | 'PageDown';
+
+/**
+ * Keyboard travel through the lights, newest (0) to oldest: → and ↓ go back
+ * in time, ← and ↑ come forward, Home/End jump to the newest / the first
+ * light, PageUp/PageDown move ten at a time. Null when there is nothing to visit.
+ */
+export function nextLightIndex(current: number | null, key: string, count: number): number | null {
+  if (count <= 0) return null;
+  const last = count - 1;
+  if (current === null) return key === 'End' ? last : 0;
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[key];
+  if (key === 'Home') return 0;
+  if (key === 'End') return last;
+  if (step === undefined) return current;
+  return Math.min(last, Math.max(0, current + step));
 }
 
 /** Screen-reader sentence for the whole picture. */

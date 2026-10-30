@@ -11,7 +11,7 @@
 //
 // Each verb runs as ONE Galaxy transaction, so the seat change, environment
 // and conversation land together or not at all.
-import { cosmosHome, ensureStar, guestStar, publicStar } from './star.mjs';
+import { clipText, cosmosHome, ensureStar, guestStar, publicStar } from './star.mjs';
 import { planetForRoot } from './planet.mjs';
 import {
   GalaxyError,
@@ -29,8 +29,6 @@ import {
 import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import {
   holderLastSeen,
-  hostActiveMessage,
-  hostStaleMessage,
   leaveTransition,
   normalizeSeat,
   requestTransition,
@@ -40,7 +38,10 @@ import {
   sitTransition,
   withdrawTransition,
   seatRefusal,
+  seatRefusalText,
+  reservedUntil,
 } from './seat.mjs';
+import { josa } from './words.mjs';
 import { readSyncState, syncEnvironmentIn } from './environment.mjs';
 import { clearPendingRescue, markPendingRescue, readPendingRescue } from './pending-rescue.mjs';
 import { buildConversationExport, listConversationsIn, readConversationIn, writeConversationIn } from './conversations.mjs';
@@ -125,7 +126,7 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
   await transact(
     async ({ dir: galaxy }) => {
       beats = await readBeats(galaxy);
-      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id);
+      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id, { now: Date.now() });
       before = seat;
       sat = sitTransition(seat, star, { beats, force, via, host });
       if (sat.refused) return { value: null };
@@ -144,13 +145,7 @@ export async function sun({ root, force = false, guest = null, dir = galaxyDir()
   if (sat?.refused) {
     const holder = sat.seat.holder;
     const lastSeen = holderLastSeen(sat.seat, beats);
-    const text = {
-      occupied: `${holder?.name || '다른 기기'}에서 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
-      stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
-      reserved: '다른 기기에 넘겨주기로 한 작업 자리예요.',
-      host_active: hostActiveMessage(sat.host),
-      host_stale: hostStaleMessage(sat.host),
-    }[sat.refused];
+    const text = seatRefusalText(sat.refused, { seat: sat.seat, host: sat.host });
     throw new GalaxyError(...seatRefusal(sat.refused, text), {
       seat: sat.seat,
       holder,
@@ -223,13 +218,13 @@ export async function moon({
       if (!guest || (holder.host || null) === local.id) return;
       throw new GalaxyError(
         'seat_other_host',
-        `이 폰은 ${hostNames[holder.host]?.name || '다른 기기'}을(를) 통해 작업 중이에요. 그 기기에 연결해서 내려놓아 주세요.`,
+        `이 폰은 ${josa(hostNames[holder.host]?.name || '다른 기기', '을를')} 통해 작업 중이에요. 그 기기에 연결해서 내려놓아 주세요.`,
         { seat, holder, planet: publicPlanet(planet) }
       );
     }
     throw new GalaxyError(
       holder ? 'seat_occupied' : 'seat_not_held',
-      holder ? `${holder.name || '다른 기기'}이(가) 작업 중이라 이 기기에서는 마무리할 수 없어요.` : '이 프로젝트를 이어받지 않아서 내려놓을 게 없어요. 먼저 이어받기를 눌러 주세요.',
+      holder ? `${josa(holder.name || '다른 기기', '이가')} 작업 중이라 이 기기에서는 마무리할 수 없어요.` : '이 프로젝트를 이어받지 않아서 내려놓을 게 없어요. 먼저 이어받기를 눌러 주세요.',
       { seat, holder, planet: publicPlanet(planet) }
     );
   };
@@ -237,7 +232,7 @@ export async function moon({
   // when offline; the transaction below re-checks against the real state.
   await fetchGalaxy(dir).catch(() => null);
   const hostNames = guest ? await readBeats(dir).catch(() => ({})) : {};
-  refuseUnlessHeld(normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planet.id)), planet.id));
+  refuseUnlessHeld(normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planet.id)), planet.id, { now: Date.now() }));
   const message = `cosmos: ${String(note || '').trim() || `${star.name}에서 작업 마무리`}`.slice(0, 200);
   const project = await saveAndPush(root, { message });
   if (!project.ok && project.error === 'secrets') {
@@ -287,7 +282,7 @@ export async function moon({
   let exported = null;
   await transact(
     async ({ dir: galaxy }) => {
-      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id);
+      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id, { now: Date.now() });
       refuseUnlessHeld(seat);
       left = leaveTransition(seat, star, { note, handoffTo });
       env = syncEnvironment ? await syncEnvironmentIn(galaxy, { direction: 'push', home }) : null;
@@ -299,7 +294,7 @@ export async function moon({
       if (left.changed) await writeGalaxyJson(galaxy, seatPath(planet.id), left.seat);
       await writeGalaxyJson(galaxy, `stars/${star.id}.json`, publicStar(star));
       await recordPlanetIn(galaxy, planet, {
-        lastMoon: { star: star.id, name: star.name, at: Date.now(), note: String(note || '').slice(0, 300) },
+        lastMoon: { star: star.id, name: star.name, at: Date.now(), note: clipText(String(note || '').replace(/[\r\n\t]+/g, ' ').trim(), 300) },
       });
       return { value: null, message: `내려놓기: ${star.name} ← ${planet.id}` };
     },
@@ -329,7 +324,7 @@ export async function requestTurn({ root, note = '', withdraw = false, guest = n
   let result = null;
   await transact(
     async ({ dir: galaxy }) => {
-      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id);
+      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planet.id)), planet.id, { now: Date.now() });
       result = withdraw ? withdrawTransition(seat, star) : requestTransition(seat, star, { note });
       if (!result.changed) return { value: null };
       await writeGalaxyJson(galaxy, seatPath(planet.id), result.seat);
@@ -337,7 +332,14 @@ export async function requestTurn({ root, note = '', withdraw = false, guest = n
     },
     { dir }
   );
-  return { star, planet: publicPlanet(planet), seat: result.seat };
+  return {
+    star,
+    planet: publicPlanet(planet),
+    seat: result.seat,
+    ...(result.empty ? { empty: true } : {}),
+    ...(result.mine ? { mine: true } : {}),
+    ...(result.updated ? { updated: true } : {}),
+  };
 }
 
 /** Keep this star's seat alive (desktop: every few minutes while seated). */
@@ -346,6 +348,8 @@ export async function heartbeat({ planets = [], dir = galaxyDir(), home = cosmos
   const star = await ensureStar(home);
   return publishBeat(star.id, { name: star.name, planets }, { dir });
 }
+
+const lastWorked = (entry) => Math.max(Number(entry?.lastMoon?.at) || 0, Number(entry?.lastSeat?.at) || 0);
 
 /** Everything the 은하수 screen draws. `fetch: false` reads the last pull only. */
 export async function overview({ root = null, fetch = true, guest = null, dir = galaxyDir(), home = cosmosHome() } = {}) {
@@ -369,9 +373,8 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
   const beats = await readBeats(dir);
   const registry = (await reader.json(PLANETS_FILE)) || { planets: {} };
   const stars = [];
-  for (const name of await reader.names('stars')) {
-    if (!name.endsWith('.json')) continue;
-    const record = await reader.json(`stars/${name}`);
+  const starFiles = (await reader.names('stars')).filter((name) => name.endsWith('.json'));
+  for (const record of await reader.jsonMany(starFiles.map((name) => `stars/${name}`))) {
     if (record?.id) stars.push({ ...record, beat: beats[record.id] || null, me: record.id === star.id });
   }
   if (!stars.some((entry) => entry.id === star.id)) stars.push({ ...publicStar(star), beat: beats[star.id] || null, me: true });
@@ -385,7 +388,7 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
   if (root) {
     planet = publicPlanet(await planetForRoot(root));
     if (planet.id) {
-      seat = normalizeSeat(await reader.json(seatPath(planet.id)), planet.id);
+      seat = normalizeSeat(await reader.json(seatPath(planet.id)), planet.id, { now: Date.now() });
       state = seatState(seat, star.id, { beats });
       conversations = await listConversationsIn(reader, planet.id);
       // An 이어받기 stopped half-way: the seat is ours but the checkout was
@@ -400,11 +403,16 @@ export async function overview({ root = null, fetch = true, guest = null, dir = 
     ...base,
     offline,
     stars: stars.sort((a, b) => Number(b.me) - Number(a.me) || (b.beat?.at || 0) - (a.beat?.at || 0)),
-    planets: Object.values(registry.planets || {}).map((entry) => (entry?.remote ? { ...entry, remote: scrubUrl(entry.remote) } : entry)),
+    // Most recently worked on first: the project you left last is the one you look for.
+    planets: Object.values(registry.planets || {})
+      .map((entry) => (entry?.remote ? { ...entry, remote: scrubUrl(entry.remote) } : entry))
+      .sort((a, b) => lastWorked(b) - lastWorked(a)),
     planet,
     seat,
     state,
     holderLastSeen: seat ? holderLastSeen(seat, beats) : 0,
+    // A seat left FOR another star opens to everyone at this time (0: not reserved).
+    reservedUntil: seat ? reservedUntil(seat) : 0,
     // The holder works on this very machine (this PC ⇄ the phone driving it):
     // the baton passes directly, no 교대 needed.
     here: Boolean(seat?.holder && seat.holder.star !== star.id && sameMachine(seat.holder, star, guest ? local.id : null)),

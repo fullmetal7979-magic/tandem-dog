@@ -85,6 +85,8 @@ export interface CosmosOverview {
   seat: CosmosSeat | null;
   state: CosmosSeatState | null;
   holderLastSeen?: number;
+  /** A seat left for another device (seat.handoffTo) opens to everyone at this time; 0 when it is not reserved. */
+  reservedUntil?: number;
   /** The last 이어받기 took the seat but did not finish rescuing and catching up this checkout. */
   pendingRescue?: boolean;
   /** The holder is on this same machine (this PC ⇄ the phone driving it): take the seat directly. */

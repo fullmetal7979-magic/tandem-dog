@@ -8,9 +8,15 @@
 // Liveness comes from beat refs, not from the seat file.
 import { GalaxyError, galaxyDir, galaxyReader, readGalaxyJson, transact, writeGalaxyJson } from './galaxy-repo.mjs';
 import { planetSlug } from './planet.mjs';
+import { josa, minutesUntil } from './words.mjs';
 
 export const SEAT_STALE_MS = 30 * 60_000;
+/** How long a seat left FOR a star (달 with a hand-over) waits for it before anyone may sit. */
+export const HANDOFF_HOLD_MS = 10 * 60_000;
+/** A 교대 request nobody answered for this long is dropped: yesterday's "넘겨 줘" is not today's. */
+export const REQUEST_TTL_MS = 12 * 60 * 60_000;
 const HISTORY_LIMIT = 60;
+const REQUEST_LIMIT = 8;
 const MEMO_LIMIT = 300;
 
 export function seatPath(planetId) {
@@ -21,16 +27,41 @@ export function emptySeat(planetId) {
   return { v: 1, planet: planetId, holder: null, requests: [], handoffTo: null, history: [] };
 }
 
-export function normalizeSeat(raw, planetId) {
+/** A history entry every screen can draw: who (a star id) and since when; anything else is dropped, never fatal. */
+function validTurn(entry) {
+  return Boolean(
+    entry &&
+      typeof entry === 'object' &&
+      typeof entry.star === 'string' &&
+      entry.star &&
+      Number.isFinite(Number(entry.from)) &&
+      (entry.to === null || entry.to === undefined || Number.isFinite(Number(entry.to)))
+  );
+}
+
+/**
+ * The seat as stored, repaired: malformed requests and turns are dropped.
+ * With `now`, requests older than REQUEST_TTL_MS are dropped too (the next
+ * write then removes them from the file).
+ */
+export function normalizeSeat(raw, planetId, { now = null } = {}) {
   const seat = raw && typeof raw === 'object' ? raw : {};
+  const fresh = (request) => now === null || !Number(request.at) || now - Number(request.at) <= REQUEST_TTL_MS;
   return {
     v: 1,
     planet: planetId,
-    holder: seat.holder && seat.holder.star ? seat.holder : null,
-    requests: Array.isArray(seat.requests) ? seat.requests.filter((r) => r?.star) : [],
-    handoffTo: typeof seat.handoffTo === 'string' ? seat.handoffTo : null,
-    history: Array.isArray(seat.history) ? seat.history.slice(-HISTORY_LIMIT) : [],
+    holder: seat.holder && typeof seat.holder.star === 'string' && seat.holder.star ? seat.holder : null,
+    requests: Array.isArray(seat.requests) ? seat.requests.filter((r) => typeof r?.star === 'string' && r.star && fresh(r)) : [],
+    handoffTo: typeof seat.handoffTo === 'string' && seat.handoffTo ? seat.handoffTo : null,
+    history: Array.isArray(seat.history) ? seat.history.filter(validTurn).slice(-HISTORY_LIMIT) : [],
   };
+}
+
+/** When a seat left for `handoffTo` opens to everyone (0: it is not reserved). */
+export function reservedUntil(seat) {
+  if (!seat || seat.holder || !seat.handoffTo) return 0;
+  const left = Number(seat.history?.at(-1)?.to) || 0;
+  return left ? left + HANDOFF_HOLD_MS : 0;
 }
 
 const who = (star) => ({ star: star.id, name: star.name, kind: star.kind, color: star.color });
@@ -134,8 +165,7 @@ export function sitTransition(seat, star, { beats, now = Date.now(), force = fal
   if (state === 'stale' && !force && !sibling) return { seat, changed: false, state, refused: 'stale' };
   if (seat.handoffTo && seat.handoffTo !== star.id && state === 'empty' && !force) {
     // A seat left FOR someone else waits for them a while before anyone may sit.
-    const left = seat.history.at(-1)?.to || 0;
-    if (now - left < 10 * 60_000) return { seat, changed: false, state, refused: 'reserved' };
+    if (now < reservedUntil(seat)) return { seat, changed: false, state, refused: 'reserved' };
   }
   const history = [...seat.history];
   if (seat.holder) {
@@ -176,12 +206,24 @@ export function leaveTransition(seat, star, { now = Date.now(), note = '', hando
   };
 }
 
-/** Ask for the seat (교대 요청). Idempotent per star. */
+/**
+ * Ask for the seat (교대 요청). Idempotent per star; asking again with a NEW
+ * note replaces the old one (and keeps the place in the queue).
+ */
 export function requestTransition(seat, star, { now = Date.now(), note = '' } = {}) {
-  if (seat.holder?.star === star.id) return { seat, changed: false };
-  if (seat.requests.some((request) => request.star === star.id)) return { seat, changed: false };
+  if (seat.holder?.star === star.id) return { seat, changed: false, mine: true };
+  // Nobody to ask: the seat is free to take, not to queue for.
+  if (!seat.holder) return { seat, changed: false, empty: true };
+  const text = memo(note);
+  const index = seat.requests.findIndex((request) => request.star === star.id);
+  if (index >= 0) {
+    if (!text || text === seat.requests[index].note) return { seat, changed: false };
+    const requests = [...seat.requests];
+    requests[index] = { ...requests[index], note: text, at: now };
+    return { seat: { ...seat, requests }, changed: true, updated: true };
+  }
   return {
-    seat: { ...seat, requests: [...seat.requests, { ...who(star), at: now, note: memo(note) }].slice(-8) },
+    seat: { ...seat, requests: [...seat.requests, { ...who(star), at: now, note: text }].slice(-REQUEST_LIMIT) },
     changed: true,
   };
 }
@@ -194,7 +236,7 @@ export function withdrawTransition(seat, star) {
 /** The PC a phone drove stopped answering: the phone may move with force. */
 export function hostStaleMessage(host) {
   const name = host?.name || '이전 기기';
-  return `${name}이(가) 오래 응답이 없어요. ${name}에 남은 작업은 그대로 두고 이 기기에서 강제로 이어받을 수 있어요.`;
+  return `${josa(name, '이가')} 오래 응답이 없어요. ${name}에 남은 작업은 그대로 두고 이 기기에서 강제로 이어받을 수 있어요.`;
 }
 
 /** Why a phone may not move to another PC while the one it drove is alive. */
@@ -212,12 +254,30 @@ export function seatRefusal(refused, message) {
   return [refused === 'host_stale' ? 'seat_stale' : `seat_${refused}`, message];
 }
 
+/**
+ * The one sentence a refused sit says, whoever asked (the CLI's 해, the
+ * desktop, a phone): who is in the way and what can be done about it.
+ */
+export function seatRefusalText(refused, { seat = null, host = null, now = Date.now() } = {}) {
+  const holder = seat?.holder?.name || '다른 기기';
+  if (refused === 'occupied') return `${josa(holder, '이가')} 작업 중이에요. 넘겨 달라고 요청해 주세요.`;
+  if (refused === 'stale') return `${josa(holder, '이가')} 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`;
+  if (refused === 'reserved') {
+    const target = seat?.requests?.find((request) => request.star === seat.handoffTo)?.name || '다른 기기';
+    const minutes = minutesUntil(reservedUntil(seat), now);
+    return `${josa(target, '을를')} 위해 비워 둔 작업 자리예요.${minutes ? ` ${minutes}분 뒤에는 누구나 이어받을 수 있어요.` : ''}`;
+  }
+  if (refused === 'host_active') return hostActiveMessage(host);
+  if (refused === 'host_stale') return hostStaleMessage(host);
+  return '작업 자리에 앉지 못했어요.';
+}
+
 // ------------------------------------------------------------------ io
 
 async function mutateSeat(planetId, transition, message, { dir } = {}) {
   return transact(
     async ({ dir: galaxy }) => {
-      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planetId)), planetId);
+      const seat = normalizeSeat(await readGalaxyJson(galaxy, seatPath(planetId)), planetId, { now: Date.now() });
       const result = await transition(seat);
       if (!result.changed) return { value: result };
       await writeGalaxyJson(galaxy, seatPath(planetId), result.seat);
@@ -229,7 +289,7 @@ async function mutateSeat(planetId, transition, message, { dir } = {}) {
 
 export async function readSeat(planetId, { dir = galaxyDir() } = {}) {
   // Out of the object store, not the working copy: a transaction may be writing it.
-  return normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planetId)), planetId);
+  return normalizeSeat(await (await galaxyReader(dir)).json(seatPath(planetId)), planetId, { now: Date.now() });
 }
 
 export async function sit(planetId, star, options = {}) {
@@ -240,15 +300,8 @@ export async function sit(planetId, star, options = {}) {
     options
   );
   if (result.refused) {
-    const holder = result.seat.holder;
-    const messages = {
-      occupied: `${holder?.name || '다른 기기'}이(가) 작업 중이에요. 넘겨 달라고 요청해 주세요.`,
-      stale: `${holder?.name || '다른 기기'}이(가) 오래 응답이 없어요. 강제로 넘겨받을 수 있어요.`,
-      reserved: '다른 기기를 위해 작업 자리를 비워 두었어요.',
-      host_active: hostActiveMessage(result.host),
-      host_stale: hostStaleMessage(result.host),
-    };
-    throw new GalaxyError(...seatRefusal(result.refused, messages[result.refused]), { seat: result.seat, host: result.host || null, canForce: result.refused === 'host_stale' || result.refused === 'stale' });
+    const text = seatRefusalText(result.refused, { seat: result.seat, host: result.host });
+    throw new GalaxyError(...seatRefusal(result.refused, text), { seat: result.seat, host: result.host || null, canForce: result.refused === 'host_stale' || result.refused === 'stale' });
   }
   return result;
 }

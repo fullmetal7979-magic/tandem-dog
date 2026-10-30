@@ -649,9 +649,65 @@ async function finishRelayStart({ server, wss, store, liveDesktops, liveHooks, p
   return { port: boundPort, store, close };
 }
 
+/** PORT from the environment: a whole number 0–65535 (0 picks a free one), else null. */
+export function relayPortFrom(value, fallback = 9800) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  const text = String(value).trim();
+  if (!/^\d{1,5}$/.test(text)) return null;
+  const port = Number(text);
+  return port <= 65535 ? port : null;
+}
+
+/**
+ * `docker stop` / systemd send SIGTERM, Ctrl+C sends SIGINT: close every leg
+ * and flush the debounced device registrations before the process goes away,
+ * so a restart never forgets a phone that paired a moment earlier. A second
+ * signal, or a close that hangs, ends the process anyway.
+ */
+export function installRelayShutdown(relay, { proc = process, log = console, graceMs = 8_000 } = {}) {
+  let stopping = false;
+  const stop = (signal) => {
+    if (stopping) {
+      log.log(`[relay] ${signal} again: exiting now`);
+      proc.exit(1);
+      return;
+    }
+    stopping = true;
+    log.log(`[relay] ${signal}: closing legs and saving devices…`);
+    const timer = setTimeout(() => {
+      log.error('[relay] shutdown took too long: exiting');
+      proc.exit(1);
+    }, graceMs);
+    timer.unref?.();
+    Promise.resolve()
+      .then(() => relay.close())
+      .then(
+        () => {
+          clearTimeout(timer);
+          log.log('[relay] closed');
+          proc.exit(0);
+        },
+        (error) => {
+          clearTimeout(timer);
+          log.error('[relay] shutdown failed:', error?.message || error);
+          proc.exit(1);
+        }
+      );
+  };
+  const handlers = { SIGTERM: () => stop('SIGTERM'), SIGINT: () => stop('SIGINT') };
+  for (const [signal, handler] of Object.entries(handlers)) proc.on(signal, handler);
+  return () => {
+    for (const [signal, handler] of Object.entries(handlers)) proc.off?.(signal, handler);
+  };
+}
+
 const invokedDirectly = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  const port = Number(process.env.PORT || 9800);
+  const port = relayPortFrom(process.env.PORT);
+  if (port === null) {
+    console.error(`[relay] PORT must be a number between 0 and 65535 (got "${process.env.PORT}")`);
+    process.exit(1);
+  }
   const dataDir = process.env.DATA_DIR || './data';
   const rendererDir = process.env.RENDERER_DIR || '';
   const tlsCert = process.env.TLS_CERT || '';
@@ -661,6 +717,7 @@ if (invokedDirectly) {
     .then((relay) => {
       const scheme = tlsCert && tlsKey ? 'https' : 'http';
       console.log(`[relay] ${scheme} listening on :${relay.port} (renderer: ${rendererDir || 'none'})`);
+      installRelayShutdown(relay);
     })
     .catch((error) => {
       console.error('[relay] failed to start:', error.message);

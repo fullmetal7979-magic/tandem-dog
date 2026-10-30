@@ -14,12 +14,19 @@ import { openCosmosGalaxy } from './CosmosHome';
 import { josa } from './cosmos-format';
 import {
   adoptRuns,
+  cargoTasks,
   clearRunTerminalViewState,
+  denoConfigName,
+  denoTasks,
   forgetRun,
+  goTasks,
   isAdoptedRun,
+  justTasks,
+  justfileName,
   makefileName,
   makeTasks,
   orderTasks,
+  packageManagerField,
   packageManagerFor,
   packageScriptTasks,
   normalizeLiveRuns,
@@ -82,9 +89,9 @@ async function loadTasks(projectPath: string): Promise<Omit<Loaded, 'key'>> {
   const sources: string[] = [];
   const skipped: string[] = [];
   if (names.includes('package.json')) {
-    const pm = packageManagerFor(names);
     const file = await desktop.readProjectFile(projectPath, 'package.json').catch(() => null);
     if (file) {
+      const pm = packageManagerField(file.content) ?? packageManagerFor(names);
       tasks.push(...packageScriptTasks(file.content, pm));
       skipped.push(...skippedScriptNames(file.content));
       sources.push(`package.json · ${pm}`);
@@ -97,6 +104,34 @@ async function loadTasks(projectPath: string): Promise<Omit<Loaded, 'key'>> {
       tasks.push(...makeTasks(file.content, makefile));
       sources.push(makefile);
     }
+  }
+  const justfile = justfileName(names);
+  if (justfile) {
+    const file = await desktop.readProjectFile(projectPath, justfile).catch(() => null);
+    if (file) {
+      tasks.push(...justTasks(file.content, justfile));
+      sources.push(justfile);
+    }
+  }
+  const deno = denoConfigName(names);
+  if (deno) {
+    const file = await desktop.readProjectFile(projectPath, deno).catch(() => null);
+    const found = file ? denoTasks(file.content) : [];
+    if (found.length) {
+      tasks.push(...found);
+      sources.push(deno);
+    }
+  }
+  if (names.includes('Cargo.toml')) {
+    const file = await desktop.readProjectFile(projectPath, 'Cargo.toml').catch(() => null);
+    if (file) {
+      tasks.push(...cargoTasks(file.content));
+      sources.push('Cargo.toml');
+    }
+  }
+  if (names.includes('go.mod')) {
+    tasks.push(...goTasks());
+    sources.push('go.mod');
   }
   return { tasks: orderTasks(tasks), sources, skipped, error: '' };
 }
@@ -293,7 +328,7 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
               {task.icon}
             </span>
             <span className="cosmos-run-name">{task.name}</span>
-            <span className="cosmos-run-detail">{task.kind === 'make' ? task.detail : task.command}</span>
+            <span className="cosmos-run-detail">{task.kind === 'make' || task.kind === 'just' ? task.detail : task.command}</span>
           </button>
         ))}
       </div>

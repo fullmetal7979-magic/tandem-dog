@@ -17,17 +17,18 @@ export function SeatBadge({ projectPath }: { projectPath: string | null }) {
     label = '🌌 은하수 연결하기';
   } else if (view?.planet?.id && view.seat) {
     const holder = view.seat.holder;
+    const holderName = holder?.name || '다른 기기';
     if (view.state === 'mine') {
-      label = view.seat.requests.length ? `🔁 ${view.seat.requests[0].name} · 넘겨 달라는 요청` : `작업 중 · ${since(holder?.since)}`;
+      label = view.seat.requests.length ? `🔁 ${view.seat.requests[0].name || '다른 기기'} · 넘겨 달라는 요청` : `작업 중 · ${since(holder?.since)}`;
       tone = view.seat.requests.length ? 'warn' : 'ok';
     } else if (view.state === 'remote') {
-      label = `📱 ${holder?.name} 원격 작업 중`;
+      label = `📱 ${holderName} 원격 작업 중`;
       tone = 'warn';
     } else if (view.state === 'occupied') {
-      label = `🔒 ${holder?.name} 작업 중`;
+      label = `🔒 ${holderName} 작업 중`;
       tone = 'warn';
     } else if (view.state === 'stale') {
-      label = `⚠️ ${holder?.name} 응답 없음`;
+      label = `⚠️ ${holderName} 응답 없음`;
       tone = 'bad';
     } else {
       label = '☄️ 작업 자리 비어 있음';

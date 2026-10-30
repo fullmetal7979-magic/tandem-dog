@@ -8,7 +8,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runGit } from '../shared/git-process.mjs';
 import { planetRemote } from './planet.mjs';
-import { containsSecret, isSecretFile } from './secrets.mjs';
+import { containsSecret, isSecretFile, scrubUrlsInText } from './secrets.mjs';
 
 const IDENT_FALLBACK = {
   GIT_AUTHOR_NAME: 'COSMOS',
@@ -21,6 +21,9 @@ async function out(root, args) {
   const r = await runGit(root, args);
   return r.code === 0 ? r.stdout.trim() : '';
 }
+
+/** git's own words for a failure, safe to show: a remote URL with a token in it loses the token. */
+const detailOf = (result) => scrubUrlsInText(String(result?.stderr || result?.stdout || '').trim());
 
 async function hasIdentity(root) {
   return Boolean(await out(root, ['config', 'user.email']));
@@ -81,13 +84,13 @@ export async function bringUpToDate(root) {
   const remote = await planetRemote(root);
   if (!remote) return { ok: true, skipped: 'no-remote', ...(await branchState(root)) };
   const fetched = await runGit(root, ['fetch', '--quiet', '--prune', remote.name]);
-  if (fetched.code !== 0) return { ok: false, error: 'offline', detail: fetched.stderr.trim(), ...(await branchState(root)) };
+  if (fetched.code !== 0) return { ok: false, error: 'offline', detail: detailOf(fetched), ...(await branchState(root)) };
   const state = await branchState(root);
   if (!state.upstream) return { ok: true, skipped: 'no-upstream', ...state };
   if (state.behind === 0) return { ok: true, pulled: 0, ...state };
   if (state.ahead > 0) return { ok: false, error: 'diverged', ...state };
   const merged = await runGit(root, ['merge', '--ff-only', '--quiet', state.upstream]);
-  if (merged.code !== 0) return { ok: false, error: 'blocked', detail: merged.stderr.trim(), ...state };
+  if (merged.code !== 0) return { ok: false, error: 'blocked', detail: detailOf(merged), ...state };
   return { ok: true, pulled: state.behind, ...(await branchState(root)) };
 }
 
@@ -130,9 +133,14 @@ export async function rescueDisplacedWork(root, starName, now = new Date()) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 30);
   const stampText = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
-  const rescue = `cosmos/rescue-${safeName || 'star'}-${stampText}`;
+  // Two rescues in the same minute (a retry) get their own branch each.
+  const base = `cosmos/rescue-${safeName || 'star'}-${stampText}`;
+  let rescue = base;
+  for (let n = 2; (await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${rescue}`])).code === 0 && n < 100; n += 1) {
+    rescue = `${base}-${n}`;
+  }
   const summary = { branch: rescue, commits: state.ahead, dirty: state.dirty };
-  const fail = (failed, result) => ({ ok: false, failed, detail: String(result?.stderr || result?.stdout || '').trim(), ...summary });
+  const fail = (failed, result) => ({ ok: false, failed, detail: detailOf(result), ...summary });
   const head = await out(root, ['rev-parse', '--verify', 'HEAD']);
   if (!head) return fail('head');
   const env = (await hasIdentity(root)) ? {} : IDENT_FALLBACK;
@@ -231,10 +239,13 @@ export async function saveAndPush(root, { message }) {
   const env = (await hasIdentity(root)) ? {} : IDENT_FALLBACK;
   let committed = false;
   if (paths.length) {
-    await runGit(root, ['add', '-A']);
+    // A failed add (an index.lock left by a crashed git, a path git cannot
+    // read) must not end in a commit of half the changes.
+    const added = await runGit(root, ['add', '-A']);
+    if (added.code !== 0) return { ok: false, error: 'commit', detail: detailOf(added), ...(await branchState(root)) };
     const commit = await runGit(root, ['commit', '--quiet', '--no-verify', '-m', message], { env });
     if (commit.code !== 0 && !/nothing to commit/i.test(commit.stdout + commit.stderr)) {
-      return { ok: false, error: 'commit', detail: commit.stderr.trim(), ...(await branchState(root)) };
+      return { ok: false, error: 'commit', detail: detailOf(commit), ...(await branchState(root)) };
     }
     committed = commit.code === 0;
   }
@@ -259,7 +270,7 @@ export async function saveAndPush(root, { message }) {
   }
   const pushed = await runGit(root, args);
   if (pushed.code !== 0) {
-    return { ok: false, error: classifyPushFailure(pushed.stderr), detail: pushed.stderr.trim(), committed, ...(await branchState(root)) };
+    return { ok: false, error: classifyPushFailure(pushed.stderr), detail: detailOf(pushed), committed, ...(await branchState(root)) };
   }
   return { ok: true, committed, pushed: true, ...(await branchState(root)) };
 }

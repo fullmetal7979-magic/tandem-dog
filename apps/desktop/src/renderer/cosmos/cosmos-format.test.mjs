@@ -122,3 +122,49 @@ test('errors read without the IPC wrapper', () => {
   assert.equal(cosmosErrorText('plain'), 'plain');
   assert.equal(cosmosErrorText(new Error('')), '알 수 없는 문제가 생겼어요.');
 });
+
+test('names ending in an emoji, an acronym or an English word take the particle they are read with', () => {
+  assert.equal(josa('집 맥북 💻', '이가'), '집 맥북 💻이');
+  assert.equal(josa('Mac', '이가'), 'Mac이');
+  assert.equal(josa('server', '이가'), 'server가');
+  assert.equal(josa('HTML', '으로'), 'HTML로');
+  assert.equal(josa('iPhone', '으로'), 'iPhone으로');
+  assert.equal(josa('서울', '으로'), '서울로');
+});
+
+test('the desktop and the terminal read names the same way', async () => {
+  const words = await import('../../../../../src/runtime/galaxy/words.mjs');
+  const names = ['회사 PC', '집 맥북', '집 맥북 💻', '내 폰', 'Mac', 'MacBook', 'iPhone', 'Galaxy', 'server', 'Pixel', 'HTML', 'LG', 'PC 7', '서버2', '서울', '🚀', '', 'game', 'Chromebook', 'blog', 'ThinkPad'];
+  for (const name of names) {
+    for (const pair of ['이가', '을를', '은는', '와과', '으로']) assert.equal(josa(name, pair), words.josa(name, pair), `${name} ${pair}`);
+  }
+  const day = 86_400_000;
+  for (const offset of [0, 30_000, 47 * 60_000, 5 * 3_600_000, 3 * day, 20 * day, 100 * day, 800 * day]) {
+    assert.equal(ago(NOW - offset, NOW), words.ago(NOW - offset, NOW), String(offset));
+  }
+});
+
+test('long spans read in weeks, months and years', () => {
+  const day = 86_400_000;
+  assert.equal(ago(NOW - 20 * day, NOW), '2주 전');
+  assert.equal(ago(NOW - 100 * day, NOW), '3개월 전');
+  assert.equal(ago(NOW - 400 * day, NOW), '1년 전');
+  assert.equal(since(NOW - 5 * day, NOW), '5일째');
+  assert.equal(since(NOW - 15 * day, NOW), '2주째');
+});
+
+test('a reserved seat says how long it still waits', () => {
+  const reserved = view({
+    seat: { ...view().seat, handoffTo: 'work', history: [{ star: 'me', name: '집 맥북', from: NOW - 60_000, to: NOW - 2 * 60_000 }] },
+    reservedUntil: NOW + 8 * 60_000,
+  });
+  const verdict = cosmosVerdict(reserved, NOW);
+  assert.match(verdict.title, /회사 PC를 위해 자리를 비워 두었어요/);
+  assert.match(verdict.detail, /^8분 뒤에도/);
+  // Once the hold is over the seat simply reads as free.
+  assert.match(cosmosVerdict({ ...reserved, reservedUntil: NOW - 1 }, NOW).title, /아무도 작업하지 않아요/);
+});
+
+test('stacked error prefixes are all stripped', () => {
+  assert.equal(cosmosErrorText(new Error("Error invoking remote method 'cosmos:sun': Error: TypeError: 주소가 이상해요")), '주소가 이상해요');
+});

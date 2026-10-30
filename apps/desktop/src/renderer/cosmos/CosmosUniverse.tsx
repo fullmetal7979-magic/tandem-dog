@@ -13,7 +13,10 @@ import {
   UNIVERSE_LIMIT,
   layoutUniverse,
   lightCaption,
+  lightsLineage,
+  nextLightIndex,
   planetPalette,
+  recentLightsSentence,
   tetheredCount,
   universeChips,
   universeSummary,
@@ -24,6 +27,30 @@ import {
 /** Before a project is chosen, the sky shows a little primordial 성운. */
 const GENESIS_NEBULA = 14;
 const REFRESH_MS = 60_000;
+const DAY_MS = 86_400_000;
+const TRAVEL_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+
+/**
+ * The verse of the day changes at the day boundary verseOfTheDay counts in
+ * (UTC days), also for a home left open overnight.
+ */
+function useDayTick(active: boolean): number {
+  const [day, setDay] = useState(() => Math.floor(Date.now() / DAY_MS));
+  useEffect(() => {
+    if (!active) return undefined;
+    setDay(Math.floor(Date.now() / DAY_MS));
+    let timer = 0;
+    const arm = () => {
+      timer = window.setTimeout(() => {
+        setDay(Math.floor(Date.now() / DAY_MS));
+        arm();
+      }, DAY_MS - (Date.now() % DAY_MS) + 1_000);
+    };
+    arm();
+    return () => window.clearTimeout(timer);
+  }, [active]);
+  return day;
+}
 
 interface UniverseData {
   project: string;
@@ -121,6 +148,8 @@ export function CosmosUniverse({
   const hasProject = Boolean(projectPath);
   const lights = useMemo(() => layoutUniverse(data.commits), [data.commits]);
   const palette = useMemo(() => (hasProject ? planetPalette(planetName) : planetPalette('cosmos', GENESIS_HUE)), [hasProject, planetName]);
+  const lineage = useMemo(() => lightsLineage(lights), [lights]);
+  const day = useDayTick(active);
   const facts: UniverseFacts = {
     planetName,
     hasProject,
@@ -129,10 +158,12 @@ export function CosmosUniverse({
     beyond: lights.length >= UNIVERSE_LIMIT,
     nebula: data.nebula,
     tethered: tetheredCount(lights, data.upstream),
+    firstAt: lineage.firstAt,
+    hands: lineage.hands,
   };
   const verse = universeVerse(facts);
   const chips = universeChips(facts);
-  const epigraph = verseOfTheDay(planetName);
+  const epigraph = useMemo(() => verseOfTheDay(planetName, day * DAY_MS), [planetName, day]);
   const model = useMemo<SceneModel>(
     () => ({
       seed: hasProject ? planetName : 'cosmos',
@@ -151,6 +182,12 @@ export function CosmosUniverse({
   const activeRef = useRef(active);
   const syncRef = useRef<() => void>(() => {});
   const [pointed, setPointed] = useState<PickedLight | null>(null);
+  /** The light keyboard travel stands on (an index into `lights`), null while the pointer leads. */
+  const [travel, setTravel] = useState<number | null>(null);
+  const [announce, setAnnounce] = useState('');
+  // The home keeps ONE live region at rest (the seat's); the sky's own exists
+  // only while it has focus, which is when keyboard travel speaks.
+  const [focused, setFocused] = useState(false);
 
   // The scene is made once the sky has a size (never in a zero-size or
   // canvas-less host) and moves only while it can actually be seen.
@@ -176,6 +213,18 @@ export function CosmosUniverse({
     };
     syncRef.current = sync;
     measure();
+    // Moving the window to a screen of another pixel density re-renders the sky sharp.
+    let density: MediaQueryList | null = null;
+    const watchDensity = () => {
+      density?.removeEventListener?.('change', onDensity);
+      density = window.matchMedia?.(`(resolution: ${window.devicePixelRatio || 1}dppx)`) ?? null;
+      density?.addEventListener?.('change', onDensity);
+    };
+    function onDensity() {
+      measure();
+      watchDensity();
+    }
+    watchDensity();
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     resize?.observe(sky);
     const intersect =
@@ -192,6 +241,7 @@ export function CosmosUniverse({
     motionQuery?.addEventListener?.('change', sync);
     document.addEventListener('visibilitychange', sync);
     return () => {
+      density?.removeEventListener?.('change', onDensity);
       resize?.disconnect();
       intersect?.disconnect();
       settings?.disconnect();
@@ -207,6 +257,7 @@ export function CosmosUniverse({
     modelRef.current = model;
     sceneRef.current?.update(model);
     setPointed(null);
+    setTravel(null);
   }, [model]);
 
   useEffect(() => {
@@ -223,10 +274,54 @@ export function CosmosUniverse({
     if (hit?.light.hash === pointed?.light.hash) return;
     scene.setHover(hit?.light.hash ?? null);
     setPointed(hit);
+    setTravel(null);
   };
   const leave = () => {
+    if (travel !== null) return;
     sceneRef.current?.setHover(null);
     setPointed(null);
+  };
+  const copyHash = (light: PickedLight['light']) => {
+    const done = () => setAnnounce(`커밋 ${light.shortHash} 해시를 복사했어요.`);
+    const clipboard = window.navigator.clipboard;
+    if (!clipboard?.writeText) {
+      setAnnounce('이 화면에서는 복사할 수 없어요.');
+      return;
+    }
+    try {
+      void clipboard.writeText(light.hash).then(done, () => setAnnounce('복사하지 못했어요.'));
+    } catch {
+      setAnnounce('복사하지 못했어요.');
+    }
+  };
+  const visit = (index: number | null) => {
+    setTravel(index);
+    const light = index === null ? null : lights[index];
+    sceneRef.current?.setHover(light?.hash ?? null);
+    if (index === null || !light) {
+      setPointed(null);
+      return;
+    }
+    const sky = skyRef.current;
+    // A light hidden behind the planet still gets its caption, near the middle.
+    const spot = sceneRef.current?.locate(light.hash) ?? { light, x: (sky?.clientWidth ?? 0) / 2, y: (sky?.clientHeight ?? 0) / 2 };
+    setPointed(spot);
+    const caption = lightCaption(light);
+    setAnnounce(`${index + 1}/${lights.length} · ${caption.title} · ${caption.meta}${caption.note ? ` · ${caption.note}` : ''}`);
+  };
+  const onKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!lights.length) return;
+    if (TRAVEL_KEYS.has(event.key)) {
+      event.preventDefault();
+      visit(nextLightIndex(travel, event.key, lights.length));
+    } else if (event.key === 'Escape' && travel !== null) {
+      event.preventDefault();
+      visit(null);
+      setAnnounce('');
+    } else if ((event.key === 'Enter' || event.key === ' ') && pointed) {
+      event.preventDefault();
+      copyHash(pointed.light);
+    }
   };
 
   const caption = pointed ? lightCaption(pointed.light) : null;
@@ -235,7 +330,23 @@ export function CosmosUniverse({
 
   return (
     <div className="cosmos-universe" data-planet-hue={palette.hue}>
-      <div ref={skyRef} className="cosmos-universe-sky" onPointerMove={point} onPointerLeave={leave}>
+      <div
+        ref={skyRef}
+        className={`cosmos-universe-sky${travel !== null ? ' is-travelling' : ''}`}
+        onPointerMove={point}
+        onPointerLeave={leave}
+        onClick={() => pointed && copyHash(pointed.light)}
+        onKeyDown={onKey}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          setAnnounce('');
+          if (travel !== null) visit(null);
+        }}
+        tabIndex={lights.length ? 0 : undefined}
+        role={lights.length ? 'group' : undefined}
+        aria-label={lights.length ? `${planetName}의 우주 · 화살표로 빛(커밋)을 둘러보고 엔터 키로 해시를 복사해요` : undefined}
+      >
         <canvas ref={canvasRef} className="cosmos-universe-canvas" aria-hidden="true" />
         <div className="cosmos-universe-head">
           <span className="cosmos-universe-wordmark">코스모스 코드</span>
@@ -265,10 +376,18 @@ export function CosmosUniverse({
             <strong>{caption.title}</strong>
             <span className="cosmos-universe-tip-meta">{caption.meta}</span>
             {caption.note && <span className="cosmos-universe-tip-note">{caption.note}</span>}
+            <span className="cosmos-universe-tip-hint">{travel !== null ? '←→ 이동 · 엔터 키 해시 복사 · 이스케이프 키 닫기' : '누르면 해시 복사'}</span>
           </div>
         )}
       </div>
-      <p className="sr-only">{universeSummary(facts)}</p>
+      <p className="sr-only">
+        {universeSummary(facts)} {recentLightsSentence(lights)}
+      </p>
+      {focused && (
+        <p className="sr-only" aria-live="polite">
+          {announce}
+        </p>
+      )}
     </div>
   );
 }

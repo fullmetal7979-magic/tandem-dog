@@ -33,6 +33,8 @@ export interface UniverseScene {
   setRunning(running: boolean): void;
   setHover(hash: string | null): void;
   pick(x: number, y: number): PickedLight | null;
+  /** Where a light is drawn right now (keyboard travel points at it), or null when it is not on screen. */
+  locate(hash: string): PickedLight | null;
   destroy(): void;
 }
 
@@ -576,6 +578,10 @@ export function createUniverseScene(canvas: HTMLCanvasElement): UniverseScene | 
         }
       }
       return best ? { light: best.light, x: best.x, y: best.y } : null;
+    },
+    locate(hash) {
+      const entry = placed.find((candidate) => candidate.light.hash === hash);
+      return entry ? { light: entry.light, x: entry.x, y: entry.y } : null;
     },
     destroy() {
       window.cancelAnimationFrame(raf);

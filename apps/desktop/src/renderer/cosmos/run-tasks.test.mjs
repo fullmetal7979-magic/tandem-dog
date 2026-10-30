@@ -218,3 +218,71 @@ test('closing a run tab clears its saved terminal view', () => {
   clearRunTerminalViewState(id, storage);
   assert.deepEqual(JSON.parse(store.get(TERMINAL_VIEW_STATE_KEY)), { other: { scroll: 1 } });
 });
+
+test('package.json’s packageManager field wins over a stray lockfile', async () => {
+  const { packageManagerField } = await import('./run-tasks.ts');
+  assert.equal(packageManagerField('{"packageManager":"pnpm@9.1.0+sha256.abc"}'), 'pnpm');
+  assert.equal(packageManagerField('{"packageManager":"yarn@4.1.0"}'), 'yarn');
+  assert.equal(packageManagerField('{"packageManager":"deno@2"}'), null);
+  assert.equal(packageManagerField('{"name":"x"}'), null);
+  assert.equal(packageManagerField('not json'), null);
+});
+
+test('justfile recipes that run without arguments become buttons', async () => {
+  const { justRecipes, justTasks, justfileName } = await import('./run-tasks.ts');
+  const justfile = [
+    'set shell := ["bash", "-c"]',
+    'alias b := build',
+    'version := "1.0"',
+    '',
+    '# Start the dev server',
+    'dev:',
+    '    npm run dev',
+    '@build mode="release":',
+    '    cargo build --{{mode}}',
+    'deploy target:',
+    '    ./deploy {{target}}',
+    'test *args:',
+    '    cargo test {{args}}',
+    '[private]',
+    'helper:',
+    '    echo hi',
+    '_internal:',
+    '    echo no',
+    '[group("ops")]',
+    'lint:',
+    '    cargo clippy',
+  ].join('\n');
+  assert.deepEqual(justRecipes(justfile), ['dev', 'build', 'test', 'lint']);
+  assert.equal(justfileName(['README.md', 'Justfile']), 'Justfile');
+  assert.deepEqual(justTasks(justfile).map((task) => task.command), ['just dev', 'just build', 'just test', 'just lint']);
+});
+
+test('deno tasks are read from deno.json and deno.jsonc', async () => {
+  const { denoConfigName, denoTasks } = await import('./run-tasks.ts');
+  const jsonc = `{
+    // the dev server
+    "tasks": {
+      "dev": "deno run -A --watch main.ts", /* watch mode */
+      "check": { "command": "deno check main.ts", "description": "types" },
+      "bad name": "rm -rf /",
+    },
+  }`;
+  const tasks = denoTasks(jsonc);
+  assert.deepEqual(tasks.map((task) => [task.name, task.command, task.detail]), [
+    ['dev', 'deno task dev', 'deno run -A --watch main.ts'],
+    ['check', 'deno task check', 'deno check main.ts'],
+  ]);
+  assert.equal(denoConfigName(['deno.jsonc']), 'deno.jsonc');
+  assert.deepEqual(denoTasks('{ "url": "https://x//y" }'), [], 'a // inside a string is not a comment');
+});
+
+test('a Rust crate and a Go module get their everyday commands', async () => {
+  const { cargoTasks, goTasks, orderTasks } = await import('./run-tasks.ts');
+  const crate = cargoTasks('[package]\nname = "app"\n');
+  assert.deepEqual(crate.map((task) => task.command), ['cargo run', 'cargo build', 'cargo test', 'cargo check', 'cargo clippy']);
+  assert.equal(cargoTasks('[workspace]\nmembers = ["a"]\n').some((task) => task.command === 'cargo run'), false, 'a bare workspace has nothing to run');
+  const ordered = orderTasks([...goTasks(), ...crate]).map((task) => task.name);
+  assert.ok(ordered.indexOf('cargo build') < ordered.indexOf('cargo clippy'), ordered.join(','));
+  assert.ok(ordered.indexOf('go test') < ordered.indexOf('go vet'), ordered.join(','));
+});

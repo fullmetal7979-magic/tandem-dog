@@ -50,3 +50,66 @@ test('the CLI classifier routes every relay verb without touching the TUI', () =
   }
   assert.notEqual(classifyCliInvocation(['--help']).kind, 'cosmos');
 });
+
+const capture = () => {
+  const out = [];
+  const err = [];
+  return { out, err, io: { out: { write: (s) => out.push(s) }, err: { write: (s) => err.push(s) } } };
+};
+
+test('a mistyped verb is an error with a suggestion, not the help on stdout', async () => {
+  const { out, err, io } = capture();
+  const code = await runCosmosCli(['statsu'], io);
+  assert.equal(code, 1);
+  assert.equal(out.join(''), '');
+  assert.match(err.join(''), /모르는 명령이에요: statsu — 혹시 `cosmos status`\?/);
+  const { suggestVerb } = await import('./cosmos-cli.mjs');
+  assert.equal(suggestVerb('이어받가'), '이어받기');
+  assert.equal(suggestVerb('완전히다른말'), null);
+});
+
+test('history and universe are relay verbs the CLI routes', () => {
+  assert.equal(cosmosVerb('기록'), 'history');
+  assert.equal(cosmosVerb('history'), 'history');
+  assert.equal(cosmosVerb('우주'), 'universe');
+  for (const word of ['기록', '우주', 'universe', 'history']) assert.equal(classifyCliInvocation([word]).kind, 'cosmos', word);
+});
+
+test('cosmos 우주 tells a repository’s universe, also as JSON', async (t) => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = mkdtempSync(join(tmpdir(), 'cosmos-universe-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'pipe' });
+  git('init', '--quiet', '-b', 'main');
+  for (const name of ['a', 'b', 'c']) {
+    writeFileSync(join(root, name), name);
+    git('add', name);
+    git('commit', '--quiet', '-m', `add ${name}`);
+  }
+  git('tag', 'v1');
+  writeFileSync(join(root, 'draft'), 'x');
+  const text = capture();
+  assert.equal(await runCosmosCli(['우주'], { ...text.io, cwd: root }), 0);
+  const said = text.out.join('');
+  assert.match(said, /빛 3개 \(커밋\)/);
+  assert.match(said, /이름 붙은 빛 1개 \(태그\)/);
+  assert.match(said, /성운 1개 \(커밋 전 변경\)/);
+  assert.match(said, /가장 새 빛 방금 — add c/);
+  assert.match(said, /“.+”/, 'the verse of the day');
+  const asJson = capture();
+  assert.equal(await runCosmosCli(['universe', '--json'], { ...asJson.io, cwd: root }), 0);
+  const facts = JSON.parse(asJson.out.join(''));
+  assert.equal(facts.lights, 3);
+  assert.equal(facts.named, 1);
+  assert.equal(facts.tethered, null, 'no upstream: nothing to say about pushing');
+});
+
+test('a terminal never names this device a phone', async () => {
+  const { err, io } = capture();
+  assert.equal(await runCosmosCli(['기기', '내 기계', 'phone'], io), 2);
+  assert.match(err.join(''), /pc 또는 mac/);
+});

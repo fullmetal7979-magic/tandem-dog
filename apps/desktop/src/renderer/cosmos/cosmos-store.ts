@@ -172,7 +172,9 @@ function startPolling(): void {
     for (const key of watchers.keys()) void refreshCosmos(key);
   }, POLL_MS);
   window.addEventListener('focus', onFocus);
+  window.addEventListener('online', onOnline);
   window.addEventListener(COSMOS_SEAT_ACTION_EVENT, onSeatAction);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onShown);
 }
 
 function stopPolling(): void {
@@ -180,7 +182,9 @@ function stopPolling(): void {
   window.clearInterval(pollTimer);
   pollTimer = null;
   window.removeEventListener('focus', onFocus);
+  window.removeEventListener('online', onOnline);
   window.removeEventListener(COSMOS_SEAT_ACTION_EVENT, onSeatAction);
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onShown);
 }
 
 function isStale(key: string): boolean {
@@ -189,6 +193,23 @@ function isStale(key: string): boolean {
 
 function onFocus(): void {
   for (const key of watchers.keys()) if (isStale(key)) void refreshCosmos(key);
+}
+
+/**
+ * The window comes back from the tray or another desktop without taking focus
+ * (polls skip hidden windows): what it shows may be minutes old, so ask again.
+ */
+function onShown(): void {
+  if (document.visibilityState === 'visible') onFocus();
+}
+
+/**
+ * The network is back: every watched view was read while offline, and a held
+ * seat missed its beats. Refresh at once instead of waiting for the next poll.
+ */
+function onOnline(): void {
+  for (const key of watchers.keys()) void refreshCosmos(key);
+  if (seatedPlanets().length) beat();
 }
 
 /**

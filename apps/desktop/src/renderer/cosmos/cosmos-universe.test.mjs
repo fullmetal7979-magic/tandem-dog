@@ -158,10 +158,10 @@ test('the universe hero reads the planet history and writes the picture in words
   assert.equal(document.querySelector('.cosmos-universe-wordmark').textContent, '코스모스 코드');
   assert.equal(document.querySelector('.cosmos-universe-canvas').getAttribute('aria-hidden'), 'true');
   assert.equal(document.querySelector('.cosmos-universe-line').textContent, '이 우주의 빛 3개는 모두 my-app에서 태어났어요.');
-  assert.deepEqual(
-    [...document.querySelectorAll('.cosmos-universe-chips li')].map((chip) => chip.textContent),
-    ['빛 3 · 커밋', '성운 3 · 커밋 전 변경', '매인 빛 1 · 푸시 전']
-  );
+  const chipTexts = [...document.querySelectorAll('.cosmos-universe-chips li')].map((chip) => chip.textContent);
+  assert.deepEqual(chipTexts.slice(0, 3), ['빛 3 · 커밋', '성운 3 · 커밋 전 변경', '매인 빛 1 · 푸시 전']);
+  assert.match(chipTexts[3], /^첫 빛 .+ · 첫 커밋$/);
+  assert.equal(chipTexts[4], '손길 2명 · 커밋한 사람');
   assert.match(document.querySelector('.cosmos-universe .sr-only').textContent, /^my-app의 우주: 커밋 3개가 빛으로/);
   // The hero adds no live region: the home keeps exactly one for the seat.
   assert.equal(document.querySelectorAll('.cosmos-universe [aria-live], .cosmos-universe [role=status]').length, 0);
@@ -184,4 +184,63 @@ test('with no project chosen the hero waits without asking git anything', async 
   assert.equal(asked, false);
   assert.match(document.querySelector('.cosmos-universe-line').textContent, /행성을 고르면/);
   assert.equal(document.querySelectorAll('.cosmos-universe-chips').length, 0);
+});
+
+test('keyboard travel goes back in time light by light and stops at both ends', async () => {
+  const { nextLightIndex } = await import('./universe-model.ts');
+  assert.equal(nextLightIndex(null, 'ArrowRight', 5), 0);
+  assert.equal(nextLightIndex(null, 'End', 5), 4);
+  assert.equal(nextLightIndex(0, 'ArrowRight', 5), 1);
+  assert.equal(nextLightIndex(0, 'ArrowLeft', 5), 0);
+  assert.equal(nextLightIndex(3, 'ArrowDown', 5), 4);
+  assert.equal(nextLightIndex(4, 'ArrowDown', 5), 4);
+  assert.equal(nextLightIndex(2, 'Home', 5), 0);
+  assert.equal(nextLightIndex(0, 'PageDown', 30), 10);
+  assert.equal(nextLightIndex(1, 'x', 5), 1);
+  assert.equal(nextLightIndex(null, 'ArrowRight', 0), null);
+});
+
+test('the first light and the hands behind the lights are told as chips', async () => {
+  const { lightsLineage, recentLightsSentence } = await import('./universe-model.ts');
+  const lights = layoutUniverse([commit(0), commit(1), commit(2, { parents: [] })]);
+  const lineage = lightsLineage(lights);
+  assert.equal(lineage.hands, 2);
+  assert.equal(lineage.firstAt, NOW - 2 * 3_600_000);
+  const facts = { planetName: 'app', hasProject: true, repository: true, lights: 3, beyond: false, nebula: 0, tethered: 0, ...lineage };
+  assert.deepEqual(universeChips(facts, NOW).slice(1), [
+    { name: '첫 빛', value: '2시간 전', plain: '첫 커밋' },
+    { name: '손길', value: '2명', plain: '커밋한 사람' },
+  ]);
+  // Beyond the horizon the true first light is not loaded: no chip claims it.
+  assert.equal(universeChips({ ...facts, beyond: true }, NOW).some((chip) => chip.name === '첫 빛'), false);
+  assert.equal(recentLightsSentence(lights, NOW, 2), '가장 새 빛: 커밋 0 (방금) · 커밋 1 (1시간 전).');
+});
+
+test('arrow keys walk the lights, Enter copies the commit hash, Esc lets go', async (t) => {
+  const { root, document, window } = installTestDom(t, { rootId: 'root' });
+  const copied = [];
+  Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => copied.push(text) } });
+  window.mixdogDesktop = {
+    gitStatus: async () => ({ repository: true, upstream: true, files: [] }),
+    gitLog: async () => [commit(0), commit(1), commit(2, { parents: [] })],
+  };
+  const { CosmosUniverse } = await import('./CosmosUniverse.tsx');
+  await act(async () => root.render(React.createElement(CosmosUniverse, { projectPath: '/work/app', planetName: 'my-app' })));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  const sky = document.querySelector('.cosmos-universe-sky');
+  assert.equal(sky.getAttribute('tabindex'), '0');
+  assert.match(sky.getAttribute('aria-label'), /화살표로 빛\(커밋\)을 둘러보고/);
+  const key = (name) => act(async () => sky.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true })));
+  await act(async () => sky.focus());
+  await key('ArrowRight');
+  assert.equal(document.querySelector('.cosmos-universe-tip strong').textContent, '커밋 0');
+  await key('End');
+  assert.equal(document.querySelector('.cosmos-universe-tip strong').textContent, '커밋 2');
+  assert.match(document.querySelector('.cosmos-universe [aria-live]').textContent, /^3\/3 · 커밋 2 .*이 우주의 첫 빛/);
+  await key('Enter');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  assert.deepEqual(copied, [commit(2).hash]);
+  assert.match(document.querySelector('.cosmos-universe [aria-live]').textContent, /해시를 복사했어요/);
+  await key('Escape');
+  assert.equal(document.querySelector('.cosmos-universe-tip'), null);
 });

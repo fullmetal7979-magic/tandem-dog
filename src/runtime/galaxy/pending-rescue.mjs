@@ -6,8 +6,9 @@
 // checkout nobody rescued, and the next 이어받기 would see nothing displaced.
 // The marker lives on this machine only (~/.mixdog/galaxy-pending-rescue.json)
 // and is cleared once the checkout caught up.
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { writeJsonAtomic } from './fs-atomic.mjs';
 import { cosmosHome } from './star.mjs';
 
 export function pendingRescuePath(home = cosmosHome()) {
@@ -24,11 +25,7 @@ async function readAll(home) {
 }
 
 async function writeAll(home, value) {
-  const path = pendingRescuePath(home);
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(tmp, path);
+  await writeJsonAtomic(pendingRescuePath(home), value);
 }
 
 export async function markPendingRescue(home, planetId, { star, at = Date.now() } = {}) {

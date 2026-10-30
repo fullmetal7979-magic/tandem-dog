@@ -35,8 +35,11 @@ function GalaxyPlanets({ view, projectPath }: { view: CosmosOverview; projectPat
       <h3>🪐 은하수의 프로젝트</h3>
       <ul className="cosmos-planets">
         {view.planets.map((planet) => (
-          <li key={planet.id}>
-            <b>{planet.name}</b>
+          <li key={planet.id} className={planet.id === view.planet?.id ? 'is-current' : undefined}>
+            <b>
+              {planet.name}
+              {planet.id === view.planet?.id && <span className="cosmos-planet-here"> · 지금 연 프로젝트</span>}
+            </b>
             <small>
               {planet.lastMoon ? `🌙 ${planet.lastMoon.name} · ${ago(planet.lastMoon.at)}${planet.lastMoon.note ? ` · “${planet.lastMoon.note}”` : ''}` : planet.lastSeat ? `☀️ ${planet.lastSeat.name} · ${ago(planet.lastSeat.at)}` : ''}
             </small>

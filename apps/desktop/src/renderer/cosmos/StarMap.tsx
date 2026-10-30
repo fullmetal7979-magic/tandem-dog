@@ -6,7 +6,7 @@
 // text under the star — colour is never the only signal.
 import { useEffect, useMemo, useState } from 'react';
 import type { CosmosOverview, CosmosStar } from '../../shared/contract-cosmos';
-import { ago, isOnline, josa, kindGlyph, since, starFade } from './cosmos-format';
+import { ago, clipName, isOnline, josa, kindGlyph, since, starFade } from './cosmos-format';
 
 const W = 640;
 const H = 380;
@@ -18,6 +18,8 @@ const REST_ANGLES = [195, 345, 150, 30, 235, 305, 115, 65];
 const INNER = 104;
 const OUTER_X = 250;
 const OUTER_Y = 128;
+/** Star labels are centred under the body: longer names get an ellipsis and keep the full name in a tooltip. */
+const NAME_CHARS = 14;
 
 interface Placed {
   star: CosmosStar;
@@ -58,12 +60,16 @@ function place(view: CosmosOverview, now: number): Placed[] {
     });
   }
   resting.forEach((star, index) => {
-    const angle = ((REST_ANGLES[index % REST_ANGLES.length] + Math.floor(index / REST_ANGLES.length) * 12) * Math.PI) / 180;
+    // A ninth device starts a second, slightly wider ring, turned so its stars
+    // fall between the first ring's instead of on top of them.
+    const ring = Math.min(2, Math.floor(index / REST_ANGLES.length));
+    const angle = ((REST_ANGLES[index % REST_ANGLES.length] + ring * 22) * Math.PI) / 180;
+    const scale = 1 + ring * 0.1;
     const online = isOnline(star, now);
     out.push({
       star,
-      x: CX + OUTER_X * Math.cos(angle),
-      y: CY + OUTER_Y * Math.sin(angle),
+      x: CX + OUTER_X * scale * Math.cos(angle),
+      y: CY + OUTER_Y * scale * Math.sin(angle),
       seated: false,
       asking: askers.has(star.id),
       label: star.me ? `${star.name} (이 기기)` : star.name,
@@ -145,6 +151,7 @@ export function StarMap({ view, compact = false, active = true }: { view: Cosmos
           const ly = side ? entry.y - 4 : entry.y + radius + 20;
           return (
             <g key={entry.star.id} className="cosmos-star" style={{ opacity: 1 - fade * 0.55 }}>
+              <title>{`${entry.label} · ${entry.sub}`}</title>
               {entry.seated && <circle cx={entry.x} cy={entry.y} r={radius + 12} className="cosmos-seat-halo" />}
               {entry.star.me && <circle cx={entry.x} cy={entry.y} r={radius + 5} className="cosmos-me-ring" />}
               <circle cx={entry.x} cy={entry.y} r={radius} fill={entry.star.color} className="cosmos-star-body" />
@@ -152,7 +159,7 @@ export function StarMap({ view, compact = false, active = true }: { view: Cosmos
                 {kindGlyph(entry.star.kind)}
               </text>
               <text x={lx} y={ly} textAnchor={side ? 'start' : 'middle'} className="cosmos-star-name">
-                {entry.label}
+                {clipName(entry.label, entry.seated ? NAME_CHARS + 4 : NAME_CHARS)}
               </text>
               <text x={lx} y={ly + 18} textAnchor={side ? 'start' : 'middle'} className="cosmos-star-sub">
                 {entry.sub}

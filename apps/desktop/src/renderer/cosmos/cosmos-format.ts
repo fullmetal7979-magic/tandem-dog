@@ -17,26 +17,58 @@ export interface CosmosVerdict {
   live?: string;
 }
 
+// The same reading rules as src/runtime/galaxy/words.mjs (the terminal and the
+// main process speak through that one); cosmos-format.test.mjs holds them together.
 const DIGIT_BATCHIM = new Set(['0', '1', '3', '6', '7', '8']);
-const LATIN_BATCHIM = new Set(['l', 'm', 'n', 'r']);
+// Spelled-out letters (an acronym is read letter by letter): 엘 엠 엔 알.
+const LETTER_NAME_BATCHIM = new Set(['l', 'm', 'n', 'r']);
+// Final consonants that stay a 받침 when an English word is read in Korean (맥, 북, 앱, 챗, 픽셀).
+const WORD_FINAL_BATCHIM = new Set(['b', 'c', 'k', 'l', 'm', 'n', 'p', 't']);
+
+export type FinalSound = 'open' | 'rieul' | 'closed';
+
+/** How a name ends when read aloud: no 받침, a ㄹ 받침, another 받침, or null when it cannot be told. */
+export function finalSound(word: string): FinalSound | null {
+  // Trailing emoji, brackets and punctuation are not read: "집 맥북 💻" ends in 북.
+  const token = /([\uac00-\ud7a3]+|[A-Za-z]+|[0-9]+)[^\uac00-\ud7a3A-Za-z0-9]*$/u.exec(String(word ?? '').trim())?.[1];
+  if (!token) return null;
+  const last = token.slice(-1);
+  const code = last.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    const jong = (code - 0xac00) % 28;
+    return jong === 0 ? 'open' : jong === 8 ? 'rieul' : 'closed';
+  }
+  if (/[0-9]/.test(last)) return '178'.includes(last) ? 'rieul' : DIGIT_BATCHIM.has(last) ? 'closed' : 'open';
+  const lower = token.toLowerCase();
+  if (token.length <= 4 && token === token.toUpperCase()) {
+    const letter = lower.slice(-1);
+    return letter === 'l' || letter === 'r' ? 'rieul' : LETTER_NAME_BATCHIM.has(letter) ? 'closed' : 'open';
+  }
+  if (lower.endsWith('ng')) return 'closed';
+  // A silent e after n/m/l: phone 폰, game 게임, file 파일.
+  if (/[nml]e$/.test(lower) && lower.length > 2) return lower.endsWith('le') ? 'rieul' : 'closed';
+  const final = lower.slice(-1);
+  if (final === 'l') return 'rieul';
+  return WORD_FINAL_BATCHIM.has(final) ? 'closed' : 'open';
+}
 
 /** Whether a name ends in a final consonant, as read aloud in Korean. */
 export function endsWithBatchim(word: string): boolean | null {
-  const last = String(word ?? '').trim().slice(-1);
-  if (!last) return null;
-  const code = last.charCodeAt(0);
-  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
-  if (/\d/.test(last)) return DIGIT_BATCHIM.has(last);
-  if (/[a-z]/i.test(last)) return LATIN_BATCHIM.has(last.toLowerCase());
-  return null;
+  const sound = finalSound(word);
+  return sound === null ? null : sound !== 'open';
 }
 
-/** name + 이/가, 을/를, 은/는, 와/과 picked by pronunciation. */
-export function josa(name: string, pair: '이가' | '을를' | '은는' | '와과'): string {
-  const batchim = endsWithBatchim(name);
-  const [withBatchim, without] = { 이가: ['이', '가'], 을를: ['을', '를'], 은는: ['은', '는'], 와과: ['과', '와'] }[pair];
-  if (batchim === null) return `${name}${withBatchim}(${without})`;
-  return `${name}${batchim ? withBatchim : without}`;
+export type ParticlePair = '이가' | '을를' | '은는' | '와과' | '으로';
+const PAIRS: Record<ParticlePair, [string, string]> = { 이가: ['이', '가'], 을를: ['을', '를'], 은는: ['은', '는'], 와과: ['과', '와'], 으로: ['으로', '로'] };
+
+/** name + 이/가, 을/를, 은/는, 와/과, (으)로 picked by pronunciation. */
+export function josa(name: string, pair: ParticlePair): string {
+  const sound = finalSound(name);
+  const [closedForm, openForm] = PAIRS[pair];
+  if (sound === null) return `${name}${closedForm}(${openForm})`;
+  // 로 also follows a ㄹ 받침: 서울로, 파일로.
+  const closed = pair === '으로' ? sound === 'closed' : sound !== 'open';
+  return `${name}${closed ? closedForm : openForm}`;
 }
 
 export function ago(at: number | null | undefined, now = Date.now()): string {
@@ -46,17 +78,39 @@ export function ago(at: number | null | undefined, now = Date.now()): string {
   if (minutes < 60) return `${minutes}분 전`;
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours}시간 전`;
-  return `${Math.round(hours / 24)}일 전`;
+  const days = Math.round(hours / 24);
+  if (days < 14) return `${days}일 전`;
+  if (days < 60) return `${Math.floor(days / 7)}주 전`;
+  if (days < 365) return `${Math.floor(days / 30)}개월 전`;
+  return `${Math.floor(days / 365)}년 전`;
 }
 
-/** "47분째" / "3시간째" — how long something has been going on. */
+/** "47분째" / "3시간째" / "5일째" / "2주째" — how long something has been going on. */
 export function since(at: number | null | undefined, now = Date.now()): string {
   if (!at) return '';
   const minutes = Math.max(0, Math.round((now - at) / 60_000));
   if (minutes < 1) return '방금부터';
   if (minutes < 60) return `${minutes}분째`;
   const hours = Math.floor(minutes / 60);
-  return hours < 48 ? `${hours}시간째` : `${Math.floor(hours / 24)}일째`;
+  if (hours < 48) return `${hours}시간째`;
+  const days = Math.floor(hours / 24);
+  return days < 14 ? `${days}일째` : `${Math.floor(days / 7)}주째`;
+}
+
+/** Whole minutes until `at`, at least 1 while it is still ahead; 0 once it has passed. */
+export function minutesUntil(at: number | null | undefined, now = Date.now()): number {
+  const left = Number(at) - now;
+  return left > 0 ? Math.max(1, Math.ceil(left / 60_000)) : 0;
+}
+
+/**
+ * A name cut to `max` characters with an ellipsis, for SVG labels that cannot
+ * wrap. An emoji or a Hangul syllable is never cut in half; the full name
+ * belongs in a title/tooltip next to it.
+ */
+export function clipName(text: string | null | undefined, max: number): string {
+  const chars = Array.from(String(text ?? ''));
+  return chars.length <= max ? chars.join('') : `${chars.slice(0, Math.max(1, max - 1)).join('')}…`;
 }
 
 export function kindGlyph(kind: CosmosStarKind | string | undefined): string {
@@ -117,13 +171,15 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
     const waitingForMe = seat?.handoffTo === me;
     const reservedForOther = seat?.handoffTo && seat.handoffTo !== me;
     const lastMoon = seat?.history.at(-1);
-    if (reservedForOther) {
+    const opensIn = minutesUntil(view.reservedUntil, now);
+    if (reservedForOther && (opensIn || !view.reservedUntil)) {
       const target = view.stars.find((star) => star.id === seat?.handoffTo);
       return {
         level: 'info',
         icon: '⏳',
         title: `${josa(target?.name || '넘겨 달라고 요청한 기기', '을를')} 위해 자리를 비워 두었어요`,
-        detail: '잠시 뒤에도 이어받지 않으면 누구나 이어받을 수 있어요.',
+        live: `${josa(target?.name || '넘겨 달라고 요청한 기기', '을를')} 위해 자리를 비워 두었어요`,
+        detail: opensIn ? `${opensIn}분 뒤에도 이어받지 않으면 누구나 이어받을 수 있어요.` : '잠시 뒤에도 이어받지 않으면 누구나 이어받을 수 있어요.',
         action: 'sun',
       };
     }
@@ -221,9 +277,10 @@ export function cosmosVerdict(view: CosmosOverview | null, now = Date.now()): Co
  */
 export function cosmosErrorText(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error ?? '');
+  // Errors re-thrown across processes stack their prefixes ("Error: TypeError: …").
   const plain = text
     .replace(/^Error invoking remote method '[^']*':\s*/, '')
-    .replace(/^(?:[A-Z][A-Za-z]*)?Error:\s*/, '')
+    .replace(/^(?:(?:[A-Z][A-Za-z]*)?Error:\s*)+/, '')
     .trim();
   return plain || '알 수 없는 문제가 생겼어요.';
 }

@@ -7,6 +7,15 @@
 // never a hard-coded name, because a fork's `origin` is often upstream.
 import { runGit } from '../shared/git-process.mjs';
 
+/** decodeURI, but a malformed escape (`%E0%A4%A`) keeps the text as written instead of throwing. */
+function safeDecodeURI(text) {
+  try {
+    return decodeURI(text);
+  } catch {
+    return text;
+  }
+}
+
 /** `github.com/owner/repo` for any https/ssh/scp-style remote URL; '' when unparseable. */
 export function normalizeRemoteUrl(url) {
   const raw = String(url ?? '').trim();
@@ -15,7 +24,7 @@ export function normalizeRemoteUrl(url) {
   let path = '';
   // A remote on a local or shared disk (file://, /srv/git/app.git, C:\git\app)
   // is still a planet; its id keeps the path under a `local/` host.
-  const localPath = /^file:\/\//i.test(raw) ? decodeURI(raw.replace(/^file:\/\//i, '')) : /^(?:\/|[A-Za-z]:[\\/])/.test(raw) ? raw : '';
+  const localPath = /^file:\/\//i.test(raw) ? safeDecodeURI(raw.replace(/^file:\/\//i, '')) : /^(?:\/|[A-Za-z]:[\\/])/.test(raw) ? raw : '';
   const scp = /^(?:[^@\s]+@)?([^:\s/]+):(?!\/)(.+)$/.exec(raw);
   if (localPath) {
     host = 'local';

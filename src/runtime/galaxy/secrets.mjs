@@ -24,16 +24,37 @@ const TOKEN_PATTERNS = [
   /\bya29\.[0-9A-Za-z_-]{20,}/g,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  // Package registries and payment / mail services.
+  /\bnpm_[A-Za-z0-9]{36}\b/g,
+  /\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}/g,
+  /\b(?:sk|rk)_live_[A-Za-z0-9]{16,}/g,
+  /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g,
+  // Cloud and model hosts.
+  /\bhf_[A-Za-z0-9]{30,}\b/g,
+  /\bdo[por]_v1_[a-f0-9]{64}\b/g,
+  /\bGOCSPX-[A-Za-z0-9_-]{28}\b/g,
+  // Webhook URLs and bot tokens: whoever holds them can post as the owner.
+  /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_/-]{20,}/g,
+  /https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]{30,}/g,
+  /\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b/g,
 ];
 
-const SECRET_KEY = /(?:^|[_-])(?:api[_-]?key|apikey|token|secret|password|passwd|credential|credentials|authorization|auth|cookie|session[_-]?key|private[_-]?key|client[_-]?secret|access[_-]?key|refresh[_-]?token)$/i;
+const SECRET_KEY = /(?:^|[_-])(?:api[_-]?key|apikey|token|secret|password|passwd|pass|passphrase|bearer|credential|credentials|authorization|auth|cookie|session[_-]?key|private[_-]?key|signing[_-]?key|encryption[_-]?key|client[_-]?secret|access[_-]?key|refresh[_-]?token|connection[_-]?string|dsn)$/i;
+
+/** `accessToken` / `openaiAPIKey` → `access_Token` / `openai_API_Key`, so camelCase keys meet the same rule as snake_case ones. */
+function splitCamel(key) {
+  return key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2');
+}
 
 // Files that exist only to hold credentials; they are never synced, whatever
-// directory they sit in.
-const SECRET_FILE = /(?:^|[\\/])(?:\.env(?:\..*)?|.*\.pem|.*\.key|.*\.p12|.*\.pfx|id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?|credentials(?:\.json)?|.*-oauth(?:-credentials)?\.json|.*oauth.*\.json|provider-accounts(?:\.json)?|relay-e2ee\.json|\.npmrc|\.netrc|\.pypirc)$/i;
+// directory they sit in. (Key stores, saved git/database passwords and password
+// vaults included; encrypted-but-committed files such as sops `secrets.yaml`
+// are deliberately not on this list.)
+const SECRET_FILE = /(?:^|[\\/])(?:\.env(?:\..*)?|.*\.pem|.*\.key|.*\.p12|.*\.pfx|.*\.jks|.*\.keystore|.*\.ppk|.*\.kdbx|id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?|credentials(?:\.json)?|.*-oauth(?:-credentials)?\.json|.*oauth.*\.json|provider-accounts(?:\.json)?|relay-e2ee\.json|\.npmrc|\.netrc|\.pypirc|\.git-credentials|\.pgpass|\.my\.cnf)$/i;
 
 export function isSecretKey(key) {
-  return SECRET_KEY.test(String(key ?? ''));
+  const text = String(key ?? '');
+  return SECRET_KEY.test(text) || SECRET_KEY.test(splitCamel(text));
 }
 
 export function isSecretFile(path) {

@@ -93,3 +93,17 @@ test('secretFindingsInRange looks at the committed content between two commits',
   assert.deepEqual(await secretFindingsInRange(w.app, 'origin/main', 'HEAD'), [{ path: 'cfg.txt', reason: 'content' }]);
   assert.equal(await secretFindingsInRange(w.app, 'no-such-ref', 'HEAD'), null);
 });
+
+test('a second rescue in the same minute gets its own branch', async (t) => {
+  const w = displaced(t);
+  const first = await rescueDisplacedWork(w.app, '집 맥북', now);
+  assert.equal(first.ok, true, JSON.stringify(first));
+  // More stray work turns up and is rescued again within the minute.
+  git(w.app, 'reset', '--quiet', '--hard', w.head);
+  writeFileSync(join(w.app, 'again.txt'), 'again\n');
+  const second = await rescueDisplacedWork(w.app, '집 맥북', now);
+  assert.equal(second.ok, true, JSON.stringify(second));
+  assert.equal(second.branch, `${first.branch}-2`);
+  assert.equal(git(w.app, 'show', `${second.branch}:again.txt`), 'again');
+  assert.equal(git(w.app, 'show', `${first.branch}:draft.txt`), 'uncommitted', 'the first rescue is untouched');
+});

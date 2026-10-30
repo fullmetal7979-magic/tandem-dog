@@ -5,10 +5,11 @@
 // the Galaxy repository (~/.mixdog/star.json) because it describes THIS
 // machine; the Galaxy keeps a published copy under stars/<id>.json.
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { hostname, platform } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { mixdogHome } from '../shared/plugin-paths.mjs';
+import { writeJsonAtomic } from './fs-atomic.mjs';
 
 // Eight distinct, colour-blind-separable hues; a star keeps the one it got.
 export const STAR_COLORS = ['#fbbf24', '#60a5fa', '#f472b6', '#34d399', '#a78bfa', '#fb923c', '#22d3ee', '#e879f9'];
@@ -31,16 +32,37 @@ export function defaultStarName() {
   return platform() === 'darwin' ? `${host} 맥` : `${host} PC`;
 }
 
+export const STAR_NAME_LIMIT = 40;
+const STAR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The first `limit` user-perceived characters: an emoji or a Hangul syllable is never cut in half. */
+export function clipText(value, limit) {
+  const text = String(value ?? '');
+  if (text.length <= limit) return text;
+  if (typeof Intl?.Segmenter === 'function') {
+    let out = '';
+    let count = 0;
+    for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
+      if (count === limit) break;
+      out += segment;
+      count += 1;
+    }
+    return out;
+  }
+  return Array.from(text).slice(0, limit).join('');
+}
+
 function cleanName(value) {
-  return String(value ?? '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .trim()
-    .slice(0, 40);
+  return clipText(String(value ?? '').replace(/[\r\n\t]+/g, ' ').trim(), STAR_NAME_LIMIT).trim();
+}
+
+export function isStarId(value) {
+  return STAR_ID.test(String(value ?? ''));
 }
 
 export function normalizeStar(raw) {
   const record = raw && typeof raw === 'object' ? raw : {};
-  const id = /^[0-9a-f-]{36}$/i.test(String(record.id || '')) ? String(record.id) : randomUUID();
+  const id = isStarId(record.id) ? String(record.id) : randomUUID();
   const color = STAR_COLORS.includes(record.color) ? record.color : STAR_COLORS[parseInt(id.slice(0, 2), 16) % STAR_COLORS.length];
   return {
     v: 1,
@@ -54,30 +76,51 @@ export function normalizeStar(raw) {
   };
 }
 
-async function writeJsonAtomic(path, value) {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(tmp, path);
+/**
+ * A star.json that no longer parses (a crash mid-write on an old version, a
+ * bad hand edit) still names this device: keep a copy of it, and keep its id
+ * when one can be read out of it, so the device does not silently become a
+ * stranger to its own seat.
+ */
+async function salvageStar(path, text) {
+  await copyFile(path, `${path}.corrupt-${Date.now()}`).catch(() => undefined);
+  const id = /"id"\s*:\s*"([0-9a-fA-F-]{36})"/.exec(text)?.[1];
+  const name = /"name"\s*:\s*"([^"\\]{1,80})"/.exec(text)?.[1];
+  return isStarId(id) ? { id, ...(name ? { name } : {}) } : null;
 }
 
 /** This device's star, created on first use. */
 export async function ensureStar(home = cosmosHome()) {
   const path = starFilePath(home);
   let raw = null;
+  let text = null;
   try {
-    raw = JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    raw = null;
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    // Missing: a new star. Unreadable for another reason: do not overwrite it.
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  if (text !== null) {
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      raw = await salvageStar(path, text);
+    }
   }
   const star = normalizeStar(raw);
   if (!raw || JSON.stringify(raw) !== JSON.stringify(star)) await writeJsonAtomic(path, star);
   return star;
 }
 
+/** Only fields that validate are applied; a bad colour or kind keeps the current one instead of resetting it. */
 export async function updateStar(patch, home = cosmosHome()) {
   const current = await ensureStar(home);
-  const next = normalizeStar({ ...current, ...patch, id: current.id, createdAt: current.createdAt });
+  const change = patch && typeof patch === 'object' ? patch : {};
+  const accepted = {};
+  if (change.name !== undefined && cleanName(change.name)) accepted.name = change.name;
+  if (STAR_COLORS.includes(change.color)) accepted.color = change.color;
+  if (STAR_KINDS.includes(change.kind)) accepted.kind = change.kind;
+  const next = normalizeStar({ ...current, ...accepted, id: current.id, createdAt: current.createdAt });
   await writeJsonAtomic(starFilePath(home), next);
   return next;
 }

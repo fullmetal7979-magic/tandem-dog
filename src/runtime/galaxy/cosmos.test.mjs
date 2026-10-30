@@ -207,7 +207,7 @@ test('a phone leaves only through the PC it sits on; forcePush never skips that'
     await as(w.b, () =>
       assert.rejects(moon({ root: w.b.project, dir: w.b.dir, home: w.b.home, guest: phone, forcePush }), (error) => {
         assert.equal(error.code, 'seat_other_host');
-        assert.match(error.message, /집 맥북을\(를\) 통해 작업 중/);
+        assert.match(error.message, /집 맥북을 통해 작업 중/);
         return true;
       })
     );

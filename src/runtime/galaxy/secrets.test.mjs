@@ -78,3 +78,48 @@ test('URL credentials are matched by the whole parameter name only', () => {
   );
   assert.equal(scrub(scrub('https://h.example/x?sig=1')), 'https://h.example/x?sig=redacted-secret', 'idempotent');
 });
+
+test('camelCase and spelled-out credential keys are placeholders too', async () => {
+  const { isSecretKey } = await import('./secrets.mjs');
+  for (const key of ['accessToken', 'githubToken', 'openaiApiKey', 'openaiAPIKey', 'clientSecret', 'dbPass', 'db_pass', 'passphrase', 'bearer', 'signingKey', 'DATABASE_DSN', 'connectionString']) {
+    assert.equal(isSecretKey(key), true, key);
+  }
+  for (const key of ['maxTokens', 'tokenBudget', 'bypass', 'compass', 'authMode', 'title', 'model', 'oauth']) {
+    assert.equal(isSecretKey(key), false, key);
+  }
+  const { value, count } = redactJson({ mcp: { env: { githubToken: 'abc', maxTokens: 4096 } } });
+  assert.equal(count, 1);
+  assert.equal(value.mcp.env.githubToken, SECRET_PLACEHOLDER);
+  assert.equal(value.mcp.env.maxTokens, 4096);
+});
+
+test('registry, payment, cloud and webhook tokens are recognised', () => {
+  const samples = [
+    `npm_${'a'.repeat(36)}`,
+    `pypi-AgEIcHlwaS5vcmc${'b'.repeat(60)}`,
+    `sk_live_${'c'.repeat(24)}`,
+    `SG.${'d'.repeat(22)}.${'e'.repeat(43)}`,
+    `hf_${'f'.repeat(34)}`,
+    `dop_v1_${'0'.repeat(64)}`,
+    `GOCSPX-${'g'.repeat(28)}`,
+    `https://hooks.slack.com/services/T000/B000/${'h'.repeat(24)}`,
+    `https://discord.com/api/webhooks/123456/${'i'.repeat(40)}`,
+    `123456789:AA${'j'.repeat(33)}`,
+  ];
+  for (const sample of samples) {
+    assert.equal(containsSecret(`value ${sample} end`), true, sample);
+    assert.equal(redactText(sample).text, REDACTED, sample);
+  }
+  for (const plain of ['sk_test_is_not_blocked', 'npm_install', 'hf_small', 'SG.short.value', 'https://hooks.slack.com/']) {
+    assert.equal(containsSecret(plain), false, plain);
+  }
+});
+
+test('key stores, saved passwords and vaults are secret files', () => {
+  for (const path of ['.git-credentials', 'home/.pgpass', '.my.cnf', 'android/release.jks', 'app/upload.keystore', 'putty.ppk', 'vault.kdbx']) {
+    assert.equal(isSecretFile(path), true, path);
+  }
+  for (const path of ['secrets.yaml', 'src/keystore.ts', 'docs/passwords.md', 'notes.kdbx.md']) {
+    assert.equal(isSecretFile(path), false, path);
+  }
+});

@@ -1,6 +1,7 @@
 // ▶ 실행: what a project can run, read from its own files. package.json
-// scripts (with the package manager its lockfile names) and Makefile targets
-// become big buttons; each run types its command into a fresh terminal of its
+// scripts (with the package manager its `packageManager` field or lockfile
+// names), Makefile targets, justfile recipes, deno.json tasks and the everyday
+// cargo / go commands of a Rust or Go project become big buttons; each run types its command into a fresh terminal of its
 // own, so the output and Ctrl+C stay where a developer expects them and a
 // command never lands in a shell that is still busy. Each task keeps its own
 // terminal: starting one never stops another that is still running.
@@ -9,7 +10,7 @@ export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
 
 export interface RunTask {
   id: string;
-  kind: 'script' | 'make';
+  kind: 'script' | 'make' | 'just' | 'deno' | 'cargo' | 'go';
   name: string;
   /** What the button types into the terminal. */
   command: string;
@@ -31,6 +32,20 @@ const LOCKFILES: ReadonlyArray<[string, PackageManager]> = [
 export function packageManagerFor(rootFiles: Iterable<string>): PackageManager {
   const names = new Set(rootFiles);
   return LOCKFILES.find(([file]) => names.has(file))?.[1] ?? 'npm';
+}
+
+/**
+ * package.json's own word on its manager (Corepack's `"packageManager":
+ * "pnpm@9.1.0"`), which wins over a lockfile left behind by another tool.
+ */
+export function packageManagerField(packageJson: string): PackageManager | null {
+  try {
+    const field = (JSON.parse(packageJson) as { packageManager?: unknown })?.packageManager;
+    const name = typeof field === 'string' ? field.split('@')[0].trim().toLowerCase() : '';
+    return name === 'npm' || name === 'pnpm' || name === 'yarn' || name === 'bun' ? name : null;
+  } catch {
+    return null;
+  }
 }
 
 export function makefileName(rootFiles: Iterable<string>): string | null {
@@ -56,7 +71,8 @@ function iconFor(name: string): string {
 }
 
 function rank(name: string): number {
-  const base = name.split(/[:\s]/)[0].toLowerCase();
+  // "cargo build" / "go test" rank by their verb, like a script called build.
+  const base = name.replace(/^(?:cargo|go)\s+/, '').split(/[:\s]/)[0].toLowerCase();
   const index = PRIMARY_ORDER.indexOf(base);
   return index < 0 ? PRIMARY_ORDER.length : index;
 }
@@ -142,6 +158,148 @@ export function makeTasks(makefile: string, file = 'Makefile'): RunTask[] {
       icon: iconFor(name),
       primary: rank(name) < PRIMARY_ORDER.length,
     }));
+}
+
+export function justfileName(rootFiles: Iterable<string>): string | null {
+  const names = new Set(rootFiles);
+  return ['justfile', 'Justfile', '.justfile'].find((name) => names.has(name)) ?? null;
+}
+
+/**
+ * Recipes a button can run as they are: no `[private]` or `_hidden` ones, no
+ * aliases or settings, and only recipes whose parameters all have defaults
+ * (one that needs an argument would stop and wait for it).
+ */
+export function justRecipes(justfile: string): string[] {
+  const recipes: string[] = [];
+  let hidden = false;
+  for (const line of justfile.split(/\r?\n/)) {
+    if (/^\s*\[(?:[^\]]*\b)?private\b[^\]]*\]\s*$/.test(line)) {
+      hidden = true;
+      continue;
+    }
+    if (/^\s*\[.*\]\s*$/.test(line)) continue; // other attributes keep the flag for the recipe below
+    const match = /^@?([A-Za-z][A-Za-z0-9_-]*)((?:\s+[^:]*?)?)\s*:(?![=:])/.exec(line);
+    const wasHidden = hidden;
+    if (line.trim() && !line.startsWith('#')) hidden = false;
+    if (!match || /^(?:alias|set|export|import|mod)\b/.test(line)) continue;
+    const params = match[2].trim().split(/\s+/).filter(Boolean);
+    // `name param='x'`, `*args` and `+args` with a default are fine; a bare `param` is not.
+    if (params.some((param) => !param.includes('=') && !param.startsWith('*'))) continue;
+    if (wasHidden || match[1].startsWith('_') || recipes.includes(match[1])) continue;
+    recipes.push(match[1]);
+  }
+  return recipes;
+}
+
+export function justTasks(justfile: string, file = 'justfile'): RunTask[] {
+  if (!isRunnableName(file.replace(/^\./, ''))) return [];
+  const flag = file === 'justfile' || file === 'Justfile' || file === '.justfile' ? '' : ` -f ${file}`;
+  return justRecipes(justfile)
+    .filter(isRunnableName)
+    .map((name) => ({
+      id: `just:${name}`,
+      kind: 'just' as const,
+      name,
+      command: `just${flag} ${name}`,
+      detail: `just ${name}`,
+      icon: iconFor(name),
+      primary: rank(name) < PRIMARY_ORDER.length,
+    }));
+}
+
+/** deno.json / deno.jsonc, whose `tasks` run with `deno task`. Comments are allowed in the .jsonc one. */
+export function denoConfigName(rootFiles: Iterable<string>): string | null {
+  const names = new Set(rootFiles);
+  return ['deno.json', 'deno.jsonc'].find((name) => names.has(name)) ?? null;
+}
+
+function stripJsonComments(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      out += char;
+      if (char === '\\') out += text[++i] ?? '';
+      else if (char === '"') inString = false;
+    } else if (char === '"') {
+      inString = true;
+      out += char;
+    } else if (char === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i += 1;
+      out += '\n';
+    } else if (char === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i += 1;
+      i += 1;
+    } else out += char;
+  }
+  // Trailing commas are allowed in JSONC too.
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}
+
+export function denoTasks(denoJson: string): RunTask[] {
+  let tasks: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(stripJsonComments(denoJson)) as { tasks?: unknown };
+    if (parsed && typeof parsed.tasks === 'object' && parsed.tasks) tasks = parsed.tasks as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  return Object.entries(tasks)
+    .filter(([name]) => isRunnableName(name))
+    .map(([name, value]) => {
+      // A task is a command string, or { command, description } in newer Deno.
+      const body = typeof value === 'string' ? value : typeof (value as { command?: unknown })?.command === 'string' ? String((value as { command: string }).command) : '';
+      return {
+        id: `deno:${name}`,
+        kind: 'deno' as const,
+        name,
+        command: `deno task ${name}`,
+        detail: body.length > 80 ? `${body.slice(0, 79)}…` : body,
+        icon: iconFor(name),
+        primary: rank(name) < PRIMARY_ORDER.length,
+      };
+    });
+}
+
+/** The everyday commands of a Rust crate; `run` only for a package (a bare workspace has nothing to run). */
+export function cargoTasks(cargoToml: string): RunTask[] {
+  const isPackage = /^\s*\[package\]\s*$/m.test(cargoToml);
+  const commands: Array<[string, string]> = [
+    ...(isPackage ? ([['run', 'cargo run']] as Array<[string, string]>) : []),
+    ['build', 'cargo build'],
+    ['test', 'cargo test'],
+    ['check', 'cargo check'],
+    ['clippy', 'cargo clippy'],
+  ];
+  return commands.map(([name, command]) => ({
+    id: `cargo:${name}`,
+    kind: 'cargo' as const,
+    name: `cargo ${name}`,
+    command,
+    detail: command,
+    icon: name === 'run' ? '🚀' : iconFor(name),
+    primary: ['run', 'build', 'test'].includes(name),
+  }));
+}
+
+/** The everyday commands of a Go module. */
+export function goTasks(): RunTask[] {
+  return ([
+    ['build', 'go build ./...'],
+    ['test', 'go test ./...'],
+    ['vet', 'go vet ./...'],
+  ] as Array<[string, string]>).map(([name, command]) => ({
+    id: `go:${name}`,
+    kind: 'go' as const,
+    name: `go ${name}`,
+    command,
+    detail: command,
+    icon: iconFor(name),
+    primary: name !== 'vet',
+  }));
 }
 
 /** Everyday tasks first in a fixed order, the rest alphabetically. */

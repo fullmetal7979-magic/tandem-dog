@@ -19,6 +19,8 @@ import { mkdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/pr
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runGit } from '../shared/git-process.mjs';
+import { writeFileAtomic } from './fs-atomic.mjs';
+import { parseJsonOr, readBlobTexts } from './git-batch.mjs';
 import { scrubUrl, scrubUrlsInText } from './secrets.mjs';
 import { cosmosHome } from './star.mjs';
 
@@ -231,8 +233,19 @@ export function assertSafeRemoteUrl(url) {
   if (!value.trim() || value.startsWith('-') || value.trim().startsWith('-') || /[\u0000-\u001f\u007f\s]/.test(value)) {
     throw new GalaxyError('bad_url', '저장소 주소가 올바르지 않아요. https:// 또는 git@ 로 시작하는 주소를 넣어 주세요.');
   }
+  // `<transport>::<address>` hands the address to a remote helper (`ext::`
+  // runs a command line); a Galaxy is a plain git remote, never that.
+  if (/^[A-Za-z][A-Za-z0-9+.-]*::/.test(value)) {
+    throw new GalaxyError('bad_url', '은하수 저장소는 https:// · ssh:// · git@ 주소만 쓸 수 있어요.');
+  }
+  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):\/\//.exec(value)?.[1]?.toLowerCase();
+  if (scheme && !SAFE_REMOTE_SCHEMES.has(scheme)) {
+    throw new GalaxyError('bad_url', `${scheme}:// 주소는 은하수로 쓸 수 없어요. https:// · ssh:// · git@ 주소를 넣어 주세요.`);
+  }
   return value;
 }
+
+const SAFE_REMOTE_SCHEMES = new Set(['https', 'http', 'ssh', 'git+ssh', 'ssh+git', 'git', 'file']);
 
 // ------------------------------------------------------------------ files
 
@@ -249,11 +262,7 @@ export async function writeGalaxyJson(dir, rel, value) {
 }
 
 export async function writeGalaxyText(dir, rel, text) {
-  const path = join(dir, rel);
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, text, 'utf8');
-  await rename(tmp, path);
+  await writeFileAtomic(join(dir, rel), text);
 }
 
 // ------------------------------------------------------------------ sync
@@ -360,6 +369,14 @@ export async function galaxyReader(dir = galaxyDir()) {
         return fallback;
       }
     },
+    /** Several files at once (one git process): the parsed JSON per path, `fallback` where missing or malformed. */
+    async jsonMany(rels, fallback = null) {
+      if (!ref || !rels.length) return rels.map(() => fallback);
+      const specs = rels.map((rel) => `${ref}:${rel}`);
+      const batch = await readBlobTexts(dir, specs);
+      if (!batch) return Promise.all(rels.map((rel) => reader.json(rel, fallback)));
+      return specs.map((spec) => parseJsonOr(batch.get(spec), fallback));
+    },
     /** File names (not paths) directly inside `relDir`. */
     async names(relDir) {
       if (!ref) return [];
@@ -445,7 +462,7 @@ export async function publishBeat(starId, beat, { dir = galaxyDir(), push = true
   await git(dir, ['update-ref', ref, commit]);
   if (!push || !(await galaxyRemote(dir))) return { ref, pushed: false };
   const r = await runGit(dir, ['push', '--quiet', '--force', 'origin', `${ref}:${ref}`]);
-  return { ref, pushed: r.code === 0, error: r.code === 0 ? null : r.stderr.trim() };
+  return { ref, pushed: r.code === 0, error: r.code === 0 ? null : scrubUrlsInText(r.stderr.trim()) };
 }
 
 /** Every star's last beat, keyed by star id (reads the refs fetched by pullGalaxy). */
@@ -454,15 +471,17 @@ export async function readBeats(dir = galaxyDir()) {
     .split('\n')
     .filter(Boolean);
   const beats = {};
-  for (const ref of refs) {
-    const r = await runGit(dir, ['cat-file', 'blob', `${ref}:beat.json`]);
-    if (r.code !== 0) continue;
-    try {
-      const beat = JSON.parse(r.stdout);
-      if (beat?.star) beats[beat.star] = beat;
-    } catch {
-      /* a malformed beat is ignored, never fatal */
+  const specs = refs.map((ref) => `${ref}:beat.json`);
+  const batch = await readBlobTexts(dir, specs);
+  for (const spec of specs) {
+    let text = batch ? batch.get(spec) : null;
+    if (!batch) {
+      const r = await runGit(dir, ['cat-file', 'blob', spec]);
+      text = r.code === 0 ? r.stdout : null;
     }
+    // A malformed beat is ignored, never fatal.
+    const beat = parseJsonOr(text);
+    if (beat?.star) beats[beat.star] = beat;
   }
   return beats;
 }

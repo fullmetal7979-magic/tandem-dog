@@ -5,6 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { josa } from '../../../../src/runtime/galaxy/words.mjs';
 import { configureGitEnvironment, oneLine, repoRoot } from '../../../../src/runtime/shared/git-process.mjs';
 import type {
   CosmosGalaxySetupResult,
@@ -123,6 +124,8 @@ const REFUSAL_CODES = new Set([
   'seat_reserved',
   // A phone takeover through this PC while the other host was seen recently.
   'seat_host_active',
+  // A phone tried to leave through a PC other than the one it sits on.
+  'seat_other_host',
   'secrets',
   'no_remote',
   'no_galaxy',
@@ -366,11 +369,14 @@ async function sessionToCarry(root: string, sessionId: string | null): Promise<u
   return (await cliModule()).latestSessionFor(root);
 }
 
+const STAR_ID_SHAPE = /^[\w-]{6,128}$/;
+
 export async function cosmosMoon(cwd: unknown, request?: unknown, guestInput?: unknown): Promise<CosmosOutcome<CosmosMoonResult>> {
   const body = record(request);
   const guest = cosmosGuest(guestInput);
   const note = text(body.note, NOTE_LIMIT);
-  const handoffTo = typeof body.handoffTo === 'string' && body.handoffTo ? body.handoffTo : null;
+  // A star id (a UUID, or phone-<hex>); anything else is not a device to leave the seat for.
+  const handoffTo = typeof body.handoffTo === 'string' && STAR_ID_SHAPE.test(body.handoffTo) ? body.handoffTo : null;
   const sessionId = typeof body.sessionId === 'string' && body.sessionId ? body.sessionId : null;
   // 그래도 내려놓기: release the seat even though the push failed; the
   // unpushed work stays on this device. Only an explicit `true` counts, and
@@ -457,11 +463,11 @@ function remoteRefusalText(view: CosmosOverview, heldOnly: boolean): string | nu
     if (!holder) return null;
     const project = view.planet.name || '다른 프로젝트';
     return view.state === 'mine'
-      ? `🔒 ${holder.name}에서 ${project} 프로젝트를 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요. 폰에서 ${project}을(를) 이어받아 주세요.`
-      : `🔒 ${holder.name}이(가) ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요.`;
+      ? `🔒 ${holder.name}에서 ${project} 프로젝트를 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요. 폰에서 ${josa(project, '을를')} 이어받아 주세요.`
+      : `🔒 ${josa(holder.name || '다른 기기', '이가')} ${project} 프로젝트에서 작업 중이라, 프로젝트 밖 폴더에서는 바꿀 수 없어요.`;
   }
   if (view.state === 'mine') return `🔒 ${holder?.name ?? '연결된 기기'}에서 작업 중이에요. 폰에서 이어받기를 누르면 이어서 할 수 있어요.`;
-  if (holder) return `🔒 ${holder.name}이(가) 작업 중이에요. 폰에서 넘겨 달라고 요청해 주세요.`;
+  if (holder) return `🔒 ${josa(holder.name || '다른 기기', '이가')} 작업 중이에요. 폰에서 넘겨 달라고 요청해 주세요.`;
   return '☄️ 지금은 아무도 작업하지 않아요. 폰에서 먼저 이어받기를 눌러 주세요.';
 }
 

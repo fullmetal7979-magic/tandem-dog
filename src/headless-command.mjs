@@ -20,6 +20,7 @@ const COSMOS_RELAY_WORDS = new Set([
   '해', 'sun', 'start', 'sit', '달', 'moon', 'finish', 'leave', '교대', 'request', 'handover',
   '은하수', 'status', 'galaxy', '연결', 'connect', '별', 'star', '도움말',
   '이어받기', '내려놓기', '요청', '기기',
+  '기록', 'history', 'turns', '우주', 'universe',
 ]);
 
 function roleKey(value) {

@@ -190,3 +190,47 @@ test('relay over git: request, hand-off and beats travel between stars', async (
     ['회사 PC', false],
   ]);
 });
+
+test('a reserved seat names who it waits for and for how long', async () => {
+  const { HANDOFF_HOLD_MS, reservedUntil, seatRefusalText } = await import('./seat.mjs');
+  const seat = {
+    ...emptySeat('github.com/me/app'),
+    handoffTo: 'star-b',
+    requests: [{ star: 'star-b', name: '집 맥북', at: 900 }],
+    history: [{ star: 'star-a', name: '회사 PC', from: 0, to: 1_000 }],
+  };
+  assert.equal(reservedUntil(seat), 1_000 + HANDOFF_HOLD_MS);
+  assert.equal(reservedUntil({ ...seat, handoffTo: null }), 0);
+  const text = seatRefusalText('reserved', { seat, now: 1_000 + 3 * 60_000 });
+  assert.match(text, /^집 맥북을 위해 비워 둔 작업 자리예요\. 7분 뒤에는 누구나 이어받을 수 있어요\.$/);
+  assert.match(seatRefusalText('occupied', { seat: { holder: { star: 'x', name: '회사 PC' } } }), /^회사 PC가 작업 중이에요/);
+  assert.match(seatRefusalText('stale', { seat: { holder: { star: 'x', name: '내 폰' } } }), /^내 폰이 오래 응답이 없어요/);
+});
+
+test('asking again with a new note replaces the note, not the place in line', async () => {
+  const { requestTransition } = await import('./seat.mjs');
+  const first = { id: 'star-b', name: '집 맥북', kind: 'mac', color: '#fff' };
+  const second = { id: 'star-c', name: '폰', kind: 'phone', color: '#000' };
+  let seat = { ...emptySeat('p'), holder: { star: 'star-a', name: 'A', since: 0 } };
+  seat = requestTransition(seat, first, { now: 1, note: '회의 끝나고' }).seat;
+  seat = requestTransition(seat, second, { now: 2 }).seat;
+  assert.equal(requestTransition(seat, first, { now: 3, note: '회의 끝나고' }).changed, false);
+  assert.equal(requestTransition(seat, first, { now: 3 }).changed, false, 'an empty note keeps the old one');
+  const updated = requestTransition(seat, first, { now: 4, note: '지금 바로요' });
+  assert.equal(updated.changed, true);
+  assert.deepEqual(updated.seat.requests.map((request) => [request.star, request.note]), [['star-b', '지금 바로요'], ['star-c', '']]);
+});
+
+test('reading a seat drops malformed turns and requests nobody answered for half a day', async () => {
+  const { REQUEST_TTL_MS, normalizeSeat } = await import('./seat.mjs');
+  const now = 10 * REQUEST_TTL_MS;
+  const raw = {
+    holder: { star: 'star-a', name: 'A', since: now - 1 },
+    requests: [{ star: 'old', at: now - REQUEST_TTL_MS - 1 }, { star: 'new', at: now - 60_000 }, { name: 'nobody' }],
+    history: [{ star: 'star-a', from: 1, to: null }, { star: 7, from: 1 }, null, { star: 'x', from: 'soon' }, { star: 'y', from: 2, to: 3 }],
+  };
+  const seat = normalizeSeat(raw, 'p', { now });
+  assert.deepEqual(seat.requests.map((request) => request.star), ['new']);
+  assert.deepEqual(seat.history.map((turn) => turn.star), ['star-a', 'y']);
+  assert.equal(normalizeSeat(raw, 'p').requests.length, 2, 'without a clock nothing expires');
+});

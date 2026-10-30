@@ -276,3 +276,28 @@ test('push_failed offers 그래도 내려놓기, which repeats the leave with fo
   const none = [...document.querySelectorAll('.cosmos-outcome--refused button')].find((button) => button.textContent === '그래도 내려놓기');
   assert.equal(none, undefined);
 });
+
+test('the network coming back refreshes every watched view at once and beats a held seat', async (t) => {
+  const { root, window } = installTestDom(t, { rootId: 'root' });
+  let reads = 0;
+  const beats = [];
+  window.mixdogDesktop = {
+    cosmosOverview: async () => {
+      reads += 1;
+      return view({ state: 'mine', seat: { ...view().seat, holder: { star: 'me', name: '집 맥북', kind: 'mac', since: NOW } } });
+    },
+    cosmosHeartbeat: async (planets) => {
+      beats.push(planets);
+    },
+  };
+  const store = await freshStore();
+  t.after(() => store.resetCosmosStore());
+  const { GalaxyPane } = await import('./GalaxyPane.tsx');
+  await act(async () => root.render(React.createElement(GalaxyPane, { projectPath: '/work/app', active: true })));
+  await tick();
+  const before = reads;
+  await act(async () => window.dispatchEvent(new window.Event('online')));
+  await tick();
+  assert.equal(reads, before + 1, 'one fresh read per watched project');
+  assert.deepEqual(beats.at(-1), ['github.com/me/app'], 'the held seat beats right away');
+});

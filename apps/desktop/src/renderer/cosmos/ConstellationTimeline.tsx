@@ -4,8 +4,11 @@
 // reads as one path. Memos of 달 sit on the turn they closed.
 import { useMemo } from 'react';
 import type { CosmosSeatHistoryEntry, CosmosStar } from '../../shared/contract-cosmos';
-import { ago, kindGlyph } from './cosmos-format';
+import { ago, clipName, kindGlyph } from './cosmos-format';
 
+const SHOWN = 14;
+/** Lane labels share the 92px gutter with a glyph: longer names get an ellipsis (the full name is the label's title). */
+const LABEL_CHARS = 7;
 const LANE_H = 30;
 const LEFT = 92;
 const RIGHT = 12;
@@ -19,7 +22,8 @@ interface Turn extends CosmosSeatHistoryEntry {
 }
 
 export function ConstellationTimeline({ history, stars, now = Date.now() }: { history: CosmosSeatHistoryEntry[]; stars: CosmosStar[]; now?: number }) {
-  const recent = history.slice(-14);
+  // Memoised on the history itself: a new slice every render would rebuild the whole drawing.
+  const recent = useMemo(() => history.slice(-SHOWN), [history]);
   const model = useMemo(() => {
     if (!recent.length) return null;
     // The axis spans the recorded turns themselves (with a little air), so a
@@ -48,6 +52,11 @@ export function ConstellationTimeline({ history, stars, now = Date.now() }: { hi
   const { turns, laneIds, colorOf, height, start } = model;
   return (
     <figure className="cosmos-timeline">
+      {history.length > SHOWN && (
+        <figcaption className="cosmos-timeline-caption">
+          전체 {history.length}번 중 최근 {SHOWN}번
+        </figcaption>
+      )}
       <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-label={`최근 작업 기록 ${turns.length}번`}>
         {laneIds.map((id, lane) => {
           const sample = recent.find((turn) => turn.star === id);
@@ -55,21 +64,22 @@ export function ConstellationTimeline({ history, stars, now = Date.now() }: { hi
             <g key={id}>
               <line className="cosmos-lane" x1={LEFT} x2={W - RIGHT} y1={18 + lane * LANE_H} y2={18 + lane * LANE_H} />
               <text className="cosmos-lane-label" x={LEFT - 10} y={22 + lane * LANE_H} textAnchor="end">
-                {kindGlyph(sample?.kind)} {sample?.name}
+                <title>{sample?.name}</title>
+                {kindGlyph(sample?.kind)} {clipName(sample?.name, LABEL_CHARS)}
               </text>
             </g>
           );
         })}
         {turns.slice(1).map((turn, index) => {
           const prev = turns[index];
-          return <line key={`link-${turn.from}`} className="cosmos-constellation" x1={prev.x2} y1={prev.y} x2={turn.x1} y2={turn.y} />;
+          return <line key={`link-${prev.star}-${prev.from}-${turn.star}-${turn.from}`} className="cosmos-constellation" x1={prev.x2} y1={prev.y} x2={turn.x1} y2={turn.y} />;
         })}
         {turns.map((turn) => (
           <g key={`${turn.star}-${turn.from}`}>
             <title>
               {`${turn.name} · ${new Date(turn.from).toLocaleString('ko-KR')} ~ ${turn.to ? new Date(turn.to).toLocaleString('ko-KR') : '지금'}${turn.memo ? `\n🌙 ${turn.memo}` : ''}${turn.forced ? '\n⚠️ 응답이 없어 넘겨받음' : ''}`}
             </title>
-            <rect className={`cosmos-turn${turn.to ? '' : ' is-live'}`} x={turn.x1} y={turn.y - 6} width={turn.x2 - turn.x1} height={12} rx={6} fill={colorOf(turn.star)} />
+            <rect className={`cosmos-turn${turn.to ? '' : ' is-live'}${turn.forced ? ' is-forced' : ''}`} x={turn.x1} y={turn.y - 6} width={turn.x2 - turn.x1} height={12} rx={6} fill={colorOf(turn.star)} />
             <circle className="cosmos-turn-star" cx={turn.x1} cy={turn.y} r={4.5} />
             {turn.to && <circle className="cosmos-turn-star" cx={turn.x2} cy={turn.y} r={3} />}
           </g>
