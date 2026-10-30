@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { CosmosAction } from './cosmos-format';
 import { since, cosmosVerdict } from './cosmos-format';
-import { ActionNote, CosmosMark, NOTE_ACTIONS, RelayOutcome, runCosmosAction } from './CosmosParts';
+import { ActionNote, NOTE_ACTIONS, RelayOutcome, runCosmosAction } from './CosmosParts';
+import { CosmosUniverse } from './CosmosUniverse';
 import { StarMap } from './StarMap';
 import { useCosmos } from './cosmos-store';
 
@@ -50,10 +51,11 @@ export function CosmosHome({ projectPath, projectLabel }: { projectPath: string;
 
   return (
     <section className="cosmos-home cosmos-home--focused" aria-label="코스모스 홈">
-      <header className="cosmos-home-head">
-        <CosmosMark size={32} />
-        <div><h1>{projectLabel || view?.planet?.name || '새 작업'}</h1><p>{projectPath?'현재 프로젝트에서 개발을 이어가세요.':'모델을 고르고 아래에 작업을 입력하세요.'}</p></div>
-      </header>
+      <CosmosUniverse
+        projectPath={projectPath}
+        planetName={projectLabel || view?.planet?.name || '새 작업'}
+        subtitle={projectPath ? '현재 프로젝트에서 개발을 이어가세요.' : '모델을 고르고 아래에 작업을 입력하세요.'}
+      />
       {projectPath && <p className="cosmos-home-status" role="status"><span className="cosmos-dot" aria-hidden="true"/> {cosmosVerdict(view).title}{state==='mine'?` · ${since(holder?.since)}`:''}</p>}
       {projectPath && <RelayOutcome projectPath={projectPath} entry={entry} />}
       <div className="cosmos-home-actions" role="group" aria-label="작업 시작">

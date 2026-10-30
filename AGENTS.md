@@ -7,6 +7,7 @@
 - Electron main: apps/desktop/src/main/. React UI: apps/desktop/src/renderer/, 코스모스 UI: cosmos/.
 - 릴레이: apps/relay/. 관련 문서: docs/cosmos/RELAY.md.
 - 개발 채팅·모델 전환·입력 복구·사용 한도·macOS 호환성 설계와 검증: docs/cosmos/DESIGN.md.
+- 제품 이름(COSMOS CODE)·철학·우주 문법·OpenCode 분석·기능 지도: docs/cosmos/COSMOS-CODE.md.
 
 ## Claude와 Codex 협업
 - 작업 시작 시 git status --short, git branch --show-current, git diff --stat를 확인한다.

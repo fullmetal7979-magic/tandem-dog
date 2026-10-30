@@ -324,22 +324,209 @@
   padding: 28px var(--pane-inset, 24px) 24px;
   pointer-events: auto;
 }
-.cosmos-home-head {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+/* ── 행성의 우주 (the planet's universe) ─────────────────────────────────
+   A window onto space in both themes: 밤하늘 shows deep night, 새벽 the same
+   night with first light on the horizon. The window is always dark, so its
+   inks are fixed light values rather than theme text tokens. */
+.cosmos-universe {
+  --cosmos-universe-ink: #eef0ff;
+  --cosmos-universe-muted: rgb(226 230 255 / 74%);
+  --cosmos-universe-faint: rgb(226 230 255 / 56%);
+  --cosmos-universe-glass: rgb(255 255 255 / 7%);
+  --cosmos-universe-edge: rgb(255 255 255 / 13%);
+  --cosmos-universe-note: #fcd34d;
+  position: relative;
+  container-type: inline-size;
 }
-.cosmos-home-head h1 {
+.cosmos-universe-sky {
+  position: relative;
+  height: clamp(280px, 46cqw, 360px);
+  border-radius: 24px;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--cosmos-universe-ink);
+  background:
+    radial-gradient(120% 90% at 50% 125%, rgb(91 33 182 / 30%), transparent 60%),
+    radial-gradient(80% 70% at 8% -12%, rgb(30 58 138 / 38%), transparent 70%),
+    linear-gradient(180deg, #03040b 0%, #070a1c 55%, #0b0d26 100%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 6%),
+    0 30px 60px -40px rgb(0 0 0 / 80%);
+}
+:root[data-mixdog-theme='light'] .cosmos-universe-sky {
+  background:
+    radial-gradient(120% 70% at 50% 138%, rgb(251 146 60 / 40%), transparent 62%),
+    radial-gradient(90% 60% at 50% 120%, rgb(236 72 153 / 24%), transparent 70%),
+    linear-gradient(180deg, #060918 0%, #121842 50%, #272259 82%, #44306a 100%);
+  box-shadow:
+    0 0 0 1px rgb(15 20 48 / 12%),
+    0 30px 60px -36px rgb(30 27 75 / 55%);
+}
+.cosmos-universe-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cosmos-universe-head,
+.cosmos-universe-epigraph,
+.cosmos-universe-foot,
+.cosmos-universe-tip {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+.cosmos-universe-head {
+  top: 20px;
+  left: 24px;
+  max-width: min(56%, 420px);
+  text-shadow: 0 2px 16px rgb(0 0 0 / 70%);
+}
+.cosmos-universe-wordmark {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  background: linear-gradient(100deg, #c4b5fd 0%, #a5b4fc 45%, #67e8f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+.cosmos-universe-head h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 750;
-  letter-spacing: -0.01em;
-  color: var(--mx-text);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
 }
-.cosmos-home-head p {
+.cosmos-universe-head p {
   margin: 4px 0 0;
-  color: var(--mx-text-muted);
-  font-size: 15px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cosmos-universe-muted);
+}
+.cosmos-universe-epigraph {
+  top: 24px;
+  right: 26px;
+  max-width: 30%;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--cosmos-universe-edge);
+  text-align: right;
+  font-family: 'Nanum Myeongjo', 'AppleMyungjo', 'Noto Serif KR', 'Batang', serif;
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--cosmos-universe-faint);
+  word-break: keep-all;
+}
+.cosmos-universe-foot {
+  left: 24px;
+  right: 24px;
+  bottom: 18px;
+  display: grid;
+  gap: 2px;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 80%);
+}
+.cosmos-universe-line {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.cosmos-universe-detail {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--cosmos-universe-muted);
+  word-break: keep-all;
+}
+.cosmos-universe-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cosmos-universe-chips li {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cosmos-universe-edge);
+  background: var(--cosmos-universe-glass);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none;
+}
+.cosmos-universe-chips b {
+  font-weight: 700;
+}
+.cosmos-universe-chips span {
+  color: var(--cosmos-universe-faint);
+}
+.cosmos-universe-tip {
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  max-width: 280px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--cosmos-universe-edge);
+  background: rgb(9 11 30 / 88%);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 80%);
+  font-size: 12.5px;
+  line-height: 1.45;
+  transform: translate(-50%, calc(-100% - 16px));
+}
+.cosmos-universe-tip.is-below {
+  transform: translate(-50%, 16px);
+}
+.cosmos-universe-tip strong {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.cosmos-universe-tip-meta {
+  color: var(--cosmos-universe-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cosmos-universe-tip-note {
+  color: var(--cosmos-universe-note);
+}
+@container (max-width: 620px) {
+  .cosmos-universe-epigraph {
+    display: none;
+  }
+  .cosmos-universe-head {
+    max-width: calc(100% - 32px);
+  }
+}
+@container (max-width: 460px) {
+  .cosmos-universe-sky {
+    height: 300px;
+    border-radius: 18px;
+  }
+  .cosmos-universe-head {
+    top: 16px;
+    left: 16px;
+  }
+  .cosmos-universe-head h1 {
+    font-size: 20px;
+  }
+  .cosmos-universe-foot {
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+  }
 }
 .cosmos-big-buttons {
   display: grid;

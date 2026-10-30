@@ -2,14 +2,16 @@
   <img src="apps/desktop/public/mixdog.svg" width="88" alt="COSMOS">
 </p>
 
-<h1 align="center">COSMOS · 코스모스</h1>
+<h1 align="center">COSMOS CODE · 코스모스 코드</h1>
 
 <p align="center">
+  <i>하나의 행성이 자신의 우주를 짓는다.</i><br><br>
   <b>어느 컴퓨터에서, 어떤 계정으로 접속하든 — 같은 환경, 같은 세션으로 이어서.</b><br>
   PC·맥·폰이 한 세션을 <b>이어달리기</b>처럼 번갈아 쓰는 AI 코딩 도구
 </p>
 
 <p align="center">
+  <a href="docs/cosmos/COSMOS-CODE.md"><b>헌장</b></a> ·
   <a href="docs/cosmos/DESIGN.md"><b>설계</b></a> ·
   <a href="docs/cosmos/RELAY.md"><b>폰 연결(릴레이)</b></a> ·
   <a href="#명령줄"><b>명령줄</b></a> ·
@@ -22,6 +24,7 @@
 
 | | |
 |---|---|
+| 🪐 **행성의 우주** | 홈 화면에 프로젝트가 행성으로 떠 있어요. 커밋은 나선 팔 위의 **빛**, 커밋 전 변경은 행성 곁을 도는 **성운**, 푸시 전 커밋은 행성에 매인 빛이에요. 빛을 가리키면 그 커밋이 보여요. |
 | 🕹️ **조종석은 하나** | 한 프로젝트(행성)에는 세션이 하나, 조종석에는 **한 번에 한 기기만** 앉아요. 다른 기기는 잠겨서 겹쳐 고칠 일이 없어요. |
 | ☀️ **해 — 앉기** | 최신 커밋·환경·대화를 받아 이 기기에서 바로 이어가요. |
 | 🌙 **달 — 내리기** | 저장·커밋·푸시하고, 환경과 대화를 은하수에 올리고, 조종석을 비워요. |
@@ -106,6 +109,7 @@ cosmos 별 "<이름>" [pc|mac]  # 이 기기 이름 짓기
 
 ## 문서
 
+- [헌장 — 철학·우주 문법·OpenCode 분석·기능 지도](docs/cosmos/COSMOS-CODE.md)
 - [설계 — 우주 개념·조종석·은하수·화면](docs/cosmos/DESIGN.md)
 - [폰 연결 — 릴레이 서버 설치](docs/cosmos/RELAY.md)
 - [개발 환경](docs/development.md)
