@@ -1,6 +1,6 @@
 // Canvas renderer for the town: static map layer, day/night tint, and
 // characters interpolated between server ticks with bubbles and status icons.
-import { drawAvatar } from './avatar.js';
+import { drawAvatar, drawPet } from './avatar.js';
 
 const TILE = 24;
 const TICK_MS = 250;
@@ -143,7 +143,7 @@ export class TownView {
     for (const entry of tick.characters) {
       const known = this.characters.get(entry.id);
       if (!known) continue;
-      Object.assign(known, { tickActivity: entry.activity, bubble: entry.bubble, mood: entry.mood, taskId: entry.taskId });
+      Object.assign(known, { tickActivity: entry.activity, bubble: entry.bubble, mood: entry.mood, taskId: entry.taskId, waiting: entry.waiting });
       const motion = this.motion.get(entry.id);
       if (!motion) {
         this.motion.set(entry.id, { from: { ...entry.pos }, to: { ...entry.pos }, t0: now, facing: 1 });
@@ -223,6 +223,8 @@ export class TownView {
     }
     const bob = activity === 'working' || activity === 'meeting' ? Math.sin(now / 160) * 0.8 : 0;
     drawAvatar(ctx, cx, cy + bob, 26, character.appearance, { sleeping: activity === 'sleep', mood: character.mood?.value ?? 60, facing });
+    // The pet trots along on the side the character is facing away from.
+    if (character.appearance?.pet && character.appearance.pet !== 'none') drawPet(ctx, cx - facing * 13, cy + 10, 11, character.appearance.pet, now + character.id.length * 97);
   }
 
   drawOverlay(character, pos, now) {
@@ -241,6 +243,11 @@ export class TownView {
     ctx.fillStyle = this.selected === character.id ? '#2b2310' : '#fff';
     ctx.fillText(label, cx, cy + 24.5);
 
+    if (character.waiting) {
+      // Asking the user: a bouncing hand above the head.
+      ctx.font = '15px system-ui, "Apple Color Emoji", "Segoe UI Emoji"';
+      ctx.fillText('🙋', cx, cy - 52 + Math.sin(now / 180) * 2.5);
+    }
     const bubble = character.bubble;
     if (bubble?.text) {
       ctx.font = '10.5px system-ui, -apple-system, "Apple SD Gothic Neo", "Apple Color Emoji", sans-serif';

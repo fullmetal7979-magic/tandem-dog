@@ -140,3 +140,40 @@ test('generated characters never reuse a resident name', async () => {
     assert.equal(draft.role, 'analyst');
   }
 });
+
+test('a researcher who reached Lv3 searches the web while drafting', async () => {
+  const { town, events } = makeTown();
+  const researcher = Object.values(town.characters).find((c) => c.role === 'researcher');
+  researcher.skills.research.level = 2;
+  researcher.skills.research.xp = 0;
+  const { addSkillXp } = await import('./character.mjs');
+  town.recordEvents(addSkillXp(researcher, 'research', 10_000, { minute: 1 }).slice(0, 1), researcher.id);
+  assert.ok(town.state.chronicle.some((entry) => /웹 검색/.test(entry.text)), 'unlock is announced');
+  assert.ok(researcher.memory.items.some((m) => /웹 검색/.test(m.text) && m.kind === 'milestone'), 'and remembered');
+
+  const task = town.submitTask({ prompt: '경쟁사 가격 정책을 조사해줘', assignees: [researcher.id], mode: 'solo' });
+  await town.idle();
+  const draft = task.steps.find((step) => step.kind === 'draft');
+  assert.match(draft.label, /웹 검색/);
+  assert.ok(draft.tools.some((entry) => entry.tool === 'web_search'));
+  assert.ok(researcher.stats.toolUses >= 1);
+  assert.ok(events.some((e) => e.type === 'task' && e.payload.steps?.some((step) => step.tools?.length)));
+
+  town.settings.tools = false;
+  const plain = town.submitTask({ prompt: '경쟁사 가격 정책을 다시 조사해줘', assignees: [researcher.id], mode: 'solo' });
+  await town.idle();
+  assert.equal(plain.steps.find((step) => step.kind === 'draft').tools, undefined, 'setting turns tools off');
+});
+
+test('the simulation honours remembered preferences', async () => {
+  const { town } = makeTown();
+  const first = town.submitTask({ prompt: '회의록을 정리해줘' });
+  await town.idle();
+  const worker = town.characters[first.assignees[0]];
+  town.feedback(first.id, 5, '좋았어. 앞으로는 표로, 결론부터 말해 줘');
+  const second = town.submitTask({ prompt: '다른 회의록도 정리해줘', assignees: [worker.id], mode: 'solo' });
+  await town.idle();
+  assert.match(second.output, /\| # \| 핵심 \|/, 'summary is a table');
+  assert.match(second.output, /### 결론/);
+  assert.match(second.output, /표로 정리, 결론부터/);
+});

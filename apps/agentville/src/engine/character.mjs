@@ -1,6 +1,9 @@
 // Character creation, experience, levels, attributes, aspirations, relationships.
 import { ASPIRATIONS, ROLES, SPEECH_STYLES } from '../catalog/roles.mjs';
 import { ATTRIBUTE_IDS, SKILLS, SKILL_IDS, SKILL_MAX_LEVEL, nextPerk, skillXpToNext } from '../catalog/skills.mjs';
+import { TOOL_IDS, actionBudget, hasTool, masteryLevel, MASTERY_STEPS } from '../catalog/tools.mjs';
+import { sanitizeAppearance, unlockedItems } from '../catalog/wardrobe.mjs';
+import { START_TRUST, tierOf } from '../agent/policy.mjs';
 import { START_TRAIT_IDS, TRAITS } from '../catalog/traits.mjs';
 import { clamp, newId, round1, truncate } from '../util.mjs';
 import { walkableTiles, zoneAt } from './map.mjs';
@@ -26,7 +29,8 @@ function freshStats() {
   return {
     tasksDone: 0, tasksByCat: {}, teamTasks: 0, ledTeams: 0, chats: 0, smallTalks: 0,
     praise: 0, criticism: 0, praiseAfterCriticism: 0, fiveStarStreak: 0, bestFiveStreak: 0,
-    reflections: 0, lowEnergyFinishes: 0, burnouts: 0, outshined: 0, readMinutes: 0,
+    reflections: 0, lowEnergyFinishes: 0, burnouts: 0, outshined: 0, readMinutes: 0, toolUses: 0,
+    browserActions: 0, desktopActions: 0, shellCommands: 0, questionsAsked: 0,
   };
 }
 
@@ -59,10 +63,13 @@ export function createCharacter(input, { minute = 0, rng = Math.random } = {}) {
     speech: SPEECH_STYLES[input.speech] ? input.speech : 'polite',
     catchphrase: truncate(String(input.catchphrase ?? '').trim(), 40),
     appearance: {
-      skin: input.appearance?.skin ?? pick(SKIN),
-      hair: input.appearance?.hair ?? pick(HAIR),
-      hairStyle: input.appearance?.hairStyle ?? Math.floor(rng() * 4),
-      accessory: input.appearance?.accessory ?? pick(ACCESSORIES),
+      skin: pick(SKIN),
+      hair: pick(HAIR),
+      hairStyle: pick([0, 1, 2, 3, 6]),
+      eyes: pick(['dot', 'dot', 'smile', 'sleepy']),
+      outfit: pick(['tee', 'hoodie', 'shirt']),
+      accessory: pick(ACCESSORIES),
+      pet: 'none',
       shirt: role.color,
     },
     createdAt: minute,
@@ -78,13 +85,17 @@ export function createCharacter(input, { minute = 0, rng = Math.random } = {}) {
     moodlets: [],
     aspiration: { id: ASPIRATIONS[input.aspiration] ? input.aspiration : role.aspiration, stage: 0, done: false },
     relationships: {},
-    userBond: { affinity: 20, ratings: [] },
+    userBond: { affinity: 20, ratings: [], trust: START_TRUST },
+    toolMastery: {},
     stats: freshStats(),
     flags: { burnedOut: false },
     drift: null,
     memory: { items: [], sinceReflection: 0, nextId: 1 },
     state: { activity: 'idle', pos: { ...start }, path: [], until: minute, taskId: null, with: null, bubble: null, lastActivity: null },
   };
+  // Chosen looks are applied through the wardrobe rules (Lv1: basics only).
+  if (input.appearance) character.appearance = sanitizeAppearance(character, input.appearance).appearance;
+  character.wardrobeSeen = unlockedItems(character);
   addMemory(character, { kind: 'milestone', text: `AgentVille에 처음 왔다. ${character.bio}`, importance: 6, minute });
   return character;
 }
@@ -213,6 +224,14 @@ export function characterView(character, now) {
         xpToNext: skillXpToNext(character.skills[id].level),
         next: nextPerk(id, character.skills[id].level),
       }])),
+      tools: TOOL_IDS.map((id) => {
+        const level = masteryLevel(character, id);
+        const uses = character.toolMastery?.[id] ?? 0;
+        const budget = actionBudget(character, id);
+        return { id, unlocked: hasTool(character, id), mastery: level, uses, next: MASTERY_STEPS[level + 1] ?? null, budget: Number.isFinite(budget) ? budget : null };
+      }),
+      trust: { value: character.userBond.trust ?? START_TRUST, ...tierOf(character.userBond.trust ?? START_TRUST) },
+      wardrobe: unlockedItems(character),
       aspiration: {
         stages: ASPIRATIONS[character.aspiration.id]?.stages.length ?? 0,
         next: ASPIRATIONS[character.aspiration.id]?.stages[character.aspiration.stage]?.label ?? null,

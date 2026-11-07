@@ -152,3 +152,33 @@ test('tasks are classified, sized and routed to the right specialist', () => {
   const busy = chooseAssignees(town, createTask({ prompt: '코드 작성' }, { minute: 0 }));
   assert.notEqual(busy.assignees[0], engineer.id, 'busy characters are skipped');
 });
+
+test('growth unlocks tools, one tool family per step', async () => {
+  const { hasTool, toolsForStep, toolUnlockedBy, unlockedTools, TOOLS } = await import('../catalog/tools.mjs');
+  const c = make();
+  assert.deepEqual(unlockedTools(c), ['web_fetch', 'files', 'browser'], 'pages, a work folder and (research Lv2) the private browser from the start');
+  assert.deepEqual(unlockedTools(make({ role: 'writer' })), ['web_fetch', 'files'], 'others open the browser at Lv2');
+  assert.deepEqual(toolsForStep(c, 'research'), ['web_fetch'], 'research reads pages before search is earned');
+  c.skills.research.level = 3;
+  assert.ok(hasTool(c, 'web_search'));
+  assert.ok(hasTool(c, 'browser'), 'research Lv2+ also opens the private browser');
+  assert.deepEqual(toolsForStep(c, 'writing'), ['web_search']);
+  assert.deepEqual(toolsForStep(c, 'writing', { enabled: false }), []);
+  assert.equal(TOOLS.web_search.spec(c).max_uses, 3);
+  assert.equal(toolUnlockedBy(c, 'research', 3), 'web_search');
+
+  c.skills.analysis.level = 5;
+  assert.equal(toolUnlockedBy(c, 'analysis', 5), 'code_execution');
+  assert.deepEqual(toolsForStep(c, 'analysis'), ['code_execution'], 'code first for analysis');
+  assert.deepEqual(toolsForStep(c, 'research'), ['web_fetch', 'web_search'], 'web tools elsewhere');
+  c.skills.coding.level = 5;
+  assert.equal(toolUnlockedBy(c, 'coding', 5), null, 'already unlocked through analysis');
+  assert.deepEqual(TOOLS.code_execution.spec(c), { type: 'code_execution_20260120', name: 'code_execution' });
+});
+
+test('domain words beat generic planning words', () => {
+  assert.equal(classifyTask('신규 앱 출시 마케팅 전략을 자세히 기획해줘. 채널별 계획 포함').category, 'marketing');
+  assert.equal(classifyTask('제주도 2박 3일 가족 여행 일정을 짜 줘').category, 'planning');
+  assert.equal(classifyTask('프로젝트 우선순위를 정해줘').category, 'planning');
+  assert.equal(classifyTask('서비스 아키텍처를 설계해줘').category, 'coding');
+});

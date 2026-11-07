@@ -24,6 +24,8 @@
       <button data-speed="10" title="10배속">10×</button>
     </div>
     <div class="brain" id="brain"></div>
+    <button class="stop-all" id="stop-all" hidden title="진행 중인 모든 브라우저·컴퓨터·터미널 작업을 멈춥니다">🛑 모두 멈춤</button>
+    <button class="icon-btn inbox-btn" id="open-inbox" title="확인 요청">🙋<span class="badge" id="inbox-badge" hidden></span></button>
     <button class="icon-btn" id="open-settings" title="설정">⚙️</button>
   </header>
 
@@ -44,6 +46,8 @@
       <section class="panel" id="panel-character"></section>
 
       <section class="panel" id="panel-tasks" hidden>
+        <div class="subtabs panel-subtabs"><button class="active" data-action="tasks-view" data-view="live">📋 진행·최근</button><button data-action="tasks-view" data-view="archive">📚 보관함</button></div>
+        <div id="tasks-live">
         <form class="task-form" id="task-form">
           <label class="field">
             <span>무엇을 맡길까요?</span>
@@ -53,12 +57,32 @@
             <label class="field compact"><span>분야</span><select id="task-category"><option value="">자동</option></select></label>
             <label class="field compact"><span>난이도</span><select id="task-difficulty"><option value="">자동</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
             <label class="field compact"><span>방식</span><select id="task-mode"><option value="auto">자동</option><option value="solo">혼자</option><option value="team">팀 숙고</option></select></label>
+            <label class="field compact"><span>장비</span><select id="task-equipment"></select></label>
+          </div>
+          <div class="folder-row" id="folder-row" hidden>
+            <label class="field"><span>🗂️ 맡길 폴더 <small>(비우면 캐릭터의 작업 폴더)</small></span><input id="task-folder" placeholder="예) ~/Downloads/정리할-사진" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="attach-row">
+            <label class="file-btn small" title="이미지·PDF·텍스트 파일을 함께 보냅니다">📎 파일 첨부<input type="file" id="task-files" multiple hidden></label>
+            <div class="attach-chips" id="attach-chips"></div>
           </div>
           <div class="assignee-picker" id="assignee-picker"></div>
           <div class="preview" id="task-preview">업무 내용을 쓰면 적임자를 추천해 드려요.</div>
           <button class="primary" type="submit">업무 맡기기</button>
         </form>
         <div class="task-list" id="task-list"></div>
+        </div>
+        <div id="tasks-archive" hidden>
+          <form class="archive-form" id="archive-form">
+            <input id="archive-q" type="search" placeholder="예전 결과물 검색 (제목·내용)" autocomplete="off">
+            <div class="form-row">
+              <select id="archive-category"><option value="">모든 분야</option></select>
+              <select id="archive-person"><option value="">모든 사람</option></select>
+              <select id="archive-rating"><option value="0">별점 전체</option><option value="4">★4 이상</option><option value="5">★5만</option></select>
+            </div>
+          </form>
+          <div class="archive-list" id="archive-list"></div>
+        </div>
       </section>
 
       <section class="panel" id="panel-chat" hidden>
@@ -71,12 +95,17 @@
       </section>
 
       <section class="panel" id="panel-chronicle" hidden>
-        <label class="toggle-line"><input type="checkbox" id="chronicle-filter"> 선택한 캐릭터만 보기</label>
-        <ol class="chronicle" id="chronicle"></ol>
+        <div class="subtabs panel-subtabs"><button class="active" data-action="chronicle-view" data-view="log">📜 연대기</button><button data-action="chronicle-view" data-view="report">📊 성장 리포트</button></div>
+        <div id="chronicle-log">
+          <label class="toggle-line"><input type="checkbox" id="chronicle-filter"> 선택한 캐릭터만 보기</label>
+          <ol class="chronicle" id="chronicle"></ol>
+        </div>
+        <div id="chronicle-report" hidden></div>
       </section>
     </aside>
   </main>
 
+  <div class="approval-dock" id="approval-dock" aria-live="polite"></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
   <dialog id="create-dialog">
@@ -101,10 +130,42 @@
       <div class="field"><span>성격 (Big Five)</span><div class="sliders" id="c-bigfive"></div></div>
       <label class="field"><span>배경 이야기</span><textarea id="c-bio" rows="3" maxlength="500"></textarea></label>
       <label class="field"><span>입버릇</span><input id="c-catch" maxlength="40" placeholder="예) 근거부터 볼까요?"></label>
+      <div class="field"><span>외모 <small>(더 많은 아이템은 성장하면 옷장에서 열려요)</small> <button type="button" class="link" id="c-look-random">🎲 아무거나</button></span><div class="wardrobe" id="c-wardrobe"></div></div>
       <footer class="dialog-foot">
         <label class="file-btn">📦 캐릭터 카드 가져오기<input type="file" id="c-import" accept="application/json,.json" hidden></label>
         <button class="primary" value="create" id="c-submit">마을에 들이기</button>
       </footer>
+    </form>
+  </dialog>
+
+  <dialog id="wardrobe-dialog">
+    <form method="dialog" class="dialog-body" id="wardrobe-form">
+      <header class="dialog-head">
+        <h2 id="wardrobe-title">옷장</h2>
+        <button value="cancel" class="icon-btn" formnovalidate>✕</button>
+      </header>
+      <div class="wardrobe" id="wardrobe-body"></div>
+      <footer class="dialog-foot">
+        <button type="button" id="wardrobe-random">🎲 아무거나</button>
+        <button class="primary" value="save" id="wardrobe-save">이대로 입기</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="consent-dialog">
+    <form method="dialog" class="dialog-body">
+      <header class="dialog-head"><h2>🖥️ 내 컴퓨터 조작 켜기</h2><button value="cancel" class="icon-btn">✕</button></header>
+      <div class="consent">
+        <p>캐릭터가 <strong>이 컴퓨터의 실제 화면</strong>을 보고 마우스·키보드를 움직이게 됩니다.</p>
+        <ul>
+          <li>화면에 보이는 내용(열린 문서·메일·메시지)이 Claude에게 스크린샷으로 전송됩니다.</li>
+          <li>AI는 실수할 수 있고, 웹 페이지나 문서 속 문장에 속을 수 있습니다(프롬프트 인젝션).</li>
+          <li>기본 설정에서는 클릭·입력마다 승인을 받습니다. 결제·전송·삭제·로그인은 언제나 먼저 묻습니다.</li>
+          <li>민감한 창은 닫아 두고, 가능하면 전용 계정이나 가상 머신에서 쓰세요. 상단의 <strong>🛑 모두 멈춤</strong>으로 언제든 멈출 수 있어요.</li>
+          <li>macOS에서는 손쉬운 사용·화면 기록 권한이 필요합니다.</li>
+        </ul>
+      </div>
+      <footer class="dialog-foot"><button value="cancel">취소</button><button class="primary" value="agree" id="consent-agree">이해했고, 켤게요</button></footer>
     </form>
   </dialog>
 

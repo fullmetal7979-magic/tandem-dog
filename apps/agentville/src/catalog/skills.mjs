@@ -45,7 +45,7 @@ export const SKILLS = {
   },
   coding: {
     name: '코딩', emoji: '💻', attrs: { tec: 0.6, int: 0.3, foc: 0.1 },
-    keywords: ['코드', '코딩', '함수', '버그', '에러', '오류', '프로그램', '스크립트', '구현', '파이썬', '자바스크립트', 'sql', 'api', 'code', 'python', 'javascript', 'typescript', 'bug', 'function', 'regex', 'html', 'css'],
+    keywords: ['코드', '코딩', '함수', '버그', '에러', '오류', '프로그램', '스크립트', '구현', '파이썬', '자바스크립트', '아키텍처', '데이터베이스', 'sql', 'api', 'code', 'python', 'javascript', 'typescript', 'bug', 'function', 'regex', 'html', 'css', 'architecture'],
     approach: ['입력과 출력을 먼저 정의한다', '작게 나눠 구현한다', '경계 조건을 확인한다'],
     perks: {
       1: '코드는 실행 가능한 완전한 형태로 준다.',
@@ -59,7 +59,10 @@ export const SKILLS = {
   },
   planning: {
     name: '기획', emoji: '🗺️', attrs: { int: 0.4, foc: 0.3, emp: 0.3 },
-    keywords: ['기획', '계획', '전략', '로드맵', '일정', '스케줄', '목표', '아이디어', '브레인스토밍', '여행', '프로젝트', '우선순위', 'plan', 'strategy', 'roadmap', 'schedule', 'itinerary', 'idea'],
+    keywords: ['로드맵', '일정', '스케줄', '브레인스토밍', '여행', '행사', '마일스톤', 'roadmap', 'schedule', 'itinerary', 'milestone'],
+    // Generic planning words ("마케팅 전략을 기획해줘") say how, not what; a
+    // domain keyword in the same request should win.
+    generic: ['기획', '계획', '전략', '목표', '아이디어', '프로젝트', '우선순위', 'plan', 'strategy', 'idea'],
     approach: ['목표와 제약을 먼저 확인한다', '단계와 순서를 정한다', '위험과 대안을 적는다'],
     perks: {
       1: '목표와 성공 기준을 한 문장으로 적는다.',
@@ -87,7 +90,7 @@ export const SKILLS = {
   },
   analysis: {
     name: '분석', emoji: '📊', attrs: { int: 0.6, foc: 0.3, tec: 0.1 },
-    keywords: ['분석', '데이터', '통계', '수치', '지표', '엑셀', '표', '차트', '계산', '예측', '매출', '비용', 'analyze', 'analysis', 'data', 'metric', 'statistics', 'forecast', 'excel'],
+    keywords: ['분석', '데이터', '통계', '수치', '지표', '엑셀', '도표', '차트', '계산', '예측', '매출', '비용', 'analyze', 'analysis', 'data', 'metric', 'statistics', 'forecast', 'excel'],
     approach: ['질문을 지표로 바꾼다', '가정을 명시한다', '숫자와 해석을 분리한다'],
     perks: {
       1: '계산 과정을 단계별로 보여 준다.',

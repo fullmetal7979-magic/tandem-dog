@@ -9,6 +9,7 @@ export function classifyTask(text) {
   const scores = Object.fromEntries(SKILL_IDS.map((id) => [id, 0]));
   for (const id of SKILL_IDS) {
     for (const keyword of SKILLS[id].keywords) if (value.includes(keyword)) scores[id] += keyword.length >= 3 ? 2 : 1;
+    for (const keyword of SKILLS[id].generic ?? []) if (value.includes(keyword)) scores[id] += 0.5;
   }
   const ranked = SKILL_IDS.slice().sort((a, b) => scores[b] - scores[a]);
   const category = scores[ranked[0]] > 0 ? ranked[0] : 'planning';
@@ -45,6 +46,10 @@ export function createTask(input, { minute }) {
     difficulty: clamp(Math.round(Number(input.difficulty) || estimateDifficulty(prompt)), 1, 5),
     mode,
     requested: Array.isArray(input.assignees) ? input.assignees.slice(0, 4) : [],
+    equipment: ['auto', 'web', 'browser', 'files', 'desktop', 'none'].includes(input.equipment) ? input.equipment : 'auto',
+    folder: null,
+    attachments: [],
+    artifacts: [],
     assignees: [],
     lead: null,
     status: 'queued',

@@ -1,12 +1,19 @@
 // HTTP server: JSON API, Server-Sent Events, static UI. Binds to localhost.
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { exportCard, importCard } from './cards.mjs';
+import { ACCEPT, FileStore, MAX_ATTACHMENTS, MAX_UPLOAD } from './files.mjs';
 import { ASPIRATIONS, ROLES, SPEECH_STYLES, aspirationPublic, KOREAN_NAMES } from './catalog/roles.mjs';
 import { ATTRIBUTES, SKILLS } from './catalog/skills.mjs';
 import { TRAITS, traitPublic } from './catalog/traits.mjs';
+import { EQUIPMENT, MASTERY_PERKS, MASTERY_STEPS, TOOLS, toolPublic, unlockText } from './catalog/tools.mjs';
+import { wardrobePublic } from './catalog/wardrobe.mjs';
+import { TIERS } from './agent/policy.mjs';
+import { browserAvailable, desktopStatus } from './agent/screens.mjs';
+import { Workspace, detectSandbox } from './agent/workspace.mjs';
 import { ACTIVITIES, MAP_ROWS, NEEDS, STATE_LABELS, TILE_ART, ZONES } from './catalog/world.mjs';
 import { characterView } from './engine/character.mjs';
 import { MEMORY_KINDS } from './engine/memory.mjs';
@@ -26,6 +33,12 @@ export function catalog() {
   return {
     attributes: ATTRIBUTES,
     skills: SKILLS,
+    tools: Object.fromEntries(Object.entries(TOOLS).map(([id, tool]) => [id, { ...toolPublic(tool), unlock: unlockText(tool, SKILLS) }])),
+    equipment: EQUIPMENT,
+    mastery: { steps: MASTERY_STEPS, perks: MASTERY_PERKS },
+    trust: TIERS,
+    wardrobe: wardrobePublic(SKILLS),
+    attachments: { max: MAX_ATTACHMENTS, accept: ACCEPT },
     traits: Object.fromEntries(Object.entries(TRAITS).map(([id, trait]) => [id, traitPublic(trait)])),
     roles: ROLES,
     aspirations: Object.fromEntries(Object.entries(ASPIRATIONS).map(([id, value]) => [id, aspirationPublic(value)])),
@@ -48,19 +61,35 @@ class HttpError extends Error {
   }
 }
 
-async function readJson(req) {
+async function readBody(req, max) {
+  if (Number(req.headers['content-length'] ?? 0) > max) throw new HttpError(413, '요청이 너무 큽니다.');
   let size = 0;
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw new HttpError(413, '요청이 너무 큽니다.');
+    if (size > max) throw new HttpError(413, '요청이 너무 큽니다.');
     chunks.push(chunk);
   }
-  if (!chunks.length) return {};
+  return Buffer.concat(chunks);
+}
+
+async function readJson(req) {
+  const body = await readBody(req, MAX_BODY);
+  if (!body.length) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return JSON.parse(body.toString('utf8'));
   } catch {
     throw new HttpError(400, 'JSON 형식이 아닙니다.');
+  }
+}
+
+const queryOf = (req) => new URL(req.url, 'http://localhost').searchParams;
+
+function headerName(req) {
+  try {
+    return decodeURIComponent(String(req.headers['x-file-name'] ?? ''));
+  } catch {
+    return '';
   }
 }
 
@@ -103,6 +132,21 @@ export async function createApp({ town, log = console } = {}) {
       if (!town.removeCharacter(id)) throw new HttpError(409, '업무 중이거나 없는 캐릭터입니다.');
       return { ok: true };
     }],
+    ['GET', /^\/api\/approvals$/, () => town.pendingApprovals()],
+    ['POST', /^\/api\/approvals\/([\w-]+)$/, async (req, [id]) => town.resolveApproval(id, await readJson(req))],
+    ['POST', /^\/api\/tasks\/([\w-]+)\/cancel$/, (req, [id]) => town.cancelTask(id)],
+    ['POST', /^\/api\/stop$/, () => town.cancelAll()],
+    ['GET', /^\/api\/agent\/status$/, async () => agentStatus()],
+    ['POST', /^\/api\/files$/, async (req) => town.files.put(await readBody(req, MAX_UPLOAD), { name: headerName(req), type: req.headers['content-type'] })],
+    ['GET', /^\/api\/archive$/, (req) => {
+      const query = queryOf(req);
+      return town.archive({ q: query.get('q') ?? '', category: query.get('category') ?? '', charId: query.get('charId') ?? '', minRating: Number(query.get('minRating')) || 0 });
+    }],
+    ['GET', /^\/api\/report$/, (req) => town.report(queryOf(req).get('days') ?? 7)],
+    ['GET', /^\/api\/tasks\/([\w-]+)$/, (req, [id]) => {
+      if (!town.tasks[id]) throw new HttpError(404, '업무를 찾을 수 없어요.');
+      return town.tasks[id];
+    }],
     ['POST', /^\/api\/tasks\/preview$/, async (req) => town.previewTask(await readJson(req))],
     ['POST', /^\/api\/tasks$/, async (req) => town.submitTask(await readJson(req))],
     ['POST', /^\/api\/tasks\/([\w-]+)\/feedback$/, async (req, [id]) => {
@@ -122,12 +166,53 @@ export async function createApp({ town, log = console } = {}) {
         town.clock.speed = body.speed;
       }
       if (typeof body.paused === 'boolean') town.clock.paused = body.paused;
-      for (const key of ['effortByLevel', 'llmSmallTalk']) if (typeof body[key] === 'boolean') town.settings[key] = body[key];
+      for (const key of ['effortByLevel', 'llmSmallTalk', 'tools', 'browser', 'shell']) if (typeof body[key] === 'boolean') town.settings[key] = body[key];
+      // Real desktop control is opt-in with an explicit consent flag.
+      if (body.desktop === true && body.consent !== true) throw new HttpError(400, '내 컴퓨터 조작을 켜려면 위험 안내에 동의해야 합니다.');
+      if (typeof body.desktop === 'boolean') town.settings.desktop = body.desktop;
+      if (body.autonomyCap !== undefined) {
+        if (![1, 2, 3, 4].includes(body.autonomyCap)) throw new HttpError(400, '자율성 상한은 1~4입니다.');
+        town.settings.autonomyCap = body.autonomyCap;
+      }
       town.saveSoon();
       broadcast('world', { clock: town.clock, settings: town.settings });
       return { clock: town.clock, settings: town.settings };
     }],
   ];
+
+  let statusCache = null;
+  async function agentStatus() {
+    if (statusCache && Date.now() - statusCache.at < 20_000) return statusCache.value;
+    const [browser, desktop] = await Promise.all([browserAvailable(), desktopStatus()]);
+    const value = { browser, desktop, sandbox: detectSandbox(), workspaceDir: town.workspaceDir, platform: process.platform };
+    statusCache = { at: Date.now(), value };
+    return value;
+  }
+
+  // Only files the task reported as its results, read from its work folder.
+  function sendArtifact(res, task, path) {
+    if (!task?.workspace || !task.artifacts?.some((file) => file.path === path)) throw new HttpError(404, '결과 파일을 찾을 수 없어요.');
+    const space = new Workspace(task.workspace.root, { own: task.workspace.own });
+    let body;
+    try {
+      body = readFileSync(space.resolve(path, { mustExist: true }));
+    } catch {
+      throw new HttpError(404, '결과 파일이 옮겨졌거나 지워졌어요.');
+    }
+    const ext = extname(path).toLowerCase();
+    const type = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf' }[ext]
+      ?? (body.subarray(0, 8000).includes(0) ? 'application/octet-stream' : 'text/plain; charset=utf-8');
+    const inline = !type.startsWith('application/octet');
+    res.writeHead(200, {
+      'content-type': type,
+      'content-length': body.length,
+      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(path.split('/').pop())}`,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+      'cache-control': 'no-store',
+    });
+    res.end(body);
+  }
 
   async function serveStatic(req, res, pathname) {
     const relative = normalize(decodeURIComponent(pathname === '/' ? '/index.html' : pathname)).replace(/^([/\\])+/, '');
@@ -150,6 +235,37 @@ export async function createApp({ town, log = console } = {}) {
         res.write(': connected\n\n');
         clients.add(res);
         req.on('close', () => clients.delete(res));
+        return;
+      }
+      const screenMatch = req.method === 'GET' && pathname.match(/^\/api\/tasks\/([\w-]+)\/screen$/);
+      if (screenMatch) {
+        const task = town.tasks[screenMatch[1]];
+        const live = town.liveScreens.get(screenMatch[1]);
+        const body = live?.png ?? (task?.finalScreen ? town.files.read(task.finalScreen.id) : null);
+        if (!body) throw new HttpError(404, '보여 줄 화면이 없어요.');
+        res.writeHead(200, { 'content-type': 'image/png', 'content-length': body.length, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+        res.end(body);
+        return;
+      }
+      const artifactMatch = req.method === 'GET' && pathname.match(/^\/api\/tasks\/([\w-]+)\/artifact$/);
+      if (artifactMatch) {
+        sendArtifact(res, town.tasks[artifactMatch[1]], queryOf(req).get('path'));
+        return;
+      }
+      const fileMatch = req.method === 'GET' && pathname.match(/^\/api\/files\/(f_[0-9a-f]{10})$/);
+      if (fileMatch) {
+        const meta = town.files.meta(fileMatch[1]);
+        const body = meta ? town.files.read(meta.id) : null;
+        if (!body) throw new HttpError(404, '파일을 찾을 수 없어요.');
+        res.writeHead(200, {
+          'content-type': meta.kind === 'text' ? 'text/plain; charset=utf-8' : meta.type,
+          'content-length': body.length,
+          'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(meta.name)}`,
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'private, max-age=86400',
+          ...(meta.kind === 'pdf' ? {} : { 'content-security-policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" }),
+        });
+        res.end(body);
         return;
       }
       for (const [method, pattern, handler] of routes) {
@@ -197,7 +313,9 @@ export async function main(env = process.env) {
       console.warn(`[agentville] 저장 실패: ${error.message}`);
     }
   };
-  const town = new Town({ state: saved ? reviveState(saved) : emptyState(), brain, save });
+  const files = new FileStore(join(dirname(file), 'files'));
+  const workspaceDir = env.AGENTVILLE_WORKSPACES ? resolve(env.AGENTVILLE_WORKSPACES) : join(dirname(file), 'workspaces');
+  const town = new Town({ state: saved ? reviveState(saved) : emptyState(), brain, save, files, workspaceDir });
   if (!saved) {
     for (const starter of STARTERS) town.addCharacter(starter);
     town.chronicle({ emoji: '🌱', text: 'AgentVille이 문을 열었다. 주민 네 명이 첫 출근을 했다.' });
@@ -209,7 +327,8 @@ export async function main(env = process.env) {
     console.log(`\n  🏘️  AgentVille → http://${host}:${port}`);
     console.log(`  🧠 두뇌: ${brain.live ? `Claude (${brain.model})` : '시뮬레이션 (ANTHROPIC_API_KEY를 설정하면 Claude로 동작)'}`);
     if (brain.live) console.log('  🛟 서버 측 폴백 켜짐: 안전 정책 거절 시 다른 모델로 재시도 (fallbacks: "default")');
-    console.log(`  💾 저장: ${file}\n`);
+    console.log(`  💾 저장: ${file} (첨부 파일: ${files.dir})`);
+    console.log(`  🗂️ 작업 폴더: ${workspaceDir} · 샌드박스: ${detectSandbox() ?? '없음 (명령마다 승인)'}\n`);
   });
   const shutdown = () => {
     save(town.state);

@@ -2,11 +2,20 @@
 // placement, chat, reflection and the chronicle. It owns the persisted state
 // and emits events that the server forwards to the browser over SSE.
 import { EventEmitter } from 'node:events';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join, resolve as resolvePath } from 'node:path';
 import { ASPIRATIONS, KOREAN_NAMES, ROLES } from '../catalog/roles.mjs';
 import { SKILLS } from '../catalog/skills.mjs';
+import { MASTERY_PERKS, TOOLS, actionBudget, toolUnlockedBy, toolsUnlockedByLevel } from '../catalog/tools.mjs';
+import { itemName, sanitizeAppearance, unlockedItems } from '../catalog/wardrobe.mjs';
+import { START_TRUST, adjustTrust } from '../agent/policy.mjs';
+import { Workspace } from '../agent/workspace.mjs';
 import { EARNED_TRAIT_IDS, TRAITS } from '../catalog/traits.mjs';
 import { ACTIVITIES, IDLE_ACTIVITY_IDS, SELF_STUDY_DAILY_CAP } from '../catalog/world.mjs';
-import { clamp, clockParts, eunNeun, gwaWa, iGa, isNight, makeRng, newId, truncate } from '../util.mjs';
+import { FileStore, MAX_ATTACHMENTS } from '../files.mjs';
+import { clamp, clockParts, eulReul, eunNeun, gwaWa, iGa, isNight, makeRng, newId, truncate } from '../util.mjs';
+import { searchArchive } from './archive.mjs';
 import {
   EFFORT_LABELS, addCharacterXp, addSkillXp, adjustFriendship, characterView, createCharacter, growAttributes, relationshipLabel,
 } from './character.mjs';
@@ -17,6 +26,7 @@ import {
 import { addMoodlet, applyGains, computeMood, decayNeeds, expireMoodlets, urgency } from './needs.mjs';
 import { compatibility, traitEffects } from './personality.mjs';
 import { applyFeedback, followUpChecks } from './progression.mjs';
+import { buildReport, recordDay, snapshotOf } from './report.mjs';
 import { CHARACTER_SCHEMA, REFLECTION_SCHEMA, SMALLTALK_SCHEMA, chatMessages, personaSystem, reflectionPrompt } from './prompts.mjs';
 import { chooseAssignees, createTask, rankCandidates } from './tasks.mjs';
 import { runTask } from './workflow.mjs';
@@ -27,24 +37,48 @@ const CHRONICLE_LIMIT = 300;
 const CHAT_LIMIT = 120;
 const START_MINUTE = 8 * 60 + 30;
 
+// What the browser sees of a pending approval (never the resolver).
+export function approvalView(entry) {
+  const { finish, ...rest } = entry;
+  return rest;
+}
+
 export function emptyState(seed = Date.now() % 1e9) {
   return {
     version: 1,
     seed,
     clock: { minute: START_MINUTE, speed: 1, paused: false },
-    settings: { effortByLevel: true, llmSmallTalk: false },
+    settings: { effortByLevel: true, llmSmallTalk: false, tools: true, browser: true, shell: true, desktop: false, autonomyCap: 2 },
     characters: {},
     tasks: {},
     taskOrder: [],
     chronicle: [],
     chats: {},
+    history: [],
     nextChronicleId: 1,
   };
 }
 
 export class Town extends EventEmitter {
-  constructor({ state = emptyState(), brain, save = null, seed = state.seed } = {}) {
+  constructor({ state = emptyState(), brain, save = null, seed = state.seed, files = new FileStore(), workspaceDir = join(tmpdir(), 'agentville-workspaces'), screens = null } = {}) {
     super();
+    this.files = files;
+    this.workspaceDir = workspaceDir;
+    // Tests inject screens: (kind) => screen.
+    this.screenFactory = screens;
+    this.approvals = new Map();
+    this.liveScreens = new Map();
+    this.controllers = new Map();
+    state.settings = { ...emptyState().settings, ...state.settings };
+    // Saves from before growth reports: history starts now, and characters
+    // without an arrival snapshot are measured from this moment on.
+    state.history ??= [];
+    for (const character of Object.values(state.characters)) {
+      character.origin ??= { ...snapshotOf(character, state.clock.minute), migrated: true };
+      character.userBond.trust ??= START_TRUST;
+      character.toolMastery ??= {};
+      character.wardrobeSeen ??= unlockedItems(character);
+    }
     this.state = state;
     this.brain = brain;
     this.rng = makeRng(seed + state.clock.minute);
@@ -62,6 +96,7 @@ export class Town extends EventEmitter {
     }
     for (const character of Object.values(state.characters)) {
       character.state.taskId = null;
+      character.state.waiting = false;
       if (['working', 'meeting', 'chat'].includes(character.state.activity)) this.setIdle(character);
     }
   }
@@ -104,12 +139,27 @@ export class Town extends EventEmitter {
           const gained = Object.entries(event.gained).map(([id, value]) => `${id.toUpperCase()}+${value}`).join(' ');
           const effort = event.effortUp ? ` · 사고 깊이 '${EFFORT_LABELS[event.effortUp]}'로 상승!` : '';
           this.chronicle({ emoji: '🎉', text: `${name} 레벨 ${event.level} 달성! (${gained})${effort}`, charId: character?.id, toast: true });
+          for (const toolId of character ? toolsUnlockedByLevel(character, event.level) : []) this.announceTool(character, toolId, `레벨 ${event.level}이 되어`);
           break;
         }
         case 'skillUp': {
           const unlock = { 2: ' · 계획 단계 해금', 4: ' · 자기 검토 단계 해금', 6: ' · 기억 활용 확장', 8: ' · 채점 기준표 해금', 10: ' · 장인 모드' }[event.level] ?? '';
           const perk = event.perk ? ` — 새 노하우: ${event.perk}` : '';
           this.chronicle({ emoji: '📈', text: `${name}의 ${SKILLS[event.skill].name} Lv${event.level}${unlock}${perk}`, charId: character?.id, toast: Boolean(unlock || event.perk) });
+          const toolId = character ? toolUnlockedBy(character, event.skill, event.level) : null;
+          if (toolId) this.announceTool(character, toolId, `${SKILLS[event.skill].name} 실력이 늘어`);
+          break;
+        }
+        case 'mastery': {
+          const tool = TOOLS[event.tool];
+          const budget = actionBudget(character, event.tool);
+          this.chronicle({ emoji: tool.emoji, text: `${name}의 ${tool.name} 숙련도 Lv${event.level} — ${MASTERY_PERKS[event.level] ?? '손에 익었다'}${Number.isFinite(budget) ? ` (한 업무에 ${budget}번까지)` : ''}`, charId: character?.id, toast: event.level >= 3 });
+          break;
+        }
+        case 'trust': {
+          const up = event.to.tier > event.from.tier;
+          this.chronicle({ emoji: up ? '🤝' : '💔', text: up ? `사용자가 ${eulReul(name)} 더 믿게 됐다: ${event.from.emoji} ${event.from.name} → ${event.to.emoji} ${event.to.name}` : `${name}에 대한 신뢰가 줄었다: ${event.from.name} → ${event.to.name}`, charId: character?.id, toast: true });
+          if (character) addMemory(character, { kind: 'milestone', text: up ? `사용자가 나를 더 믿어 주게 됐다 (${event.to.name}).` : `사용자의 신뢰를 조금 잃었다 (${event.to.name}). 더 신중해야겠다.`, importance: 8, minute: this.clock.minute });
           break;
         }
         case 'trait':
@@ -132,8 +182,127 @@ export class Town extends EventEmitter {
       }
     }
     if (events.length) {
-      for (const id of new Set(events.map((event) => event.charId ?? charId).filter(Boolean))) this.emitCharacter(id);
+      for (const id of new Set(events.map((event) => event.charId ?? charId).filter(Boolean))) {
+        if (this.characters[id]) this.checkWardrobe(this.characters[id]);
+        this.emitCharacter(id);
+      }
     }
+  }
+
+  announceTool(character, toolId, reason) {
+    const tool = TOOLS[toolId];
+    this.chronicle({ emoji: tool.emoji, text: `${iGa(character.name)} 새 장비를 손에 넣었다: ${tool.name} — ${tool.desc}`, charId: character.id, toast: true });
+    addMemory(character, { kind: 'milestone', text: `${reason} ${tool.name}을(를) 쓸 수 있게 됐다.`, importance: 8, minute: this.clock.minute });
+  }
+
+  // New wardrobe items are announced once.
+  checkWardrobe(character) {
+    const seen = new Set(character.wardrobeSeen ?? []);
+    const fresh = unlockedItems(character).filter((key) => !seen.has(key));
+    if (!fresh.length) return;
+    character.wardrobeSeen = [...seen, ...fresh];
+    this.chronicle({ emoji: '👗', text: `${character.name}의 옷장에 새 아이템: ${fresh.map(itemName).join(', ')}`, charId: character.id, toast: true });
+  }
+
+  changeTrust(character, delta) {
+    const change = adjustTrust(character, delta);
+    if (change) this.recordEvents([{ type: 'trust', charId: character.id, ...change }], character.id);
+    return change;
+  }
+
+  // ---- approvals: the character asks before acting ------------------------------
+
+  requestApproval({ task, character, kind, tool, summary, detail = null, options = [], point = null, signal = null }) {
+    const id = newId('a');
+    const live = this.liveScreens.get(task.id);
+    const entry = {
+      id, taskId: task.id, charId: character.id, kind, tool, summary, detail, options,
+      point, screen: live && (tool === 'browser' || tool === 'desktop') ? { seq: live.seq, width: live.width, height: live.height } : null,
+      createdAt: this.clock.minute, at: Date.now(),
+    };
+    return new Promise((resolve) => {
+      const finish = (answer) => {
+        if (!this.approvals.has(id)) return;
+        this.approvals.delete(id);
+        signal?.removeEventListener('abort', onAbort);
+        character.state.waiting = [...this.approvals.values()].some((other) => other.charId === character.id);
+        this.emit('approvalDone', { id, taskId: task.id, decision: answer.decision });
+        this.emitTask(task);
+        resolve(answer);
+      };
+      const onAbort = () => finish({ decision: 'deny', note: '업무가 중단됨' });
+      entry.finish = finish;
+      this.approvals.set(id, entry);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      character.state.waiting = true;
+      this.bubble(character, kind === 'question' ? '🙋 여쭤볼 게 있어요' : '🙋 확인해 주세요', 9999);
+      this.emit('approval', approvalView(entry));
+      this.emit('toast', { emoji: '🙋', text: `${character.name}: ${truncate(summary, 60)}`, charId: character.id });
+      this.emitTask(task);
+    });
+  }
+
+  resolveApproval(id, { decision, note = '', answer = '' } = {}) {
+    const entry = this.approvals.get(id);
+    if (!entry) throw new Error('이미 처리됐거나 없는 요청이에요.');
+    const choice = ['allow', 'allowAll', 'deny'].includes(decision) ? decision : entry.kind === 'question' ? 'allow' : null;
+    if (!choice) throw new Error('decision은 allow, allowAll, deny 중 하나예요.');
+    const character = this.characters[entry.charId];
+    if (character) this.bubble(character, choice === 'deny' ? '🙇 알겠어요' : '👍 고마워요!', 12);
+    entry.finish({ decision: choice, note: truncate(String(note ?? '').trim(), 400), answer: truncate(String(answer ?? '').trim(), 2000) });
+    return { ok: true };
+  }
+
+  pendingApprovals() {
+    return [...this.approvals.values()].map(approvalView);
+  }
+
+  setLiveScreen(taskId, shot) {
+    const seq = (this.liveScreens.get(taskId)?.seq ?? 0) + 1;
+    this.liveScreens.set(taskId, { ...shot, seq });
+  }
+
+  // A lent folder must exist and must not be the whole disk, home or a
+  // system folder.
+  checkFolder(folder) {
+    const raw = String(folder ?? '').trim().replace(/^~(?=\/|$)/, homedir());
+    if (!raw) return null;
+    const path = resolvePath(raw);
+    if (!existsSync(path) || !statSync(path).isDirectory()) throw new Error(`폴더를 찾을 수 없어요: ${raw}`);
+    const real = realpathSync(path);
+    const home = realpathSync(homedir());
+    const forbidden = ['/', home, '/System', '/usr', '/bin', '/sbin', '/etc', '/var', '/private', '/Library', '/Applications', '/opt', '/dev', '/boot', '/proc', '/sys'];
+    if (forbidden.includes(real) || ['/System/', '/usr/', '/bin/', '/sbin/', '/etc/', '/dev/', '/proc/', '/sys/', join(home, 'Library') + '/'].some((prefix) => (real + '/').startsWith(prefix))) {
+      throw new Error('이 폴더는 맡길 수 없어요. 작업할 하위 폴더를 골라 주세요.');
+    }
+    return real;
+  }
+
+  workspaceFor(character, task) {
+    if (task.folder) return new Workspace(task.folder, { own: false });
+    return new Workspace(join(this.workspaceDir, character.id), { own: true });
+  }
+
+  makeScreen(kind) {
+    return this.screenFactory ? this.screenFactory(kind) : null;
+  }
+
+  cancelTask(id) {
+    const task = this.tasks[id];
+    if (!task || task.status !== 'working') throw new Error('진행 중인 업무만 멈출 수 있어요.');
+    const controller = this.controllers.get(id);
+    if (!controller) throw new Error('이 업무는 지금 멈출 수 없어요.');
+    controller.abort();
+    return { ok: true };
+  }
+
+  cancelAll() {
+    let count = 0;
+    for (const controller of this.controllers.values()) {
+      controller.abort();
+      count += 1;
+    }
+    return { cancelled: count };
   }
 
   emitTask(task) {
@@ -150,6 +319,7 @@ export class Town extends EventEmitter {
   addCharacter(input) {
     const character = createCharacter(input, { minute: this.clock.minute, rng: this.rng });
     character.desk = this.freeDeskIndex();
+    character.origin = snapshotOf(character, this.clock.minute);
     this.characters[character.id] = character;
     this.state.chats[character.id] = [];
     const role = ROLES[character.role];
@@ -177,7 +347,8 @@ export class Town extends EventEmitter {
       needs: base.needs,
       moodlets: [],
       relationships: {},
-      userBond: { affinity: 20, ratings: [] },
+      userBond: { affinity: 20, ratings: [], trust: START_TRUST },
+      toolMastery: { ...(full.toolMastery ?? {}) },
       flags: { burnedOut: false },
       drift: null,
       memory: items.length ? { items, sinceReflection: 0, nextId: Math.max(0, ...items.map((item) => item.id ?? 0)) + 1 } : base.memory,
@@ -185,6 +356,8 @@ export class Town extends EventEmitter {
       createdAt: this.clock.minute,
     };
     character.desk = this.freeDeskIndex();
+    // Growth from the old town is history; reports here start on arrival.
+    character.origin = snapshotOf(character, this.clock.minute);
     this.characters[character.id] = character;
     this.state.chats[character.id] = [];
     addMemory(character, { kind: 'milestone', text: '다른 마을에서 AgentVille로 이사 왔다. 예전 경험은 그대로 기억한다.', importance: 6, minute: this.clock.minute });
@@ -236,6 +409,12 @@ export class Town extends EventEmitter {
     if (patch.aspiration && ASPIRATIONS[patch.aspiration] && patch.aspiration !== character.aspiration.id) {
       character.aspiration = { id: patch.aspiration, stage: 0, done: false };
     }
+    if (patch.appearance && typeof patch.appearance === 'object') {
+      const { appearance, rejected } = sanitizeAppearance(character, patch.appearance);
+      if (rejected.length && Object.keys(patch.appearance).length === rejected.length) throw new Error('아직 잠긴 아이템이에요. 조건을 채우면 열려요.');
+      character.appearance = appearance;
+      this.bubble(character, '✨ 어때요?', 20);
+    }
     this.emitCharacter(id);
     this.saveSoon();
     return character;
@@ -267,6 +446,14 @@ export class Town extends EventEmitter {
   submitTask(input) {
     const task = createTask(input, { minute: this.clock.minute });
     if (!task.prompt) throw new Error('업무 내용을 입력해 주세요.');
+    const ids = Array.isArray(input.attachments) ? [...new Set(input.attachments)] : [];
+    if (ids.length > MAX_ATTACHMENTS) throw new Error(`첨부 파일은 ${MAX_ATTACHMENTS}개까지예요.`);
+    task.attachments = ids.map((id) => this.files.meta(id));
+    if (task.attachments.some((meta) => !meta)) throw new Error('첨부 파일을 찾을 수 없어요. 다시 올려 주세요.');
+    task.folder = input.folder ? this.checkFolder(input.folder) : null;
+    if (task.folder && task.equipment === 'auto') task.equipment = 'files';
+    // Agent equipment works on one screen or folder: solo only.
+    if (['browser', 'files', 'desktop'].includes(task.equipment) && task.mode === 'auto') task.mode = 'solo';
     const choice = chooseAssignees(this, task);
     if (!choice.assignees.length) throw new Error(Object.keys(this.characters).length ? '지금은 모두 바빠요. 잠시 뒤 다시 맡겨 주세요.' : '먼저 캐릭터를 만들어 주세요.');
     task.mode = choice.mode;
@@ -278,6 +465,25 @@ export class Town extends EventEmitter {
     this.chronicle({ emoji: task.mode === 'team' ? '🧠' : '📝', text: `${names}${task.mode === 'team' ? '(팀 숙고)' : ''}에게 "${task.title}" 업무가 맡겨졌다`, charId: task.lead });
     this.start(task);
     return task;
+  }
+
+  // ---- archive and reports -------------------------------------------------
+
+  archive(query) {
+    return searchArchive(this, query);
+  }
+
+  report(days) {
+    return buildReport(this, { days });
+  }
+
+  // A one-line wrap-up of the day that just ended, in the chronicle.
+  closeDay(day) {
+    const report = buildReport(this, { fromDay: day - 1 });
+    const { tasks, xp, star } = report.town;
+    if (!tasks && !xp) return;
+    const starName = star ? this.characters[star]?.name : null;
+    this.chronicle({ emoji: '📊', text: `${day}일차 결산: 업무 ${tasks}건 · 경험치 +${xp}${starName ? ` · 오늘의 주인공 ${starName}` : ''}` });
   }
 
   retryTask(id) {
@@ -309,8 +515,14 @@ export class Town extends EventEmitter {
   feedback(id, rating, comment) {
     const task = this.tasks[id];
     if (!task || task.status !== 'done') throw new Error('완료된 업무만 평가할 수 있어요.');
+    const firstRating = task.rating == null;
     const events = applyFeedback(this, task, rating, comment);
     this.recordEvents(events);
+    // Good work earns trust; disappointing work costs some.
+    if (firstRating) {
+      const delta = { 5: 7, 4: 5, 3: 1, 2: -3, 1: -5 }[task.rating] ?? 0;
+      for (const charId of task.assignees) if (this.characters[charId] && delta) this.changeTrust(this.characters[charId], task.mode === 'team' ? delta * 0.6 : delta);
+    }
     const names = task.assignees.map((charId) => this.characters[charId]?.name).filter(Boolean).join(', ');
     this.chronicle({ emoji: '⭐', text: `사용자가 ${names}의 "${task.title}"에 별 ${task.rating}개를 줬다`, charId: task.lead });
     for (const charId of task.assignees) {
@@ -630,6 +842,11 @@ export class Town extends EventEmitter {
     const now = this.clock.minute;
     const night = isNight(now);
     const wokeUp = isNight(before) && !night;
+    const day = Math.floor(now / 1440);
+    if (day !== Math.floor(before / 1440)) {
+      this.closeDay(day);
+      recordDay(this.state, now);
+    }
 
     for (const character of Object.values(this.characters)) {
       expireMoodlets(character, now);
@@ -736,6 +953,7 @@ export class Town extends EventEmitter {
       tasks: this.state.taskOrder.map((id) => this.tasks[id]).filter(Boolean).slice(0, 60),
       chronicle: this.state.chronicle.slice(-120),
       chats: this.state.chats,
+      approvals: this.pendingApprovals(),
     };
   }
 
@@ -747,6 +965,7 @@ export class Town extends EventEmitter {
         pos: character.state.pos,
         activity: character.state.activity,
         taskId: character.state.taskId,
+        waiting: Boolean(character.state.waiting),
         bubble: character.state.bubble,
         mood: computeMood(character),
         needs: character.needs,

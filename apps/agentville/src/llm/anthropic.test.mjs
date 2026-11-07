@@ -31,6 +31,46 @@ before(async () => {
       res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'fallbacks: Extra inputs are not permitted' } }));
       return;
     }
+    if (body.stream && mode.agent) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      const last = body.messages.at(-1);
+      const answered = Array.isArray(last.content) && last.content.some((block) => block.type === 'tool_result');
+      const callTools = !answered || mode.agent === 'forever';
+      const n = requests.length;
+      const events = callTools
+        ? [start(body.model), ...textBlock(0, ['화면을 볼게요.']),
+          { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: `toolu_${n}a`, name: 'screenshot', input: {}, toolset_name: 'computer' } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{}' } },
+          { type: 'content_block_stop', index: 1 },
+          { type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: `toolu_${n}b`, name: 'ask_user', input: {} } },
+          { type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '{"question":"계속할까요?"}' } },
+          { type: 'content_block_stop', index: 2 },
+          ...finish('tool_use')]
+        : [start(body.model), ...textBlock(0, ['다 했어요.']), ...finish()];
+      res.end(sse(events));
+      return;
+    }
+    if (body.stream && mode.tools) {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      const resumed = body.messages.at(-1)?.role === 'assistant';
+      const search = { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search', input: {} };
+      const events = !resumed
+        ? [start(body.model), ...textBlock(0, ['찾아볼게요.']),
+          { type: 'content_block_start', index: 1, content_block: search },
+          { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"query":"고양이 사료 가격"}' } },
+          { type: 'content_block_stop', index: 1 },
+          ...finish('pause_turn')]
+        : [start(body.model),
+          { type: 'content_block_start', index: 0, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_1', content: [{ type: 'web_search_result', url: 'https://example.com/a', title: '사료 가격 A', encrypted_content: 'x', page_age: null }] } },
+          { type: 'content_block_stop', index: 0 },
+          { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '', citations: [] } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'citations_delta', citation: { type: 'web_search_result_location', url: 'https://example.com/a', title: '사료 가격 A', cited_text: '...', encrypted_index: 'e' } } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: '평균 3만 원입니다.' } },
+          { type: 'content_block_stop', index: 1 },
+          ...finish()];
+      res.end(sse(events));
+      return;
+    }
     if (body.stream) {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       const events = mode.midStreamFallback
@@ -122,4 +162,82 @@ test('a refusal becomes a readable error', async () => {
   const error = await claude.text({ system: 's', messages: [{ role: 'user', content: 'x' }] }).catch((e) => e);
   assert.equal(error.name, 'RefusalError');
   assert.match(claude.describeError(error), /거절/);
+});
+
+test('server tools: declared on the request, paused turns resume, citations become sources', async () => {
+  mode = { tools: true };
+  requests.length = 0;
+  const claude = await brain();
+  const activity = [];
+  let streamed = '';
+  const tools = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 3 }];
+  const text = await claude.text({ system: 's', messages: [{ role: 'user', content: '가격 알아봐' }], tools, onText: (d) => { streamed += d; }, onActivity: (a) => activity.push(a) });
+  assert.equal(requests.length, 2, 'pause_turn was resumed once');
+  assert.deepEqual(requests[0].body.tools, tools);
+  assert.equal(requests[1].body.messages.at(-1).role, 'assistant');
+  assert.ok(requests[1].body.messages.at(-1).content.some((block) => block.type === 'server_tool_use'), 'the paused turn is sent back as-is');
+  assert.equal(requests[1].body.messages.length, 2, 'no extra "continue" message');
+  assert.match(text, /^찾아볼게요\.\n\n평균 3만 원입니다\./, 'a tool call starts a new paragraph');
+  assert.match(text, /### 출처\n- \[사료 가격 A\]\(https:\/\/example\.com\/a\)/);
+  assert.equal(streamed, text, 'the live view matches the final text');
+  assert.deepEqual(activity.map((a) => a.text), ['검색: 고양이 사료 가격', '결과 1건']);
+  assert.equal(activity[0].use, true);
+});
+
+test('client tools: tool_use goes to runTools, results come back and the history only grows', async () => {
+  mode = { agent: true };
+  requests.length = 0;
+  const claude = await brain();
+  const calls = [];
+  const tools = [{ type: 'computer_toolset_20260801', configs: { hold_key: { enabled: false } } }, { name: 'ask_user', description: 'q', input_schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'] }, eager_input_streaming: true }];
+  const text = await claude.text({
+    system: 's', messages: [{ role: 'user', content: '해 줘' }], tools,
+    runTools: async (uses) => {
+      calls.push(uses);
+      return uses.map((block) => ({ type: 'tool_result', tool_use_id: block.id, ...(block.toolset_name ? { toolset_name: block.toolset_name } : {}), content: [{ type: 'text', text: 'OK' }] }));
+    },
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].map((block) => [block.name, block.toolset_name, block.input]), [['screenshot', 'computer', {}], ['ask_user', undefined, { question: '계속할까요?' }]]);
+  const [first, second] = requests.map((entry) => entry.body);
+  assert.deepEqual(first.tools, tools);
+  assert.deepEqual(first.cache_control, { type: 'ephemeral' }, 'agent loops cache the growing conversation');
+  assert.equal(second.messages.length, 3);
+  assert.deepEqual(second.messages[0], first.messages[0], 'earlier turns are sent unchanged');
+  assert.equal(second.messages[1].role, 'assistant');
+  assert.equal(second.messages[1].content.find((block) => block.type === 'tool_use').toolset_name, 'computer');
+  const results = second.messages[2].content;
+  assert.deepEqual(results.map((block) => [block.type, block.tool_use_id, block.toolset_name]), [['tool_result', 'toolu_1a', 'computer'], ['tool_result', 'toolu_1b', undefined]]);
+  assert.match(text, /화면을 볼게요\./);
+  assert.match(text, /다 했어요\.$/);
+});
+
+test('client tools: past the turn limit every call is told to wrap up', async () => {
+  mode = { agent: 'forever' };
+  requests.length = 0;
+  const claude = await brain();
+  let runs = 0;
+  await claude.text({
+    system: 's', messages: [{ role: 'user', content: '해 줘' }], tools: [{ type: 'computer_toolset_20260801' }], maxTurns: 1,
+    runTools: async (uses) => {
+      runs += 1;
+      return uses.map((block) => ({ type: 'tool_result', tool_use_id: block.id, content: 'OK' }));
+    },
+  });
+  assert.equal(runs, 1, 'tools ran only within the limit');
+  assert.equal(requests.length, 3, 'two more turns to wrap up, then the loop ends');
+  const wrapUp = requests[2].body.messages.at(-1).content;
+  assert.ok(wrapUp.every((block) => block.is_error && /작업 한도/.test(block.content)));
+  assert.equal(wrapUp.find((block) => block.tool_use_id.endsWith('a')).toolset_name, 'computer', 'wrap-up results still echo the toolset');
+});
+
+test('stopping a task aborts the request', async () => {
+  mode = { agent: true };
+  const claude = await brain();
+  const controller = new AbortController();
+  controller.abort();
+  const error = await claude.text({ system: 's', messages: [{ role: 'user', content: 'x' }], signal: controller.signal, runTools: async () => [] }).catch((e) => e);
+  assert.ok(error instanceof Error);
+  assert.equal(claude.describeError(error), '사용자가 업무를 멈췄어요.');
 });

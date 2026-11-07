@@ -5,7 +5,8 @@
 import { ASPIRATION_IDS, KOREAN_NAMES, ROLES } from '../catalog/roles.mjs';
 import { SKILLS } from '../catalog/skills.mjs';
 import { TRAITS } from '../catalog/traits.mjs';
-import { looksLikePreference } from '../engine/memory.mjs';
+import { urlsIn } from '../catalog/tools.mjs';
+import { looksLikePreference, preferenceMemories } from '../engine/memory.mjs';
 import { clamp, eunNeun, hashString, makeRng, truncate } from '../util.mjs';
 
 const NOTICE = '> 🧪 시뮬레이션 두뇌가 만든 결과물입니다. `ANTHROPIC_API_KEY`를 설정하면 이 캐릭터가 Claude로 실제 결과물을 만듭니다.';
@@ -34,21 +35,78 @@ function keyPhrases(text) {
     .slice(0, 4);
 }
 
-function deliverable({ character, task, plan, stage, rng }) {
+// What the user asked this character to keep doing, read from preference
+// memories, so the simulation visibly honours them the way Claude would.
+const STYLE_RULES = [
+  { id: 'table', pattern: /표로|표 형식|테이블|table/i, label: '표로 정리' },
+  { id: 'conclusion', pattern: /결론부터|결론 먼저|핵심부터|요점부터|두괄식/i, label: '결론부터' },
+  { id: 'brief', pattern: /짧게|간단히|간결|요약만|짧은/i, label: '짧고 간결하게' },
+];
+
+export function stylePreferences(character) {
+  const texts = preferenceMemories(character, 12).map((item) => item.text);
+  return STYLE_RULES.filter((rule) => texts.some((text) => rule.pattern.test(text)));
+}
+
+const TOOL_NOTES = {
+  web_fetch: '### 📄 웹 페이지 읽기 (시뮬레이션)\n- 시뮬레이션 두뇌는 페이지를 읽지 않습니다. 실제로 열어 보려면 전용 브라우저(캐릭터 Lv2) 장비를 쓰거나 Claude 두뇌를 켜세요.',
+  web_search: '### 🌐 웹 검색 (시뮬레이션)\n- 리서치 실력으로 웹 검색 도구를 해금했지만, 시뮬레이션 두뇌는 실제로 검색하지 않습니다. Claude 두뇌에서는 검색한 사실과 출처 링크가 붙습니다.',
+  code_execution: '### 🧪 코드 실행 (시뮬레이션)\n- 코드 실행 도구를 해금했지만, 시뮬레이션 두뇌는 코드를 돌리지 않습니다. Claude 두뇌에서는 격리된 환경에서 실행해 결과를 확인합니다.',
+};
+
+const KIND_NAME = { image: '이미지', pdf: 'PDF', text: '텍스트' };
+
+// Lines worth quoting from a text attachment: headings, list items, or the
+// first few non-empty lines.
+function keyLines(text, max = 3) {
+  const lines = String(text ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const marked = lines.filter((line) => /^(#{1,6}\s|[-*]\s|\d+[.)]\s)/.test(line));
+  return (marked.length ? marked : lines).slice(0, max).map((line) => truncate(line.replace(/^(#{1,6}\s|[-*]\s)/, ''), 70));
+}
+
+function attachmentSection(attachments = []) {
+  if (!attachments.length) return '';
+  const lines = attachments.map((file) => {
+    if (file.kind === 'text') {
+      const quotes = keyLines(file.text);
+      const rows = file.text?.split('\n').filter((line) => line.trim()).length ?? 0;
+      return `- **${file.name}** (${KIND_NAME.text}, ${rows}줄)${quotes.length ? `: ${quotes.map((line) => `"${line}"`).join(' · ')}` : ''}`;
+    }
+    return `- **${file.name}** (${KIND_NAME[file.kind] ?? file.kind}): 시뮬레이션 두뇌는 내용을 볼 수 없어 이름만 참고했습니다. Claude 두뇌는 파일을 직접 읽습니다.`;
+  });
+  return `### 📎 첨부 자료\n${lines.join('\n')}`;
+}
+
+function referenceSection(refs = []) {
+  if (!refs.length) return '';
+  return `### 📚 참고한 예전 결과물\n${refs.map((ref) => `- "${ref.title}"${ref.rating ? ` (★${ref.rating})` : ''}${ref.feedback ? ` — 받은 평: "${truncate(ref.feedback, 40)}"` : ''}: 잘된 구성을 이어받았습니다.`).join('\n')}`;
+}
+
+function deliverable({ character, task, plan, stage, tools = [], attachments = [], refs = [], rng }) {
   const skill = SKILLS[task.category];
   const level = character.skills[task.category].level;
   const phrases = keyPhrases(task.prompt);
   const points = phrases.length ? phrases : [truncate(task.prompt, 60)];
   const perks = Object.entries(skill.perks).filter(([required]) => Number(required) <= level).map(([, text]) => text);
+  const styles = stylePreferences(character);
+  const wants = (id) => styles.some((rule) => rule.id === id);
+  const notes = points.map(() => rng.pick(['요청의 핵심 조건으로 보고 우선 반영했습니다.', '구체적인 기준을 세워 판단할 부분입니다.', '실제 자료로 확인이 필요한 지점입니다.', '바로 실행할 수 있는 형태로 나눴습니다.']));
+  const summary = wants('table')
+    ? ['| # | 핵심 | 정리 |', '|---|---|---|', ...points.map((point, index) => `| ${index + 1} | ${point.replace(/\|/g, '/')} | ${notes[index]} |`)].join('\n')
+    : points.map((point, index) => `${index + 1}. **${point}** — ${notes[index]}`).join('\n');
   const body = [
     `## ${task.title}`,
     NOTICE,
-    `### ${skill.emoji} 접근 방식 (${skill.name} Lv${level})`,
-    ...skill.approach.map((line) => `- ${line}`),
-    plan ? `### 세운 계획\n${plan}` : '',
+    styles.length ? `> 💡 기억해 둔 취향을 반영했어요: ${styles.map((rule) => rule.label).join(', ')}` : '',
+    wants('conclusion') ? `### 결론\n- "${truncate(points[0], 50)}"에 대한 답은 아래 ${points.length}가지 정리로 요약됩니다. 근거는 그 뒤에 이어집니다.` : '',
+    wants('brief') ? '' : `### ${skill.emoji} 접근 방식 (${skill.name} Lv${level})\n${skill.approach.map((line) => `- ${line}`).join('\n')}`,
+    plan && !wants('brief') ? `### 세운 계획\n${plan}` : '',
+    attachmentSection(attachments),
+    referenceSection(refs),
+    ...tools.map((id) => TOOL_NOTES[id] ?? ''),
     '### 핵심 정리',
-    ...points.map((point, index) => `${index + 1}. **${point}** — ${rng.pick(['요청의 핵심 조건으로 보고 우선 반영했습니다.', '구체적인 기준을 세워 판단할 부분입니다.', '실제 자료로 확인이 필요한 지점입니다.', '바로 실행할 수 있는 형태로 나눴습니다.'])}`),
-    perks.length ? `### 적용한 노하우\n${perks.map((text) => `- ${text}`).join('\n')}` : '',
+    summary,
+    perks.length && !wants('brief') ? `### 적용한 노하우\n${perks.map((text) => `- ${text}`).join('\n')}` : '',
     stage === 'review' ? '### 검토 후 보완\n- 빠진 조건과 중복 표현을 점검해 다듬었습니다.' : '',
     '### 다음 단계',
     `- ${rng.pick(['필요한 자료나 조건을 알려 주시면 구체화하겠습니다.', '우선순위를 정해 주시면 그 순서로 깊게 파겠습니다.', '실제 데이터로 검증하는 단계를 제안합니다.'])}`,
@@ -58,10 +116,11 @@ function deliverable({ character, task, plan, stage, rng }) {
   return body.filter((line) => line !== '').join('\n');
 }
 
-function synthesis({ character, task, drafts, rng }) {
+function synthesis({ character, task, drafts, attachments = [], rng }) {
   return [
     `## ${task.title} — 팀 숙고 종합`,
     NOTICE,
+    attachmentSection(attachments),
     '### 관점별 기여',
     ...drafts.map((draft) => `- **${draft.name}** (${draft.skill}): 자신의 전문성으로 ${rng.pick(['핵심 근거를 보강했습니다', '실행 계획을 구체화했습니다', '위험 요소를 짚었습니다', '표현을 다듬었습니다'])}.`),
     '### 종합 결과',
@@ -70,7 +129,85 @@ function synthesis({ character, task, drafts, rng }) {
     `- ${eunNeun(character.name)} 서로 다른 의견 중 근거가 더 분명한 쪽을 택했습니다.`,
     '',
     `💬 ${flavour(character, rng)}`,
-  ].join('\n');
+  ].filter((line, index) => line !== '' || index > 3).join('\n');
+}
+
+// ---- agent work in the simulation ------------------------------------------------------
+// The simulation cannot think, but it can still use the real tools in a fixed
+// routine: open the pages the user named (or a search), read them, look at the
+// screen, list the folder, save the result as a file. Every action goes
+// through the same approval policy as Claude's.
+
+const safeName = (text) => String(text ?? '결과').replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 40) || '결과';
+
+function pageDigest(text) {
+  const lines = String(text ?? '').split('\n').map((line) => line.trim()).filter((line) => line.length >= 2);
+  const body = lines.filter((line) => !/^(제목|주소|링크):/.test(line) && !line.includes(' → '));
+  return body.slice(0, 6).map((line) => truncate(line.replace(/^(#{1,6}|[-*•])\s+/, ''), 90));
+}
+
+async function agentRun({ agent, character, task, rng }) {
+  const done = [];
+  const found = [];
+  const files = [];
+  const notes = [];
+  const record = (label, outcome) => {
+    done.push(`- ${outcome?.error ? '⚠️' : '✅'} ${label}${outcome?.error ? ` — ${truncate(outcome.text, 80)}` : ''}`);
+    return outcome;
+  };
+  if (/확인(받|해)|물어(봐|보고)|여쭤/.test(task.prompt)) {
+    const answer = await agent.call('ask_user', { question: say(character.speech, { polite: '시작하기 전에 여쭤볼게요. 특별히 신경 써야 할 점이 있을까요?', casual: '시작하기 전에 하나만! 특별히 신경 쓸 거 있어?', formal: '착수 전에 확인드립니다. 특별히 유의할 사항이 있으십니까?' }) });
+    record('시작 전에 확인 질문', answer);
+    if (answer?.text) notes.push(`- 질문에 대한 답: ${truncate(answer.text.replace(/^사용자의 답:\s*/, ''), 120)}`);
+  }
+  if (agent.screenKind === 'browser') {
+    const urls = urlsIn(task.prompt).slice(0, 3);
+    const targets = urls.length ? urls : [`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(keyPhrases(task.prompt)[0] ?? task.title)}`];
+    for (const url of targets) {
+      const opened = record(`페이지 열기: ${truncate(url, 70)}`, await agent.call('browser_open', { url }));
+      if (opened.error) continue;
+      const page = record('본문 읽기', await agent.call('read_page', {}));
+      if (page.error) continue;
+      const title = (page.text.match(/^제목: (.*)$/m)?.[1] ?? '').trim() || url;
+      found.push(`#### ${title}\n${pageDigest(page.text).map((line) => `- ${line}`).join('\n') || '- (읽을 수 있는 본문이 거의 없었어요)'}\n- 주소: ${url}`);
+    }
+  }
+  if (agent.screenKind === 'desktop') {
+    const shot = record('내 화면 보기', await agent.call('screenshot', {}, { toolset: 'computer' }));
+    if (!shot.error) notes.push('- 화면은 확인했지만, 시뮬레이션 두뇌는 화면 내용을 해석할 수 없어 조작하지 않았어요. Claude 두뇌에서는 화면을 보고 직접 클릭·입력합니다.');
+  }
+  let report = '';
+  if (agent.workspace) {
+    if (agent.has('shell')) {
+      const listing = record('폴더 살펴보기 (ls)', await agent.call('bash', { command: 'ls -la' }));
+      if (!listing.error) {
+        const entries = listing.text.split('\n').filter((line) => /^[-d]/.test(line)).length;
+        notes.push(`- 작업 폴더에 항목 ${entries}개가 있어요.`);
+      }
+    } else {
+      const view = record('폴더 살펴보기', await agent.call('str_replace_based_edit_tool', { command: 'view', path: '.' }));
+      if (!view.error) notes.push(`- 작업 폴더 항목: ${view.text.split('\n').length}개`);
+    }
+    report = `결과/${safeName(task.title)}.md`;
+  }
+  const body = [
+    `## ${task.title}`,
+    NOTICE,
+    '### 🤖 직접 한 일',
+    done.join('\n') || '- (도구를 쓸 일이 없었어요)',
+    found.length ? `### 🔎 찾은 내용\n${found.join('\n\n')}` : '',
+    notes.length ? `### 📝 메모\n${notes.join('\n')}` : '',
+  ].filter(Boolean);
+  if (report) {
+    const saved = await agent.call('str_replace_based_edit_tool', { command: 'create', path: report, file_text: `${body.join('\n\n')}\n` });
+    record(`결과 파일 저장: ${report}`, saved);
+    if (!saved.error) files.push(`- 📁 ${report}`);
+    body[2] = '### 🤖 직접 한 일';
+    body[3] = done.join('\n');
+  }
+  if (files.length) body.push(`### 📁 남긴 파일\n${files.join('\n')}`);
+  body.push('### 다음 단계', `- ${rng.pick(['더 볼 페이지나 조건을 알려 주시면 이어서 할게요.', '맡긴 폴더나 사이트가 있으면 알려 주세요. 직접 해 볼게요.', '결과가 괜찮으면 별점으로 알려 주세요. 다음엔 묻지 않고 더 해 볼게요.'])}`, '', `💬 ${flavour(character, rng)}`);
+  return body.join('\n');
 }
 
 const GREETING = /안녕|하이|hello|hi\b|반가/i;
@@ -123,10 +260,11 @@ export function createOfflineBrain({ delayMs = 18, seed = 7 } = {}) {
   const sleep = (ms) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve());
   const rngFor = (meta) => makeRng(hashString(`${meta?.character?.id ?? ''}:${meta?.task?.id ?? ''}:${meta?.kind ?? ''}:${seed}:${meta?.salt ?? ''}`));
 
-  async function stream(text, onText) {
+  async function stream(text, onText, signal) {
     if (!onText) return text;
     const chunks = text.match(/[\s\S]{1,14}/g) ?? [];
     for (const chunk of chunks) {
+      if (signal?.aborted) throw Object.assign(new Error('사용자가 업무를 멈췄어요.'), { name: 'AbortedError' });
       onText(chunk);
       await sleep(delayMs);
     }
@@ -137,9 +275,21 @@ export function createOfflineBrain({ delayMs = 18, seed = 7 } = {}) {
     name: 'simulation',
     live: false,
     model: 'simulation',
-    async text({ meta = {}, onText }) {
+    async text({ meta = {}, tools = [], onText, onActivity, signal }) {
       const rng = rngFor(meta);
       const { character, task } = meta;
+      if (meta.agent && meta.kind === 'draft') {
+        const text = await agentRun({ agent: meta.agent, character, task, rng });
+        return stream(text, onText, signal);
+      }
+      const toolIds = tools.map((tool) => tool.name).filter((id) => TOOL_NOTES[id] && (id !== 'web_fetch' || urlsIn(task?.prompt).length));
+      for (const id of toolIds) {
+        const topic = keyPhrases(task?.prompt)[0] ?? truncate(task?.prompt ?? '', 30);
+        const url = urlsIn(task?.prompt)[0];
+        if (id === 'web_fetch' && !url) continue;
+        onActivity?.({ web_search: { tool: id, use: true, text: `검색: ${topic} (시뮬레이션)` }, web_fetch: { tool: id, use: true, text: `읽기: ${url} (시뮬레이션)` } }[id] ?? { tool: id, use: true, text: '실행: 검증용 스크립트 (시뮬레이션)' });
+        onActivity?.({ tool: id, text: { web_search: '시뮬레이션이라 실제로 검색하지 않음', web_fetch: '시뮬레이션이라 실제로 읽지 않음' }[id] ?? '시뮬레이션이라 실제로 실행하지 않음' });
+      }
       let text;
       switch (meta.kind) {
         case 'plan':
@@ -147,10 +297,10 @@ export function createOfflineBrain({ delayMs = 18, seed = 7 } = {}) {
           break;
         case 'draft':
         case 'review':
-          text = deliverable({ character, task, plan: meta.plan, stage: meta.kind, rng });
+          text = deliverable({ character, task, plan: meta.plan, stage: meta.kind, tools: toolIds, attachments: meta.attachments, refs: meta.refs, rng });
           break;
         case 'synthesis':
-          text = synthesis({ character, task, drafts: meta.drafts ?? [], rng });
+          text = synthesis({ character, task, drafts: meta.drafts ?? [], attachments: meta.attachments, rng });
           break;
         case 'chat':
           text = chatReply({ character, message: meta.message ?? '', memories: meta.memories ?? [], rng });
@@ -158,7 +308,7 @@ export function createOfflineBrain({ delayMs = 18, seed = 7 } = {}) {
         default:
           text = '...';
       }
-      return stream(text, onText);
+      return stream(text, onText, signal);
     },
     async json({ meta = {} }) {
       const rng = rngFor(meta);

@@ -3,6 +3,7 @@
 // system prompt, plus the per-step task prompts.
 import { ROLES, SPEECH_STYLES } from '../catalog/roles.mjs';
 import { SKILLS, unlockedPerks } from '../catalog/skills.mjs';
+import { TOOLS } from '../catalog/tools.mjs';
 import { TRAITS } from '../catalog/traits.mjs';
 import { formatClock } from '../util.mjs';
 import { topSkills } from './character.mjs';
@@ -54,16 +55,42 @@ export function personaSystem(character, world, { focus = '', skillId = null, me
   return sections.filter(Boolean).join('\n\n');
 }
 
-export function planPrompt(task) {
-  return `업무: ${task.title}\n\n요청 내용:\n${task.prompt}\n\n이 일을 어떻게 풀지 3~5개의 짧은 단계로 계획만 세워 줘. 결과물은 아직 쓰지 마. 불릿 목록으로만 답해.`;
+const KIND_LABEL = { image: '이미지', pdf: 'PDF', text: '텍스트' };
+
+// Names the files sent alongside the prompt so the model ties them to the ask.
+export function attachmentNote(task) {
+  const files = task.attachments ?? [];
+  if (!files.length) return '';
+  return `사용자가 첨부한 자료 ${files.length}개를 이 메시지에 함께 보냈다: ${files.map((file) => `${file.name}(${KIND_LABEL[file.kind] ?? file.kind})`).join(', ')}. 요청과 연결해 직접 읽고 반영하되, 자료에 없는 내용은 지어내지 마.`;
 }
 
-export function draftPrompt(task, { plan = '', perspective = '' } = {}) {
+export function planPrompt(task) {
   return [
     `업무: ${task.title}`,
     `요청 내용:\n${task.prompt}`,
+    attachmentNote(task),
+    '이 일을 어떻게 풀지 3~5개의 짧은 단계로 계획만 세워 줘. 결과물은 아직 쓰지 마. 불릿 목록으로만 답해.',
+  ].filter(Boolean).join('\n\n');
+}
+
+// Earlier deliverables of mine that the user liked, as a reference.
+function referenceNote(refs) {
+  if (!refs.length) return '';
+  const body = refs.map((ref) => `### ${ref.title}${ref.rating ? ` (사용자 평가 ★${ref.rating}${ref.feedback ? `: "${ref.feedback}"` : ''})` : ''}\n${ref.excerpt}`).join('\n\n');
+  return `참고: 내가 예전에 한 비슷한 일이다. 좋았던 점과 사용자 평가를 살리되, 이번 요청에 맞게 새로 써. 그대로 베끼지 마.\n${body}`;
+}
+
+export function draftPrompt(task, { plan = '', perspective = '', tools = [], refs = [], environment = '' } = {}) {
+  return [
+    `업무: ${task.title}`,
+    `요청 내용:\n${task.prompt}`,
+    attachmentNote(task),
     plan ? `내가 세운 계획:\n${plan}` : '',
+    referenceNote(refs),
     perspective ? `팀 숙고 중이다. 너는 ${perspective} 관점에서 기여한다. 다른 동료와 겹치지 않도록 너의 전문성이 드러나는 부분에 집중해.` : '',
+    tools.length ? `성장해서 얻은 장비:\n${tools.map((id) => `- ${TOOLS[id].emoji} ${TOOLS[id].prompt}`).join('\n')}\n필요할 때만 쓰고, 도구로 확인한 사실과 추정을 구분해.` : '',
+    environment,
+    task.folder ? `사용자가 맡긴 폴더: ${task.folder}` : '',
     '마크다운으로 결과물을 작성해. 맨 마지막 줄에만 "💬 "로 시작하는 한 문장짜리 캐릭터 코멘트를 붙여.',
   ].filter(Boolean).join('\n\n');
 }
@@ -72,10 +99,11 @@ export function reviewPrompt(task, draft, { rubric = null } = {}) {
   return [
     `업무: ${task.title}`,
     `요청 내용:\n${task.prompt}`,
+    attachmentNote(task),
     `내 초안:\n${draft}`,
     rubric ? `다음 채점 기준으로 스스로 검토해: ${rubric.join(' / ')}.` : '초안의 약점(빠진 내용, 부정확한 부분, 군더더기)을 스스로 찾아.',
-    '검토 메모는 쓰지 말고, 개선한 최종본만 마크다운으로 출력해. 맨 마지막 줄에만 "💬 "로 시작하는 한 문장짜리 캐릭터 코멘트를 붙여.',
-  ].join('\n\n');
+    '검토 메모는 쓰지 말고, 개선한 최종본만 마크다운으로 출력해. 초안에 "출처" 목록이 있으면 링크를 바꾸거나 지어내지 말고 그대로 결과물 끝에 유지해. 맨 마지막 줄에만 "💬 "로 시작하는 한 문장짜리 캐릭터 코멘트를 붙여.',
+  ].filter(Boolean).join('\n\n');
 }
 
 export function synthesisPrompt(task, drafts) {
@@ -83,9 +111,10 @@ export function synthesisPrompt(task, drafts) {
   return [
     `팀 숙고 결과를 리더로서 종합해야 한다. 업무: ${task.title}`,
     `요청 내용:\n${task.prompt}`,
+    attachmentNote(task),
     `동료들의 초안:\n${body}`,
-    '각 관점의 장점을 살려 하나의 완성된 결과물로 합쳐. 서로 충돌하는 부분은 더 근거 있는 쪽을 택하고, 누구의 아이디어를 반영했는지 끝에 짧게 밝혀. 마크다운으로 쓰고 맨 마지막 줄에만 "💬 "로 시작하는 한 문장짜리 캐릭터 코멘트를 붙여.',
-  ].join('\n\n');
+    '각 관점의 장점을 살려 하나의 완성된 결과물로 합쳐. 서로 충돌하는 부분은 더 근거 있는 쪽을 택하고, 누구의 아이디어를 반영했는지 끝에 짧게 밝혀. 초안들의 "출처" 링크는 지어내거나 바꾸지 말고 하나의 출처 목록으로 모아 유지해. 마크다운으로 쓰고 맨 마지막 줄에만 "💬 "로 시작하는 한 문장짜리 캐릭터 코멘트를 붙여.',
+  ].filter(Boolean).join('\n\n');
 }
 
 export const DEBRIEF_SCHEMA = {
