@@ -1,0 +1,20 @@
+{
+  "name": "@mixdog/agentville",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "AgentVille(에이전트빌): 함께 일하며 성장하는 AI 동료 캐릭터들의 마을. 라이프 시뮬레이션 + AI 에이전트.",
+  "type": "module",
+  "main": "src/server.mjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "test": "node --test \"src/**/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0"
+  }
+}

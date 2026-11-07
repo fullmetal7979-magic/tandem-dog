@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentVille</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏘️</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🏘️</span>
+      <div>
+        <strong>AgentVille</strong>
+        <small>함께 일하며 자라는 AI 동료들의 마을</small>
+      </div>
+    </div>
+    <div class="clock" id="clock">—</div>
+    <div class="speed" role="group" aria-label="배속">
+      <button data-speed="0" title="일시정지">⏸</button>
+      <button data-speed="1" title="1배속">1×</button>
+      <button data-speed="3" title="3배속">3×</button>
+      <button data-speed="10" title="10배속">10×</button>
+    </div>
+    <div class="brain" id="brain"></div>
+    <button class="icon-btn" id="open-settings" title="설정">⚙️</button>
+  </header>
+
+  <main class="layout">
+    <section class="town-pane">
+      <div class="town-frame"><canvas id="town" aria-label="마을 지도"></canvas></div>
+      <div class="roster" id="roster"></div>
+    </section>
+
+    <aside class="side">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="character" class="active">🧑‍🤝‍🧑 캐릭터</button>
+        <button role="tab" data-tab="tasks">📋 업무 <span class="badge" id="tasks-badge" hidden></span></button>
+        <button role="tab" data-tab="chat">💬 대화</button>
+        <button role="tab" data-tab="chronicle">📜 연대기</button>
+      </nav>
+
+      <section class="panel" id="panel-character"></section>
+
+      <section class="panel" id="panel-tasks" hidden>
+        <form class="task-form" id="task-form">
+          <label class="field">
+            <span>무엇을 맡길까요?</span>
+            <textarea id="task-prompt" rows="4" maxlength="8000" placeholder="예) 제주도 2박 3일 가족 여행 일정을 짜 줘. 아이가 7살이야." required></textarea>
+          </label>
+          <div class="form-row">
+            <label class="field compact"><span>분야</span><select id="task-category"><option value="">자동</option></select></label>
+            <label class="field compact"><span>난이도</span><select id="task-difficulty"><option value="">자동</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
+            <label class="field compact"><span>방식</span><select id="task-mode"><option value="auto">자동</option><option value="solo">혼자</option><option value="team">팀 숙고</option></select></label>
+          </div>
+          <div class="assignee-picker" id="assignee-picker"></div>
+          <div class="preview" id="task-preview">업무 내용을 쓰면 적임자를 추천해 드려요.</div>
+          <button class="primary" type="submit">업무 맡기기</button>
+        </form>
+        <div class="task-list" id="task-list"></div>
+      </section>
+
+      <section class="panel" id="panel-chat" hidden>
+        <div class="chat-targets" id="chat-targets"></div>
+        <div class="chat-log" id="chat-log"></div>
+        <form class="chat-form" id="chat-form">
+          <input id="chat-input" maxlength="2000" autocomplete="off" placeholder="말을 걸어 보세요. 좋아하는 형식이나 말투도 알려 주면 기억해요.">
+          <button class="primary" type="submit">보내기</button>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-chronicle" hidden>
+        <label class="toggle-line"><input type="checkbox" id="chronicle-filter"> 선택한 캐릭터만 보기</label>
+        <ol class="chronicle" id="chronicle"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <dialog id="create-dialog">
+    <form method="dialog" class="dialog-body" id="create-form">
+      <header class="dialog-head">
+        <h2>새 캐릭터 만들기</h2>
+        <button value="cancel" class="icon-btn" formnovalidate>✕</button>
+      </header>
+      <div class="generator">
+        <label class="field"><span>✨ 설명으로 만들기</span>
+          <textarea id="gen-description" rows="2" placeholder="예) 고양이를 좋아하는 냉소적인 데이터 분석가, 반말을 씀"></textarea>
+        </label>
+        <button type="button" id="gen-button">설명대로 만들기</button>
+      </div>
+      <div class="form-grid">
+        <label class="field"><span>이름</span><div class="inline"><input id="c-name" maxlength="16" required><button type="button" id="c-random" title="무작위">🎲</button></div></label>
+        <label class="field"><span>말투</span><select id="c-speech"></select></label>
+      </div>
+      <div class="field"><span>직업</span><div class="role-grid" id="c-roles"></div></div>
+      <div class="field"><span>시작 특성 <small>(최대 3개)</small></span><div class="chip-grid" id="c-traits"></div></div>
+      <label class="field"><span>꿈(열망)</span><select id="c-aspiration"></select></label>
+      <div class="field"><span>성격 (Big Five)</span><div class="sliders" id="c-bigfive"></div></div>
+      <label class="field"><span>배경 이야기</span><textarea id="c-bio" rows="3" maxlength="500"></textarea></label>
+      <label class="field"><span>입버릇</span><input id="c-catch" maxlength="40" placeholder="예) 근거부터 볼까요?"></label>
+      <footer class="dialog-foot">
+        <label class="file-btn">📦 캐릭터 카드 가져오기<input type="file" id="c-import" accept="application/json,.json" hidden></label>
+        <button class="primary" value="create" id="c-submit">마을에 들이기</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" class="dialog-body">
+      <header class="dialog-head">
+        <h2>설정</h2>
+        <button value="cancel" class="icon-btn">✕</button>
+      </header>
+      <div id="settings-body"></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
