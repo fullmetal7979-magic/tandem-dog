@@ -132,7 +132,7 @@ jobs:
             arch: x64
             artifact_arch: x64
             target: win
-          - runner: macos-14
+          - runner: macos-15
             platform: darwin
             arch: arm64
             artifact_arch: arm64
