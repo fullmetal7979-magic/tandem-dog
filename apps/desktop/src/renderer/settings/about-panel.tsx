@@ -1,9 +1,11 @@
 import { useEffect, useState, type ComponentType } from 'react';
+import { version as bundleVersion } from '../../../package.json';
 import type { DesktopApi } from '../../shared/contract';
 import { ISSUES_URL, REPO_URL } from '../../shared/fork-identity';
 import { t } from '../i18n';
 import { ActionButton, Group, ResourceRow } from './capability-controls';
 import { readGithubStarred, rememberGithubStarred } from './github-star-storage';
+import { runningVersion, runningVersionLabel } from './running-version';
 
 type ChangelogDialogComponent = ComponentType<{ onClose(): void }>;
 
@@ -59,44 +61,66 @@ export function AboutPanel() {
   if (starred) starLabel = t('Starred ★');
   else if (busy) starLabel = t('Starring…');
   else if (ghReady) starLabel = t('Star ☆');
+  const running = runningVersionLabel(runningVersion(bundleVersion, navigator.userAgent));
+  const [copied, setCopied] = useState(false);
+  const copyVersion = () =>
+    void navigator.clipboard
+      ?.writeText(running)
+      .then(() => setCopied(true))
+      .catch(() => undefined);
   return (
-    <Group title={t('Community')}>
-      <ResourceRow
-        title={t('GitHub')}
-        className="settings-about-row"
-        description={t('Source, releases, and discussions — a star helps COSMOS grow.')}
-        actions={
-          <>
-            <ActionButton disabled={busy || starred} onClick={star}>
-              {starLabel}
+    <>
+      <Group title={t('Version')}>
+        <ResourceRow
+          title={t('Running version')}
+          className="settings-about-row"
+          description={t('The version this window is running now. Include it in bug reports.')}
+          meta={running || t('unknown')}
+          actions={
+            <ActionButton disabled={!running} onClick={copyVersion}>
+              {copied ? t('Copied') : t('Copy')}
             </ActionButton>
-            <ActionButton disabled={busy} onClick={() => open(REPO_URL)}>
-              {t('Open ↗')}
+          }
+        />
+      </Group>
+      <Group title={t('Community')}>
+        <ResourceRow
+          title={t('GitHub')}
+          className="settings-about-row"
+          description={t('Source, releases, and discussions — a star helps COSMOS grow.')}
+          actions={
+            <>
+              <ActionButton disabled={busy || starred} onClick={star}>
+                {starLabel}
+              </ActionButton>
+              <ActionButton disabled={busy} onClick={() => open(REPO_URL)}>
+                {t('Open ↗')}
+              </ActionButton>
+            </>
+          }
+        />
+        <ResourceRow
+          title={t('Report an issue')}
+          className="settings-about-row"
+          description={t('Bug reports and feature requests.')}
+          actions={
+            <ActionButton disabled={busy} onClick={() => open(ISSUES_URL)}>
+              {t('Issues ↗')}
             </ActionButton>
-          </>
-        }
-      />
-      <ResourceRow
-        title={t('Report an issue')}
-        className="settings-about-row"
-        description={t('Bug reports and feature requests.')}
-        actions={
-          <ActionButton disabled={busy} onClick={() => open(ISSUES_URL)}>
-            {t('Issues ↗')}
-          </ActionButton>
-        }
-      />
-      <ResourceRow
-        title={t('Changelog')}
-        className="settings-about-row"
-        description={t('See what changed in each version.')}
-        actions={
-          <ActionButton disabled={busy} onClick={openChangelog}>
-            {t('View changelog')}
-          </ActionButton>
-        }
-      />
-      {ChangelogDialog && <ChangelogDialog onClose={() => setChangelogDialog(null)} />}
-    </Group>
+          }
+        />
+        <ResourceRow
+          title={t('Changelog')}
+          className="settings-about-row"
+          description={t('See what changed in each version.')}
+          actions={
+            <ActionButton disabled={busy} onClick={openChangelog}>
+              {t('View changelog')}
+            </ActionButton>
+          }
+        />
+        {ChangelogDialog && <ChangelogDialog onClose={() => setChangelogDialog(null)} />}
+      </Group>
+    </>
   );
 }

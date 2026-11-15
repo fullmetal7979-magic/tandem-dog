@@ -111,3 +111,26 @@ test('defer_loading tool changes are excluded from Anthropic cache-key diagnosti
   });
   assert.equal(payload.previous_hash.length, 16);
 });
+
+test('cache-break payload names one stable cause for the user surface', async () => {
+  const { cacheBreakCause, CACHE_BREAK_CAUSES } = await import('./cache-break-trace.mjs');
+  const cases = [
+    [{ classification: 'intentional', reason: 'manual_compaction' }, 'compaction'],
+    [{ classification: 'unexpected', reason: 'message_prefix', intentionalTransition: 'automatic_compaction' }, 'compaction'],
+    [{ classification: 'unexpected', reason: 'provider_changed' }, 'provider_changed'],
+    [{ classification: 'unexpected', reason: 'model_changed' }, 'model_changed'],
+    [{ classification: 'unexpected', reason: 'native_tool_schema_changed' }, 'tools_changed'],
+    [{ classification: 'provider_miss', reason: 'idle' }, 'idle_expired'],
+    [{ classification: 'unexpected', reason: 'message_prefix' }, 'history_rewritten'],
+    [{ classification: 'intentional', reason: 'image_strip_nonpersistent_rebaseline' }, 'history_rewritten'],
+    [{ classification: 'provider_miss', reason: 'warm_session_zero_cached_tokens' }, 'provider_miss'],
+    [{ classification: 'unexpected', reason: 'actual_cache_miss' }, 'provider_miss'],
+    [{ classification: 'intentional', reason: 'policy' }, 'intentional'],
+    [{}, 'unknown'],
+  ];
+  for (const [record, cause] of cases) {
+    assert.equal(cacheBreakCause(record), cause, JSON.stringify(record));
+    assert.equal(CACHE_BREAK_CAUSES.includes(cause), true);
+  }
+  assert.equal(buildCacheBreakPayload({ reason: 'model_changed' }).cause, 'model_changed');
+});

@@ -5,6 +5,11 @@ import { isRoutingId } from './ids.mjs';
 const PROFILE_FIELD_LIMIT = 80;
 const DEFAULT_CLIENT_NAME = 'Browser';
 const MAX_PAIRED_CLIENTS_PER_DEVICE = 256;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** A paired browser not seen for this long has its token dropped at relay start (it pairs again). */
+export const PAIRED_CLIENT_IDLE_EXPIRY_MS = 365 * DAY_MS;
+/** A full pairing list makes room by dropping its longest-unseen browser, but only one idle this long. */
+export const PAIRED_CLIENT_EVICTABLE_IDLE_MS = 30 * DAY_MS;
 const REGISTRABLE_DEVICE_ID = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32,64})$/;
 
 function sha256(value) {
@@ -146,11 +151,22 @@ export function registerClient(store, deviceId, clientId, profile = {}) {
   const known = store.devices.get(deviceId);
   if (!known || !isRoutingId(clientId)) return null;
   known.clients ||= {};
-  if (!known.clients[clientId] && Object.keys(known.clients).length >= MAX_PAIRED_CLIENTS_PER_DEVICE) return null;
+  const now = Date.now();
+  // A full list used to refuse every new phone for good. Make room by
+  // dropping the longest-unseen browser, as long as it has been idle for a
+  // month; a list full of browsers in use still refuses.
+  let evicted = null;
+  if (!known.clients[clientId] && Object.keys(known.clients).length >= MAX_PAIRED_CLIENTS_PER_DEVICE) {
+    const [oldestId, oldest] =
+      Object.entries(known.clients).sort((left, right) => (left[1].lastSeenAt || 0) - (right[1].lastSeenAt || 0))[0] || [];
+    if (!oldest || now - (oldest.lastSeenAt || 0) < PAIRED_CLIENT_EVICTABLE_IDLE_MS) return null;
+    evicted = { id: oldestId, client: oldest };
+    store.clientTokenIndex.delete(oldest.tokenHash);
+    delete known.clients[oldestId];
+  }
   const previous = known.clients[clientId];
   if (previous?.tokenHash) store.clientTokenIndex.delete(previous.tokenHash);
   const token = randomBytes(32).toString('hex');
-  const now = Date.now();
   const client = {
     tokenHash: sha256(token),
     ...clientProfile(profile),
@@ -168,9 +184,32 @@ export function registerClient(store, deviceId, clientId, profile = {}) {
       known.clients[clientId] = previous;
       store.clientTokenIndex.set(previous.tokenHash, { deviceId, clientId });
     }
+    if (evicted) {
+      known.clients[evicted.id] = evicted.client;
+      store.clientTokenIndex.set(evicted.client.tokenHash, { deviceId, clientId: evicted.id });
+    }
     return null;
   }
   return { token, client: { id: clientId, ...client } };
+}
+
+/**
+ * Drops paired browsers nobody has opened for `maxIdleMs` from the loaded
+ * rows (before the token indexes are built). Returns how many were dropped.
+ * Desktop registrations themselves are never expired here: an Unpair does that.
+ */
+export function pruneIdleClients(devices, now = Date.now(), maxIdleMs = PAIRED_CLIENT_IDLE_EXPIRY_MS) {
+  let dropped = 0;
+  for (const row of devices.values()) {
+    for (const [clientId, client] of Object.entries(row.clients || {})) {
+      const seen = Number(client.lastSeenAt) || Number(client.createdAt) || 0;
+      if (now - seen > maxIdleMs) {
+        delete row.clients[clientId];
+        dropped += 1;
+      }
+    }
+  }
+  return dropped;
 }
 
 export function touchClient(store, deviceId, clientId, profile = {}) {

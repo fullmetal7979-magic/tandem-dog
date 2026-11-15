@@ -87,3 +87,33 @@ test('diff collapse preserves parsed lines and selection while copy and changed 
   await act(async () => document.querySelector('.diff-copy').click());
   assert.equal(copied.at(-1).trim(), updated.trim());
 });
+
+test('a short diff is never clipped, since it has no toggle to reopen it', async (t) => {
+  const { root, document, window } = installTestDom(t, {
+    rootId: 'root',
+    jsdom: { pretendToBeVisual: true },
+    expose: [
+      'navigator',
+      'HTMLElement',
+      'Element',
+      'Node',
+      'MutationObserver',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+    ],
+  });
+  const { createCanvas } = await import('@napi-rs/canvas');
+  t.mock.method(window.HTMLCanvasElement.prototype, 'getContext', function (kind) {
+    return createCanvas(this.width, this.height).getContext(kind);
+  });
+  const { CodeDiff, DIFF_COLLAPSE_LINES } = await import('./transcript-diff');
+  const file = (name) => `diff --git a/${name} b/${name}\n--- a/${name}\n+++ b/${name}\n@@ -1 +1 @@\n-a\n+b`;
+  const patch = `${file('one.ts')}\n${file('two.ts')}`;
+  assert.ok(patch.split('\n').length <= DIFF_COLLAPSE_LINES);
+  await act(async () => {
+    root.render(React.createElement(CodeDiff, { patch }));
+    await import('./DiffView.lazy');
+  });
+  assert.equal(document.querySelector('.diff-toggle'), null);
+  assert.equal(document.querySelector('.code-diff .diff-collapsed'), null);
+});

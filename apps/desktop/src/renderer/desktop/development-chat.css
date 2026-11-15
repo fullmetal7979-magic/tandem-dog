@@ -13,6 +13,7 @@
 .draft-token-guidance { opacity: .85; }
 .model-capabilities { display: flex; gap: 8px; font-size: var(--mx-font-micro); color: var(--mx-text-muted); }
 .model-capabilities:empty { display: none; }
+.model-row-id { min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mx-font-mono, ui-monospace, monospace); }
 .model-catalog-panel .model-option-row:has(.model-capabilities:not(:empty)) { min-height: 44px; }
 .model-favorite-toggle[aria-pressed="true"] { color: var(--mx-text); }
 @media (max-width: 520px) {

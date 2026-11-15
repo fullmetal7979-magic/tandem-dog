@@ -78,6 +78,8 @@ export interface CosmosOverview {
   ready: boolean;
   remote: string | null;
   syncedAt: number;
+  /** When this PC last reached the Galaxy remote (a successful fetch); absent until one lands. */
+  fetchedAt?: number;
   offline?: string | null;
   stars: CosmosStar[];
   planets: CosmosPlanetRecord[];

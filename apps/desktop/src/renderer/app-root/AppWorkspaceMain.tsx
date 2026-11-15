@@ -200,7 +200,19 @@ export function AppWorkspaceMain({
       renderProblems={renderPaneProblems}
       onFocusSelection={activatePaneSurface}
       onOpenDroppedPaths={openDroppedPaths}
-      renderActive={(leaf) => (leaf.tabs.length === 0 ? <WorkspaceEmptyState /> : workspaceSurface)}
+      renderActive={(leaf) =>
+        leaf.tabs.length === 0 ? (
+          <WorkspaceEmptyState
+            actions={{
+              'new-task': conversationNewTask,
+              sidebar: desktopFeatureEnabled('sessions') ? openSidebar : undefined,
+              settings: () => openSettings(),
+            }}
+          />
+        ) : (
+          workspaceSurface
+        )
+      }
     />
   );
 }

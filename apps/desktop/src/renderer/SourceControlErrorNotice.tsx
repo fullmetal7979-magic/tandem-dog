@@ -7,6 +7,9 @@ type SourceControlErrorKind =
   | 'network'
   | 'non-fast-forward'
   | 'protected-branch'
+  | 'no-upstream'
+  | 'locked'
+  | 'hook-failed'
   | 'generic';
 
 type SourceControlErrorPresentation = {
@@ -55,6 +58,12 @@ function classifyError(details: string): SourceControlErrorKind {
   if (/\bCONFLICT\b|automatic merge failed|resolve all conflicts manually|fix conflicts and then commit/i.test(details))
     return 'conflict';
   if (/protected branch|pre-receive hook declined|\bGH006\b|remote rejected/i.test(details)) return 'protected-branch';
+  if (/has no upstream branch|no upstream (?:branch|configured)|there is no tracking information for the current branch/i.test(details))
+    return 'no-upstream';
+  if (/index\.lock\b|another git process seems to be running|unable to create '[^']*\.lock'/i.test(details)) return 'locked';
+  // Local hooks only: a server-side `pre-receive` decline is a push rule (above).
+  if (/\b(?:pre-commit|commit-msg|prepare-commit-msg|pre-push|post-commit|pre-merge-commit) hook\b|\bhusky\b.*(?:failed|exit)|hook (?:failed|exited with)/i.test(details))
+    return 'hook-failed';
   if (
     /could not resolve host|failed to connect|connection timed out|connection reset|network is unreachable|ssl certificate problem/i.test(
       details
@@ -123,6 +132,23 @@ function presentationCopy(presentation: SourceControlErrorPresentation): {
         message: t(
           'The remote repository rules rejected this push. Review the details, then update the branch and try again.'
         ),
+      };
+    case 'no-upstream':
+      return {
+        title: t('No upstream branch'),
+        message: t('This branch is not linked to a remote branch yet. Publish the branch, then push again.'),
+      };
+    case 'locked':
+      return {
+        title: t('Git is busy'),
+        message: t(
+          'Another Git process is using this repository. Wait for it to finish; if none is running, remove the leftover .git/index.lock file and try again.'
+        ),
+      };
+    case 'hook-failed':
+      return {
+        title: t('Git hook failed'),
+        message: t('A Git hook stopped this action. Fix what it reports in the details, then try again.'),
       };
     case 'network':
       return {

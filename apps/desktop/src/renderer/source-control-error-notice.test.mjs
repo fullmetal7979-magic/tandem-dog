@@ -78,3 +78,18 @@ test('an ordinary failure toasts as its classified line and carries no empty bod
   assert.equal(text, 'Git action failed — Nothing to commit.');
   assert.equal(describeError(text).summary, text);
 });
+
+test('common local Git failures get their own recovery guidance', () => {
+  const cases = [
+    ["fatal: The current branch feature has no upstream branch.\nTo push the current branch and set the remote as upstream, use\n\n    git push --set-upstream origin feature", 'no-upstream', /Publish the branch/],
+    ["fatal: Unable to create '/repo/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository", 'locked', /index\.lock/],
+    ['husky - pre-commit hook exited with code 1 (error)', 'hook-failed', /Git hook stopped/],
+  ];
+  for (const [message, kind, guidance] of cases) {
+    const error = new Error(`Error invoking remote method 'mixdog:git-commit': Error: ${message}`);
+    assert.equal(describeSourceControlError(error).kind, kind, message);
+    assert.match(sourceControlErrorToastText(error).split('\n')[0], guidance);
+  }
+  // A server-side pre-receive decline stays a push rule, not a local hook.
+  assert.equal(describeSourceControlError(new Error('! [remote rejected] main -> main (pre-receive hook declined)')).kind, 'protected-branch');
+});

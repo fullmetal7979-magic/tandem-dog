@@ -1028,6 +1028,22 @@
 .composer-region {
   position: relative;
 }
+/* A restored queued follow-up or rewound prompt names where it came from. */
+.composer-edit-origin {
+  padding: 8px 10px 0;
+  color: var(--mx-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+/* Files still being read sit above the chips as one quiet status line. */
+.composer-attachments-preparing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 0;
+  color: var(--mx-text-muted);
+  font-size: 12px;
+}
 .composer-attachments {
   align-items: center;
   gap: 6px;
@@ -1170,6 +1186,14 @@
 }
 .queue-item + .queue-item {
   border-top: var(--mx-hairline) solid var(--mx-border-muted);
+}
+.queue-item-order {
+  flex: 0 0 auto;
+  min-width: 14px;
+  color: var(--mx-text-muted);
+  font-size: var(--mx-font-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .queue-item-attachments {
   flex: 0 0 auto;

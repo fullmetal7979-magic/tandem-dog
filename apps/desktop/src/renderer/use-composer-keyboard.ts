@@ -385,6 +385,9 @@ export function useComposerKeyboard({
         event.preventDefault();
         return;
       }
+      // Draft-editing chords wait for the IME: run mid-syllable they edited a
+      // draft the composition was about to rewrite, losing the Hangul tail.
+      if (composing && event.ctrlKey && /^[uj]$/i.test(event.key)) return;
       if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'u') {
         event.preventDefault();
         const element = event.currentTarget;

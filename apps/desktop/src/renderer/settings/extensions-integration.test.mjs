@@ -144,14 +144,17 @@ test('About points GitHub and issue links at the fork, with no upstream feedback
   t.after(() => panel.cleanup());
 
   assert.doesNotMatch(panel.host.textContent, /Sponsor|Ko-fi|Support mixdog development/i);
-  const buttons = [...panel.host.querySelectorAll('button')];
+  const allButtons = [...panel.host.querySelectorAll('button')];
+  // The running-version copy action is local; community links remain below it.
+  assert.equal(allButtons[0].textContent.trim(), 'Copy');
+  const buttons = allButtons.slice(1);
   assert.deepEqual(
     buttons.map((button) => button.textContent.trim()),
     ['Star on GitHub ↗', 'Open ↗', 'Issues ↗', 'View changelog']
   );
   // The relay-backed feedback form posted to upstream infrastructure; the fork
   // routes bug reports and suggestions to its own GitHub issues instead.
-  assert.doesNotMatch(panel.host.textContent, /Contact support|Email ↗|Copy|Give feedback/);
+  assert.doesNotMatch(panel.host.textContent, /Contact support|Email ↗|Give feedback/);
   for (const button of buttons.slice(0, 3)) {
     await act(async () => button.click());
   }

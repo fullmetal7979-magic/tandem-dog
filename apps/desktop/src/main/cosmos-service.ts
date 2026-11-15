@@ -248,6 +248,8 @@ let lastFetchAt = 0;
 let fetchEpoch = 0;
 /** The one Galaxy fetch in flight; every watched planet joins it instead of starting its own. */
 let fetchFlight: { epoch: number; done: Promise<string | null> } | null = null;
+/** When a Galaxy fetch last reached the remote (0: not since this service started). */
+let lastFetchOkAt = 0;
 const overviewFlights = new Map<string, Promise<CosmosOverview>>();
 
 async function runGalaxyFetch(): Promise<string | null> {
@@ -256,6 +258,7 @@ async function runGalaxyFetch(): Promise<string | null> {
   if (!(await galaxyReady(dir))) return null;
   try {
     await fetchGalaxy(dir);
+    lastFetchOkAt = Date.now();
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
@@ -308,7 +311,10 @@ export async function cosmosOverview(cwd: unknown, options?: unknown, guestInput
     // The fetch already happened (or was joined) above; the read never fetches.
     const view = (await (await cosmosCore()).overview({ root, fetch: false, guest })) as CosmosOverview;
     const merged = fetch && view.ready ? { ...view, offline } : view;
-    return publicOverview({ ...merged, ...(await sharedPreferences()) });
+    // What "맞춤" means for the remote side: the last time the Galaxy itself
+    // was reached, apart from the environment's own syncedAt.
+    const fetchedAt = merged.ready && lastFetchOkAt ? { fetchedAt: lastFetchOkAt } : {};
+    return publicOverview({ ...merged, ...fetchedAt, ...(await sharedPreferences()) });
   })();
   overviewFlights.set(key, run);
   try {

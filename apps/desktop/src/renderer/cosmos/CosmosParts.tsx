@@ -325,6 +325,46 @@ function moonSteps(entry: CosmosEntry): Step[] {
 
 const STEP_GLYPH: Record<Step['state'], string> = { done: '✓', warn: '!', skip: '–' };
 
+const CONFLICT_LIST_LIMIT = 8;
+
+/**
+ * Both this PC and the Galaxy changed the same environment entry since they
+ * last agreed: which entry, whose version now applies, and that the other
+ * version was kept in the backup folder (so the two can be compared there).
+ */
+export function environmentConflictRows(
+  environment: { conflicts?: Array<{ key: string; kept: 'galaxy' | 'local' }>; backupDir?: string | null } | null | undefined
+): { key: string; text: string }[] {
+  const conflicts = Array.isArray(environment?.conflicts) ? environment.conflicts : [];
+  const rows = conflicts.slice(0, CONFLICT_LIST_LIMIT).map(({ key, kept }) => ({
+    key,
+    text: kept === 'galaxy' ? '은하수 쪽을 적용 · 이 기기 쪽은 백업' : '이 기기 쪽을 올림 · 은하수 쪽은 백업',
+  }));
+  if (conflicts.length > CONFLICT_LIST_LIMIT) rows.push({ key: '', text: `외 ${conflicts.length - CONFLICT_LIST_LIMIT}개` });
+  return rows;
+}
+
+function ConflictList({ environment }: { environment: Parameters<typeof environmentConflictRows>[0] }) {
+  const rows = environmentConflictRows(environment);
+  if (!rows.length) return null;
+  return (
+    <>
+      <ul className="cosmos-secret-list" aria-label="양쪽에서 바뀐 환경">
+        {rows.map((row) => (
+          <li key={row.key || row.text}>
+            {row.key && <code>{row.key}</code>} {row.text}
+          </li>
+        ))}
+      </ul>
+      {environment?.backupDir && (
+        <p className="cosmos-footnote">
+          비교할 다른 쪽 버전: <code>{environment.backupDir}</code>
+        </p>
+      )}
+    </>
+  );
+}
+
 /** What to weigh before 그래도 내려놓기, by why the push failed (an unknown reason gets the plain warning). */
 function leaveAnywayPrompt(reason: string | undefined): string {
   const why =
@@ -429,6 +469,7 @@ export function RelayOutcome({ projectPath, entry }: { projectPath: string; entr
           </li>
         ))}
       </ol>
+      <ConflictList environment={entry.lastSun ? entry.lastSun.environment : entry.lastMoon?.environment} />
       <div className="cosmos-outcome-actions">
         {conversation && (
           <button type="button" className="cosmos-button cosmos-button--sun" disabled={Boolean(entry.busy)} onClick={() => void cosmosContinue(projectPath, conversation.id)}>

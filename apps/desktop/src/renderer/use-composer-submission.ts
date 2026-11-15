@@ -114,6 +114,7 @@ export function useComposerSubmission({
   onQueuedRestored,
   selectedSkill = '',
   onSkillSubmitted,
+  preparingAttachmentsRef,
 }: {
   turnBusy: boolean;
   commandBusy: boolean;
@@ -150,6 +151,8 @@ export function useComposerSubmission({
   onQueuedRestored?(ids: string[]): void;
   selectedSkill?: string;
   onSkillSubmitted?(name: string): void;
+  /** Files still being read into attachments; sending now would drop them. */
+  preparingAttachmentsRef?: RefObject<number>;
 }) {
   const send = useCallback(
     async (slashOverride = '', source: DesktopRendererComposerActionDiagnostic['source'] = 'form-submit') => {
@@ -161,6 +164,10 @@ export function useComposerSubmission({
       // just dropped it — the submit router joins the session the first submit
       // is minting instead of creating a second one.
       const showsSubmitProgress = Boolean(draftMode || text.startsWith('/'));
+      if (!slashOverride && (preparingAttachmentsRef?.current ?? 0) > 0) {
+        setAttachmentError(t('Attachments are still being prepared. Send again once they are ready.'));
+        return;
+      }
       if (
         !hasSendablePromptContent({ text, attachments: submittedAttachments }) ||
         transitioningRef.current ||
@@ -301,6 +308,7 @@ export function useComposerSubmission({
       turnBusy,
       selectedSkill,
       onSkillSubmitted,
+      preparingAttachmentsRef,
     ]
   );
 

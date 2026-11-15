@@ -8,8 +8,8 @@ import { PaneSurfaceGate } from './PaneSurfaceGate';
 import { record } from './record-utils';
 import {
   modelDisplayName,
-  formatContextWindow,
-  modelContextWindow,
+  modelAliasId,
+  modelCapabilityLabels,
   modelOptionDescription,
   ProviderIcon,
   providerDisplayName,
@@ -273,6 +273,7 @@ export function ModelCatalog({
   const renderModelOption = (option: DesktopModelOption, scope = '') => {
     const selected = option.provider === provider && option.model === model;
     const key = modelKey(option, scope);
+    const aliasId = modelAliasId(option);
     return (
       <button
         type="button"
@@ -282,6 +283,7 @@ export function ModelCatalog({
         key={key}
         data-row-key={key}
         data-active={activeRowKey === key}
+        title={aliasId || undefined}
         tabIndex={activeRowKey === key ? 0 : -1}
         onKeyDown={(event) => navigateRows(event)}
         onMouseMove={() => setActiveRowKey(key)}
@@ -297,8 +299,8 @@ export function ModelCatalog({
             </strong>
           </span>
           <span className="model-capabilities">
-            {modelContextWindow(option) > 0 && <span>{formatContextWindow(modelContextWindow(option)).replace(/ Context$/, '')} {t('Context')}</span>}
-            {option.supportsVision && <span>{t('Images')}</span>}
+            {aliasId && <span className="model-row-id">{aliasId}</span>}
+            {modelCapabilityLabels(option).map((label) => <span key={label}>{label}</span>)}
           </span>
         </span>
         {selected && (

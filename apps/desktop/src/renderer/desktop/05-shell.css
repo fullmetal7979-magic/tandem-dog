@@ -83,3 +83,33 @@
     overflow: auto;
   }
 }
+
+/* Empty-pane shortcut rows that also run their action on click: the same
+   label-left / keycaps-right row as the plain rows, with a hover plate. */
+.welcome-shortcuts > .welcome-shortcut-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: -3px -6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--mx-radius-lg);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--mx-motion-ink),
+    background-color var(--mx-motion-ink);
+}
+.welcome-shortcuts > .welcome-shortcut-action > span:first-child {
+  letter-spacing: var(--mx-tracking-wide);
+}
+.welcome-shortcuts > .welcome-shortcut-action:hover,
+.welcome-shortcuts > .welcome-shortcut-action:focus-visible {
+  color: var(--mx-text);
+  background: var(--mx-hover);
+  outline: none;
+}

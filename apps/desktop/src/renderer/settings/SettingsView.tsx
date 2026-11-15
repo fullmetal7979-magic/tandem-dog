@@ -31,11 +31,28 @@ import { preloadGitPanelInfo } from './git-panel-info';
 import {
   type SETTINGS_ITEMS,
   categoryForSettingsItem,
+  searchSettingsCategories,
   settingsCategoriesForSurface,
   settingsCategoryForSurface,
   type SettingsCategory,
 } from './settings-items';
 import './settings.css';
+
+/** Scroll the open page to the first row that mentions the query and flash it. */
+export function revealSettingsMatch(body: HTMLElement | null, query: string): HTMLElement | null {
+  const word = query.trim().toLocaleLowerCase().split(/\s+/)[0];
+  if (!body || !word) return null;
+  const candidates = body.querySelectorAll<HTMLElement>(
+    '.mixdog-settings__row-title, .settings-resource-title, .settings-group h2, .settings-group h3, label'
+  );
+  const match = Array.from(candidates).find((node) => (node.textContent || '').toLocaleLowerCase().includes(word));
+  if (!match) return null;
+  const row = match.closest<HTMLElement>('.mixdog-settings__row, .settings-resource, .settings-form-row') || match;
+  row.scrollIntoView?.({ block: 'center' });
+  row.classList.add('settings-search-hit');
+  window.setTimeout(() => row.classList.remove('settings-search-hit'), 1600);
+  return row;
+}
 
 export type SettingsSection = (typeof SETTINGS_ITEMS)[number]['value'] | 'cosmos' | 'git';
 
@@ -91,6 +108,17 @@ export const SettingsView = memo(function SettingsView({
     (next: SettingsCategory) => setCategory(settingsCategoryForSurface(next, remoteSettings)),
     [remoteSettings]
   );
+  const [query, setQuery] = useState('');
+  const searchedCategories = searchSettingsCategories(query, visibleCategories, t);
+  const revealQuery = useRef('');
+  const chooseCategory = (next: SettingsCategory) => {
+    revealQuery.current = query.trim();
+    setCategory(next);
+    if (next === category && revealQuery.current) {
+      revealSettingsMatch(bodyRef.current, revealQuery.current);
+      revealQuery.current = '';
+    }
+  };
   const dialogRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -105,6 +133,7 @@ export const SettingsView = memo(function SettingsView({
   // biome-ignore lint/correctness/useExhaustiveDependencies: remoteSettings is the trigger (resolveCategory depends on it); resolveCategory is recreated every render.
   useEffect(() => {
     if (!open) return;
+    setQuery('');
     setCategory(resolveCategory(initialSection ? categoryForSettingsItem(initialSection) : 'general'));
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [open, initialSection, remoteSettings]);
@@ -139,6 +168,12 @@ export const SettingsView = memo(function SettingsView({
   // biome-ignore lint/correctness/useExhaustiveDependencies: category is the trigger: scroll to the top on every page change.
   useLayoutEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    const pending = revealQuery.current;
+    revealQuery.current = '';
+    if (!pending) return undefined;
+    // Panels paint from cached data on the next frame; reveal after it.
+    const frame = window.requestAnimationFrame(() => revealSettingsMatch(bodyRef.current, pending));
+    return () => window.cancelAnimationFrame(frame);
   }, [category]);
 
   const restoreFocus = () => {
@@ -233,13 +268,33 @@ export const SettingsView = memo(function SettingsView({
         tabIndex={-1}
       >
         <aside className="mixdog-settings__rail" aria-label={t('Settings categories')}>
+          <input
+            type="search"
+            className="mixdog-settings__search"
+            value={query}
+            placeholder={t('Search settings')}
+            aria-label={t('Search settings')}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              const first = searchedCategories[0];
+              if (!first) return;
+              event.preventDefault();
+              chooseCategory(first.value);
+            }}
+          />
           <nav>
             {/* One flat, evenly spaced list (user decision): the category
               headings AND the gaps between their blocks are gone — twelve
               short rows read better as a single run. `group` survives in the
               data purely as the authoring order. */}
             <div className="mixdog-settings__rail-group">
-              {visibleCategories.map((item) => {
+              {query.trim() && searchedCategories.length === 0 && (
+                <p className="mixdog-settings__search-empty" role="status">
+                  {t('No matching settings')}
+                </p>
+              )}
+              {searchedCategories.map((item) => {
                 const Icon = CATEGORY_ICONS[item.value];
                 return (
                   <button
@@ -248,7 +303,7 @@ export const SettingsView = memo(function SettingsView({
                     className={category === item.value ? 'active' : ''}
                     aria-label={t(item.label)}
                     aria-current={category === item.value ? 'page' : undefined}
-                    onClick={() => setCategory(item.value)}
+                    onClick={() => chooseCategory(item.value)}
                   >
                     <Icon aria-hidden="true" size={16} />
                     <span>{t(item.label)}</span>

@@ -19,9 +19,40 @@ function finiteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// One stable, user-facing cause per break, so a settings or usage surface can
+// say WHY cached reuse stopped without reading provider-specific reason codes.
+// Order matters: an intentional compaction outranks the hash diff it causes.
+export const CACHE_BREAK_CAUSES = Object.freeze([
+  'compaction',
+  'provider_changed',
+  'model_changed',
+  'tools_changed',
+  'idle_expired',
+  'history_rewritten',
+  'provider_miss',
+  'intentional',
+  'unknown',
+]);
+
+export function cacheBreakCause(record = {}) {
+  const reason = String(record.reason || '').toLowerCase();
+  const intent = String(record.intentionalTransition || '').toLowerCase();
+  const classification = String(record.classification || '').toLowerCase();
+  if (/compact/.test(reason) || /compact/.test(intent)) return 'compaction';
+  if (reason === 'provider_changed') return 'provider_changed';
+  if (reason === 'model_changed') return 'model_changed';
+  if (/tool_schema_changed/.test(reason)) return 'tools_changed';
+  if (/idle|expired|ttl/.test(reason)) return 'idle_expired';
+  if (/prefix|mutation|rewrite|rebaseline|supersession/.test(reason)) return 'history_rewritten';
+  if (classification === 'provider_miss' || /cache_miss|cached_tokens/.test(reason)) return 'provider_miss';
+  if (classification === 'intentional') return 'intentional';
+  return 'unknown';
+}
+
 export function buildCacheBreakPayload(record = {}) {
   const payload = {
     classification: cleanText(record.classification) || 'unknown',
+    cause: cacheBreakCause(record),
     reason: cleanText(record.reason) || 'unknown',
     source: cleanText(record.source),
     provider: cleanText(record.provider),

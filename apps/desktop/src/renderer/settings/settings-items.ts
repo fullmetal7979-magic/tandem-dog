@@ -206,3 +206,42 @@ export function settingsCategoriesForSurface(remote: boolean): ReadonlyArray<Set
   const categories = remote ? REMOTE_SETTINGS_CATEGORIES : LOCAL_SETTINGS_CATEGORIES;
   return categories;
 }
+
+// Extra search words for pages whose rows are not SETTINGS_ITEMS (About,
+// Shortcuts) or whose rows say more than the item label. Each entry is an
+// English source string already in the locale catalog.
+const SETTINGS_CATEGORY_KEYWORDS: Partial<Record<SettingsCategory, readonly string[]>> = {
+  general: ['Notifications', 'Language'],
+  context: ['Session lifecycle'],
+  system: ['Current version', 'Auto-update'],
+  shortcuts: ['Keyboard shortcuts'],
+  connection: ['Pair a remote'],
+  about: ['Version', 'Running version', 'Changelog', 'Report an issue', 'GitHub'],
+};
+
+// Settings search (user: 설정 검색 결과로 이동): a category matches when its
+// own label, or the label/description of a setting it owns, contains every
+// word of the query. Both the English source text and its translation are
+// searched, so the Korean UI and the English keys both find the same page.
+// Order follows the rail, so the first result is the one a user sees first.
+export function searchSettingsCategories(
+  query: string,
+  categories: ReadonlyArray<SettingsCategoryItem>,
+  translate: (text: string) => string = (text) => text
+): SettingsCategoryItem[] {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [...categories];
+  const byValue = new Map<string, SettingsItem>(SETTINGS_ITEMS.map((item) => [item.value, item]));
+  return categories.filter((category) => {
+    const texts: string[] = [category.label, ...(SETTINGS_CATEGORY_KEYWORDS[category.value] || [])];
+    for (const value of category.items) {
+      const item = byValue.get(value);
+      if (item) texts.push(item.label, item.description);
+    }
+    const haystack = texts
+      .flatMap((text) => [text, translate(text)])
+      .join('\n')
+      .toLocaleLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+}

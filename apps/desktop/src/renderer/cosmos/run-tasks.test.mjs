@@ -7,6 +7,9 @@ import {
   TERMINAL_VIEW_STATE_KEY,
   forgetRun,
   isAdoptedRun,
+  isServerTask,
+  runStates,
+  runTabBadge,
   normalizeLiveRuns,
   reattachRuns,
   runTerminalTaskTag,
@@ -285,4 +288,41 @@ test('a Rust crate and a Go module get their everyday commands', async () => {
   const ordered = orderTasks([...goTasks(), ...crate]).map((task) => task.name);
   assert.ok(ordered.indexOf('cargo build') < ordered.indexOf('cargo clippy'), ordered.join(','));
   assert.ok(ordered.indexOf('go test') < ordered.indexOf('go vet'), ordered.join(','));
+});
+
+test('servers and one-off commands are told apart', () => {
+  assert.equal(isServerTask({ name: 'dev', kind: 'script' }), true);
+  assert.equal(isServerTask({ name: 'start:prod', kind: 'script' }), true);
+  assert.equal(isServerTask({ name: 'build', kind: 'script' }), false);
+  assert.equal(isServerTask({ name: 'test', kind: 'make' }), false);
+  assert.equal(isServerTask({ name: 'cargo run', kind: 'cargo' }), true);
+  assert.equal(isServerTask({ name: 'cargo test', kind: 'cargo' }), false);
+  assert.equal(isServerTask({ name: 'go build', kind: 'go' }), false);
+});
+
+test('run states read busy and exited from the service', () => {
+  const states = runStates(['a', { id: 'b', busy: true, exited: false }, { id: 'c', busy: false, exited: false }, { id: 'd', busy: false, exited: true }, { id: 'e', busy: null, exited: false }, null, { busy: true }]);
+  assert.deepEqual([...states], [
+    ['a', 'unknown'],
+    ['b', 'running'],
+    ['c', 'idle'],
+    ['d', 'exited'],
+    ['e', 'unknown'],
+  ]);
+  assert.equal(runStates(undefined).size, 0);
+});
+
+test('a run tab never claims a finished command still runs, nor that it succeeded', () => {
+  assert.equal(runTabBadge('running', { server: true, stopping: false }).text, '켜짐');
+  assert.equal(runTabBadge('running', { server: false, stopping: false }).text, '실행 중');
+  // ⏹ was pressed but the command still holds the terminal: a request, not a stop.
+  assert.equal(runTabBadge('running', { server: true, stopping: true }).text, '멈추는 중');
+  assert.equal(runTabBadge('unknown', { server: false, stopping: true }).text, '멈추기 요청함');
+  assert.equal(runTabBadge('idle', { server: true, stopping: false }).text, '멈춤');
+  assert.equal(runTabBadge('idle', { server: false, stopping: true }).text, '멈춤');
+  const done = runTabBadge('idle', { server: false, stopping: false });
+  assert.equal(done.text, '끝남');
+  assert.doesNotMatch(done.text, /성공/);
+  assert.equal(runTabBadge('exited', { server: false, stopping: false }).text, '터미널 종료');
+  assert.equal(runTabBadge('unknown', { server: true, stopping: false }).text, '');
 });

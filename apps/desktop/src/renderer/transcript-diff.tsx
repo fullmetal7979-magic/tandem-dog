@@ -64,9 +64,15 @@ function fileOperationLabel(status: string): string {
   return status === 'M' ? t('Changed') : '';
 }
 
+/** Patches up to this many lines render in full, without a fold toggle. */
+export const DIFF_COLLAPSE_LINES = 14;
+
 export function CodeDiff({ patch }: { patch: string }) {
   const [expanded, setExpanded] = useState(false);
   const lineCount = patch.split('\n').length;
+  // Only a diff long enough to offer the toggle is clipped: a short patch
+  // spread over several file headers used to be cut off with no way to open it.
+  const collapsible = lineCount > DIFF_COLLAPSE_LINES;
   const files = useMemo(() => parseUnifiedDiff(patch), [patch]);
   // Collapsing changes only the clipping wrapper. Recreating `data` here
   // made the diff library discard and rebuild every parsed line on each
@@ -85,7 +91,7 @@ export function CodeDiff({ patch }: { patch: string }) {
   const fallback = <pre className="diff-fallback">{patch}</pre>;
   return (
     <section className="code-diff">
-      <div className={expanded ? '' : 'diff-collapsed'}>
+      <div className={collapsible && !expanded ? 'diff-collapsed' : ''}>
         <DiffBoundary key={patch} fallback={fallback}>
           {files.map((file, index) => {
             const additions = file.hunks
@@ -144,7 +150,7 @@ export function CodeDiff({ patch }: { patch: string }) {
           })}
         </DiffBoundary>
       </div>
-      {lineCount > 14 && (
+      {collapsible && (
         <button
           type="button"
           className="diff-toggle"

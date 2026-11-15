@@ -337,3 +337,33 @@ test('updateSetting IPC enforces sender, key, boolean, success, and store reject
   assert.deepEqual(changed, [{ autoClear: true, autoCompact: false }]);
   remove();
 });
+
+test('an activity rail migration that cannot be saved still shows the migrated rail and retries later', async () => {
+  const { DEFAULT_ACTIVITY_RAIL_PINS, LEGACY_ACTIVITY_RAIL_PINS } = await import('../shared/activity-rail-pins.ts');
+  const config = { desktop: { activityRailPins: { pins: [...LEGACY_ACTIVITY_RAIL_PINS], revision: 1 } } };
+  let attempts = 0;
+  let failing = true;
+  const store = new DesktopSettingsStore({
+    loadConfig: async () => ({
+      readConfig: () => config,
+      updateConfigAsync: async (updater) => {
+        attempts += 1;
+        if (failing) throw new Error('EBUSY: config locked');
+        const next = updater(config);
+        config.desktop = next.desktop;
+        return next;
+      },
+    }),
+  });
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.deepEqual(await store.readActivityRailPins(), { pins: DEFAULT_ACTIVITY_RAIL_PINS, revision: 1 });
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.deepEqual(config.desktop.activityRailPins.pins, LEGACY_ACTIVITY_RAIL_PINS, 'nothing half-written');
+  failing = false;
+  assert.deepEqual(await store.readActivityRailPins(), { pins: DEFAULT_ACTIVITY_RAIL_PINS, revision: 2 });
+  assert.equal(attempts, 2, 'the next read retries the migration');
+});

@@ -319,3 +319,21 @@ test('successful remote screen reads do not erase an unsuccessful user gesture',
     assert.equal(controls, 1);
     assert.match(document.querySelector('.error-notice').textContent, /gesture could not be delivered/);
   }));
+
+test('only the error run that ends the conversation keeps Retry; a superseded one does not', async () => {
+  const { currentRetryTurnKey, errorRunSuperseded } = await import('./transcript-rows.ts');
+  const items = [
+    { id: 1, kind: 'user', text: 'first request' },
+    { id: 2, kind: 'turndone', status: 'failed', detail: 'first failure' },
+    { id: 3, kind: 'user', text: 'second request' },
+    { id: 4, kind: 'assistant', text: 'answer' },
+  ];
+  const turnKeys = ['a', 'a', 'b', 'b'];
+  assert.equal(currentRetryTurnKey(['a'], items, turnKeys), '');
+  assert.equal(errorRunSuperseded(['a'], turnKeys), true, 'a superseded failure steps back from the danger ink');
+  assert.equal(errorRunSuperseded(['a'], turnKeys.slice(0, 2)), false);
+  assert.equal(currentRetryTurnKey(['a'], items.slice(0, 2), turnKeys.slice(0, 2)), 'a');
+  // A run of prompt-less continuation failures still retries its last prompted turn.
+  const run = [...items.slice(0, 2), { id: 5, kind: 'turndone', status: 'failed', detail: 'again' }];
+  assert.equal(currentRetryTurnKey(['a', 'c'], run, ['a', 'a', 'c']), 'a');
+});

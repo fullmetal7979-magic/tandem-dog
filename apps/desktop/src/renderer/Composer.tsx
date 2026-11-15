@@ -63,6 +63,13 @@ import {
   SlashPalette,
   composerPlaceholder,
 } from './composer-surfaces';
+import { ProgressSpinner } from './ProgressSpinner';
+import {
+  composerEditOriginLabel,
+  nextComposerEditOrigin,
+  queueRestoreHandedBack,
+  type ComposerEditOrigin,
+} from './composer-edit-origin';
 import { ComposerBanners } from './ComposerBanners';
 import { ComposerFooter } from './ComposerFooter';
 import { CapabilityIcon } from './CapabilityIcon';
@@ -389,6 +396,8 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     restoredAttachments,
     mergeRestoredAttachments,
     resetAttachments,
+    preparingAttachments,
+    preparingAttachmentsRef,
   } = useComposerAttachments({
     draftRef,
     setDraft,
@@ -601,6 +610,23 @@ export const Composer = memo(function Composer(props: ComposerProps) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: identityScope and paneActive are reset triggers; the effect body does not read them
   useEffect(() => setGoalDialogOpen(false), [identityScope, paneActive]);
   const [editingPasteId, setEditingPasteId] = useState<number | null>(null);
+  // A restored queued follow-up or rewound prompt is named until it is sent or cleared.
+  const [editOrigin, setEditOrigin] = useState<ComposerEditOrigin>('');
+  useEffect(() => setEditOrigin((current) => nextComposerEditOrigin(current, draft)), [draft]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: identityScope is the trigger that forgets the origin
+  useEffect(() => setEditOrigin(''), [identityScope]);
+  const restoreQueuedForEdit = (id: string, source: Parameters<typeof queue.restoreQueue>[1]) => {
+    void queue.restoreQueue(id, source).then((value) => {
+      if (queueRestoreHandedBack(value)) setEditOrigin('queue');
+    });
+  };
+  const rewindForEdit = (id: string) => {
+    const before = draftRef.current;
+    void selector.rewindToMessage(id).then(() => {
+      if (draftRef.current.trim() && draftRef.current !== before) setEditOrigin('rewind');
+    });
+  };
+  const editOriginLabel = composerEditOriginLabel(editOrigin, turnBusy);
   // biome-ignore lint/correctness/useExhaustiveDependencies: identityScope and paneActive are reset triggers; the effect body does not read them
   useEffect(() => setEditingPasteId(null), [identityScope, paneActive]);
   const editingPaste = attachments.find((attachment) => attachment.id === editingPasteId);
@@ -668,6 +694,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     onQueuedRestored,
     selectedSkill: skillSelection.name,
     onSkillSubmitted: skillSelection.submitted,
+    preparingAttachmentsRef,
   });
   const stopRequested=useRef(false);
   useEffect(()=>{if(stopRequested.current&&!turnBusy&&!commandBusy){stopRequested.current=false;showComposerNotice('현재 응답이 중지되었습니다. 이미 완료된 코드 변경은 유지됩니다. 백그라운드 실행은 실행 화면에서 확인하세요.','info');}},[turnBusy,commandBusy,showComposerNotice]);
@@ -697,9 +724,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
     queue: {
       pendingSubmissionId: queue.pendingSubmissionId,
       hasRestorableMessages: queue.hasRestorableQueuedMessages,
-      restore: (source) => {
-        void queue.restoreQueue('', source);
-      },
+      restore: (source) => restoreQueuedForEdit('', source),
     },
     runtime: {
       turnBusy,
@@ -784,7 +809,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
       <QueueList
         queued={queue.visibleQueued}
         restoring={queue.restoring}
-        onEdit={(id) => void queue.restoreQueue(id, 'queue-row')}
+        onEdit={(id) => restoreQueuedForEdit(id, 'queue-row')}
         onSteer={(id) => void queue.steerQueuedNow(id)}
         onRemove={(id) => void queue.discardQueued(id)}
       />
@@ -804,7 +829,7 @@ export const Composer = memo(function Composer(props: ComposerProps) {
             messages={selector.messages}
             index={selector.index}
             setIndex={selector.setIndex}
-            onSelect={(id) => void selector.rewindToMessage(id)}
+            onSelect={rewindForEdit}
           />
         )}
         {slash.open && (
@@ -827,6 +852,12 @@ export const Composer = memo(function Composer(props: ComposerProps) {
             setIndex={mention.setIndex}
             onSelect={selectMention}
           />
+        )}
+        {preparingAttachments > 0 && (
+          <div className="composer-attachments-preparing" role="status">
+            <ProgressSpinner size={14} aria-hidden="true" />
+            <span>{t('Preparing attachments… ({{count}})', { count: preparingAttachments })}</span>
+          </div>
         )}
         {attachments.length > 0 && (
           <AttachmentChips
@@ -852,6 +883,11 @@ export const Composer = memo(function Composer(props: ComposerProps) {
             elapsedMs={dictation.recordingElapsedMs}
             onCancel={() => dictation.cancelDictation()}
           />
+        )}
+        {editOriginLabel && (
+          <div className="composer-edit-origin" role="status" data-origin={editOrigin}>
+            {editOriginLabel}
+          </div>
         )}
         <div className="composer-input-row">
           {skillSelection.name && (

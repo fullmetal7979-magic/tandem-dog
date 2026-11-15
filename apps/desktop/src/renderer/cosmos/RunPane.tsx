@@ -21,6 +21,7 @@ import {
   forgetRun,
   goTasks,
   isAdoptedRun,
+  isServerTask,
   justTasks,
   justfileName,
   makefileName,
@@ -32,9 +33,12 @@ import {
   normalizeLiveRuns,
   projectRuns,
   reattachRuns,
+  runStates,
+  runTabBadge,
   skippedScriptNames,
   startRun,
   type LiveRun,
+  type RunState,
   type RunTask,
 } from './run-tasks';
 
@@ -69,6 +73,15 @@ const adoptionChecked = new Set<string>();
 async function liveRunTerminals(projectPath: string): Promise<LiveRun[]> {
   const view = await window.mixdogDesktop?.cosmosOverview?.(projectPath, { fetch: false, runs: true });
   return normalizeLiveRuns((view as { runs?: unknown } | undefined)?.runs);
+}
+
+/** How often an open ▶ 실행 pane with runs asks whether each run is still going. */
+const RUN_STATE_POLL_MS = 3_000;
+
+/** Each run terminal's state as the service reports it (empty when unknown). */
+async function liveRunStates(projectPath: string): Promise<Map<string, RunState>> {
+  const view = await window.mixdogDesktop?.cosmosOverview?.(projectPath, { fetch: false, runs: true });
+  return runStates((view as { runs?: unknown } | undefined)?.runs);
 }
 
 /** What the pane says about runs found again after a reload: "still running" only when the service said so. */
@@ -147,6 +160,10 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   /** Bumped when the tracked runs change outside a run (re-attach, tab close). */
   const [, setRunsVersion] = useState(0);
   const starting = useRef(false);
+  /** Each run's state from the service, and the runs whose ⏹ was pressed and not yet confirmed. */
+  const [states, setStates] = useState<Map<string, RunState>>(() => new Map());
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
+  const [statesVersion, setStatesVersion] = useState(0);
   const key = projectPath || '';
 
   const reload = useCallback(() => {
@@ -194,6 +211,30 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   const runs = key ? projectRuns(key) : [];
   const wanted = shown?.key === key ? shown.id : (shownRuns.get(key) ?? '');
   const terminalId = runs.some((entry) => entry.terminalId === wanted) ? wanted : (runs.at(-1)?.terminalId ?? '');
+  const runCount = runs.length;
+  // While the pane is open and has runs, keep each tab's state current: a
+  // finished command must not keep looking like it is still running.
+  useEffect(() => {
+    if (!active || !projectPath || !runCount) return;
+    let current = true;
+    const poll = () =>
+      void liveRunStates(projectPath)
+        .then((next) => {
+          if (!current) return;
+          setStates(next);
+          setStopping((previous) => {
+            const still = [...previous].filter((id) => next.get(id) === 'running' || next.get(id) === 'unknown');
+            return still.length === previous.size ? previous : new Set(still);
+          });
+        })
+        .catch(() => undefined);
+    poll();
+    const timer = setInterval(poll, RUN_STATE_POLL_MS);
+    return () => {
+      current = false;
+      clearInterval(timer);
+    };
+  }, [active, projectPath, runCount, statesVersion]);
   const held = cosmosSeatHeldElsewhere(cosmos.view);
   const checking = active && cosmosSeatUnknown(cosmos, projectPath);
   const locked = held || checking;
@@ -233,6 +274,7 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
         );
         showRun(next);
         setLast({ task, at: Date.now() });
+        setStatesVersion((value) => value + 1);
       } catch (error) {
         setNotice(`실행을 시작하지 못했어요: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
@@ -242,7 +284,11 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
     [projectPath, showRun]
   );
   const stop = useCallback(() => {
-    if (terminalId) window.mixdogDesktop?.termWrite?.(terminalId, '\x03');
+    if (!terminalId) return;
+    window.mixdogDesktop?.termWrite?.(terminalId, '\x03');
+    // Ctrl+C is a request: the tab says 멈추는 중 until the service confirms.
+    setStopping((previous) => new Set(previous).add(terminalId));
+    setStatesVersion((value) => value + 1);
   }, [terminalId]);
   /** ✕ on a run tab: forget it, unmount its view, then free the PTY and its saved view. */
   const closeRun = useCallback(
@@ -272,6 +318,14 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
   const taskName = (taskId: string, terminalId = '') =>
     isAdoptedRun(taskId) ? `이전 실행 ${adoptedIds.indexOf(terminalId) + 1}` : (tasks.find((task) => task.id === taskId)?.name ?? taskId);
   const shownTask = runs.find((entry) => entry.terminalId === terminalId)?.taskId ?? null;
+  const badgeFor = (entry: { taskId: string; terminalId: string }) => {
+    const task = tasks.find((candidate) => candidate.id === entry.taskId);
+    return runTabBadge(states.get(entry.terminalId) ?? 'unknown', {
+      server: task ? isServerTask(task) : false,
+      stopping: stopping.has(entry.terminalId),
+    });
+  };
+  const shownBadge = shownTask ? badgeFor({ taskId: shownTask, terminalId }) : null;
   const shownCommand = shownTask ? (tasks.find((task) => task.id === shownTask)?.command ?? (last?.task.id === shownTask ? last.task.command : '')) : '';
 
   return (
@@ -350,6 +404,15 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
                   onClick={() => showRun(entry.terminalId)}
                 >
                   {isAdoptedRun(entry.taskId) ? '↺' : '▶'} {taskName(entry.taskId, entry.terminalId)}
+                  {(() => {
+                    const badge = badgeFor(entry);
+                    return badge.text ? (
+                      <span className={`cosmos-run-tab-state is-${badge.tone}`}>
+                        {' · '}
+                        {badge.icon} {badge.text}
+                      </span>
+                    ) : null;
+                  })()}
                 </button>
                 <button
                   type="button"
@@ -374,6 +437,7 @@ export function RunPane({ projectPath, active }: { projectPath: string | null; a
               ) : (
                 '실행 터미널'
               )}
+              {shownBadge?.text ? <span className={`cosmos-run-tab-state is-${shownBadge.tone}`}> · {shownBadge.text}</span> : null}
             </span>
             <button
               type="button"

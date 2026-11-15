@@ -557,3 +557,66 @@ export function clearRunTerminalViewState(terminalId: string, storage: Pick<Stor
     // Unavailable or corrupt storage: the saved view is a convenience only.
   }
 }
+
+/**
+ * A task that keeps running until stopped (a dev server, a watcher), as
+ * opposed to a one-off command that ends on its own (build, test). The run
+ * tab words its state differently: a server that is no longer in the
+ * foreground has stopped, a one-off has finished.
+ */
+export function isServerTask(task: Pick<RunTask, 'name' | 'kind'>): boolean {
+  if (task.kind === 'cargo') return task.name === 'cargo run';
+  if (task.kind === 'go') return false;
+  const base = task.name.split(/[:\s]/)[0].toLowerCase();
+  return /^(dev|start|serve|server|watch|preview)$/.test(base);
+}
+
+/**
+ * What the service says about one run terminal: a command holds the
+ * foreground (`running`), the shell is back at its prompt (`idle`), the shell
+ * itself exited (`exited`), or nothing can be told (`unknown`, e.g. Windows
+ * or an older service).
+ */
+export type RunState = 'running' | 'idle' | 'exited' | 'unknown';
+
+export function runStates(entries: unknown): Map<string, RunState> {
+  const states = new Map<string, RunState>();
+  if (!Array.isArray(entries)) return states;
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      states.set(entry, 'unknown');
+      continue;
+    }
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as { id?: unknown; busy?: unknown; exited?: unknown };
+    if (typeof row.id !== 'string') continue;
+    if (row.exited === true) states.set(row.id, 'exited');
+    else if (row.busy === true) states.set(row.id, 'running');
+    else if (row.busy === false) states.set(row.id, 'idle');
+    else states.set(row.id, 'unknown');
+  }
+  return states;
+}
+
+export interface RunTabBadge {
+  icon: string;
+  text: string;
+  tone: 'live' | 'pending' | 'ended' | 'none';
+}
+
+/**
+ * The badge a run tab shows. The command's exit code is not known here (it
+ * runs inside an interactive shell), so a finished one-off says 끝남, never
+ * 성공: the terminal below shows how it ended. A ⏹ that was pressed reads
+ * 멈추는 중 until the service reports the command gone.
+ */
+export function runTabBadge(state: RunState, { server, stopping }: { server: boolean; stopping: boolean }): RunTabBadge {
+  if (state === 'running') {
+    if (stopping) return { icon: '⏳', text: '멈추는 중', tone: 'pending' };
+    return server ? { icon: '🟢', text: '켜짐', tone: 'live' } : { icon: '⏵', text: '실행 중', tone: 'live' };
+  }
+  if (state === 'idle') return server || stopping ? { icon: '⏹', text: '멈춤', tone: 'ended' } : { icon: '✓', text: '끝남', tone: 'ended' };
+  if (state === 'exited') return { icon: '⏹', text: '터미널 종료', tone: 'ended' };
+  if (stopping) return { icon: '⏳', text: '멈추기 요청함', tone: 'pending' };
+  return { icon: '', text: '', tone: 'none' };
+}

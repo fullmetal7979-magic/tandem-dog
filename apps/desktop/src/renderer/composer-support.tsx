@@ -231,6 +231,12 @@ export function QueueList({
           return (
             // biome-ignore lint/a11y/useSemanticElements: the queue item must stay a div; role="listitem" gives it list semantics
             <div className="queue-item" role="listitem" key={id || index}>
+              {/* Send order: the queue drains top to bottom, one per finished turn. */}
+              {queued.length > 1 && (
+                <span className="queue-item-order" title={t('Sends in position {{count}}', { count: index + 1 })}>
+                  {index + 1}
+                </span>
+              )}
               <span className="queue-item-text" title={text}>
                 {text}
               </span>

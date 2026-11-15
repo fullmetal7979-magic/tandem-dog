@@ -847,3 +847,36 @@
   font-size: var(--mx-font-code);
   line-height: var(--mx-line-minor);
 }
+
+/* Settings search: one field above the category run. Results filter the rail
+   in place; Enter (or a click) opens the page and flashes the first row that
+   mentions the query. */
+.mixdog-settings__search {
+  width: 100%;
+  height: 32px;
+  margin: 0 0 12px;
+  padding: 0 10px;
+  border: var(--mx-hairline) solid var(--mx-border-muted);
+  border-radius: var(--mx-radius-lg);
+  background: var(--mx-bg-base);
+  color: var(--mx-text);
+  font: inherit;
+  font-size: var(--mx-font-ui);
+}
+.mixdog-settings__search::placeholder {
+  color: var(--mx-text-muted);
+}
+.mixdog-settings__search:focus-visible {
+  outline: none;
+  border-color: var(--mx-focus);
+}
+.mixdog-settings__search-empty {
+  margin: 4px 10px;
+  color: var(--mx-text-muted);
+  font-size: var(--mx-font-ui);
+}
+.settings-search-hit {
+  border-radius: var(--mx-radius-lg);
+  background: var(--mx-hover);
+  transition: background-color var(--mx-motion-slow) var(--mx-ease-standard);
+}

@@ -85,6 +85,7 @@ export async function fetchGalaxy() {
     assert.equal(globalThis.__cosmosFetches.started, 1, 'three watched planets, one git fetch');
     assert.deepEqual(globalThis.__cosmosFetches.overviewFetchArgs, [false, false, false], 'the overview read itself never fetches');
     for (const view of views) assert.equal(view.offline, null);
+    for (const view of views) assert.ok(view.fetchedAt > 0, 'a fetch that reached the Galaxy is stamped for the sync line');
 
     // Inside the throttle window nothing fetches again, even once the first fetch is done.
     await cosmosOverview(roots[0]);

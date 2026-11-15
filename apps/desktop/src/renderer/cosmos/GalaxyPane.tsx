@@ -8,16 +8,24 @@ import { CloneMessage, CosmosPending, GalaxySetup, NewStarChecklist, RelayOutcom
 import { StarMap } from './StarMap';
 import { cosmosContinue, cosmosSeatHeldElsewhere, refreshCosmos, useCosmos } from './cosmos-store';
 
+/**
+ * Two clocks, told apart: when this PC last reached the Galaxy remote
+ * (fetchedAt: other devices' seats and beats) and when its environment last
+ * matched it (syncedAt: set by 이어받기/내려놓기).
+ */
+export function syncLineText(view: CosmosOverview, pollError = '', now = Date.now()): string {
+  const reached = view.fetchedAt ? ago(view.fetchedAt, now) : '';
+  if (view.offline) return reached ? `은하수에 연결하지 못했어요 · ${reached}에 받은 상태예요` : '은하수에 연결하지 못했어요 · 마지막으로 받은 상태예요';
+  if (pollError) return `새 상태를 받지 못했어요 · 마지막 확인 ${ago(view.fetchedAt || view.syncedAt, now)}`;
+  return reached ? `은하수 확인: ${reached} · 환경 맞춤: ${ago(view.syncedAt, now)}` : `은하수와 맞춤: ${ago(view.syncedAt, now)}`;
+}
+
 function SyncLine({ view, loading, pollError }: { view: CosmosOverview; loading: boolean; pollError: string }) {
   const stale = Boolean(view.offline || pollError);
   return (
     <p className="cosmos-sync-line" title={pollError || undefined}>
       <span className={`cosmos-sync-dot${stale ? ' is-offline' : ''}`} aria-hidden="true" />
-      {view.offline
-        ? '은하수에 연결하지 못했어요 · 마지막으로 받은 상태예요'
-        : pollError
-          ? `새 상태를 받지 못했어요 · 마지막 확인 ${ago(view.syncedAt)}`
-          : `은하수와 맞춤: ${ago(view.syncedAt)}`}
+      {syncLineText(view, pollError)}
       {loading && ' · 확인 중…'}
     </p>
   );

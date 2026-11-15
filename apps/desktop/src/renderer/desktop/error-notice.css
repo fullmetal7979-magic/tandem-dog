@@ -35,6 +35,10 @@
 .error-notice.transcript-error-notice .error-notice-summary > svg {
   color: var(--mx-danger);
 }
+/* A failure the conversation has since moved past is history, not an alarm. */
+.error-notice.transcript-error-notice-superseded .error-notice-summary > svg {
+  color: var(--mx-text-muted);
+}
 .error-notice-copy {
   display: grid;
   min-width: 0;

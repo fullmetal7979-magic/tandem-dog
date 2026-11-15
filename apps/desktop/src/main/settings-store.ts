@@ -100,8 +100,17 @@ export class DesktopSettingsStore {
     const state=readActivityRailPinsState(record(record(config.readConfig()).desktop).activityRailPins);
     // Revision 1 is the untouched automatic initial preset. Explicit user
     // edits have later revisions and are preserved.
-    if(state?.revision===1 && JSON.stringify(state.pins)===JSON.stringify(LEGACY_ACTIVITY_RAIL_PINS))
-      return this.updateActivityRailPins(DEFAULT_ACTIVITY_RAIL_PINS);
+    if(state?.revision===1 && JSON.stringify(state.pins)===JSON.stringify(LEGACY_ACTIVITY_RAIL_PINS)) {
+      try {
+        return await this.updateActivityRailPins(DEFAULT_ACTIVITY_RAIL_PINS);
+      } catch (error) {
+        // A migration that cannot be written (locked or unreadable config, a
+        // full disk) must not take the rail down with it: show the migrated
+        // preset now and leave the stored revision 1 so the next read retries.
+        console.warn('[settings] activity rail migration was not saved:', error instanceof Error ? error.message : error);
+        return { pins: [...DEFAULT_ACTIVITY_RAIL_PINS], revision: state.revision };
+      }
+    }
     return state;
   }
 

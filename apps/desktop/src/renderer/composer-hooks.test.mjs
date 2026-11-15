@@ -469,3 +469,241 @@ test('a shared payload lands only in the composer the user can see', async () =>
     resetSharedIntake();
   }
 });
+
+test('attachments being read show a pending count, and submit waits for them', async () => {
+  let current;
+  function Harness() {
+    const [draft, setDraft] = useState('');
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+    const textarea = useRef(null);
+    const historyNavigation = useRef({ index: -1, seed: '' });
+    const transitioningRef = useRef(false);
+    const dropTargetRef = useRef(null);
+    current = useComposerAttachments({
+      draftRef,
+      setDraft,
+      textarea,
+      historyNavigation,
+      transitioningRef,
+      projectScope: 'C:/Project/demo',
+      recoveryScope: 'session-preparing',
+      submissionRecoveryVersion: 0,
+      dropTargetRef,
+    });
+    return React.createElement(
+      'div',
+      { ref: dropTargetRef },
+      React.createElement('textarea', { ref: textarea, value: draft, readOnly: true })
+    );
+  }
+  const mounted = mountHarness(Harness, {});
+  try {
+    await mounted.render({});
+    let release;
+    const file = new File(['notes'], 'notes.txt', { type: 'text/plain' });
+    file.text = () =>
+      new Promise((resolve) => {
+        release = () => resolve('notes');
+      });
+    let pending;
+    await act(async () => {
+      pending = current.attachFiles([file]);
+    });
+    assert.equal(current.preparingAttachments, 1);
+    assert.equal(current.preparingAttachmentsRef.current, 1);
+    await act(async () => {
+      release();
+      await pending;
+    });
+    assert.equal(current.preparingAttachments, 0);
+    assert.equal(current.attachments.length, 1);
+  } finally {
+    await mounted.cleanup();
+  }
+
+  let sendHook;
+  let submitted = 0;
+  let error = '';
+  function SubmitHarness() {
+    const [draft, setDraft] = useState('with a file');
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+    const textarea = useRef(null);
+    const preparingAttachmentsRef = useRef(1);
+    sendHook = {
+      draft,
+      preparingAttachmentsRef,
+      ...useComposerSubmission({
+        turnBusy: false,
+        commandBusy: false,
+        draftMode: false,
+        queued: [],
+        recoveryScope: 'session-preparing-submit',
+        textarea,
+        draftRef,
+        attachmentsRef: useRef([]),
+        transitioningRef: useRef(false),
+        composingRef: useRef(false),
+        submittingRef: useRef(false),
+        submissionRetryRef: useRef(null),
+        mountedRef: useRef(true),
+        historyNavigation: useRef({ index: -1, seed: '' }),
+        setDraft,
+        setSubmitting() {},
+        setSubmissionRecoveryVersion() {},
+        clearNotice() {},
+        setAttachmentError(message) {
+          error = message;
+        },
+        removeAttachments() {},
+        mergeRestoredAttachments: (_attachments, text) => text,
+        restoredAttachments: (_value, text) => ({ attachments: [], text }),
+        executeSlash: async () => true,
+        rememberPrompt() {},
+        submit: async () => {
+          submitted += 1;
+          return true;
+        },
+        abort: async () => ({}),
+        preparingAttachmentsRef,
+      }),
+    };
+    return React.createElement('textarea', { ref: textarea, value: draft, readOnly: true });
+  }
+  const submitMount = mountHarness(SubmitHarness, {});
+  try {
+    await submitMount.render({});
+    await act(async () => sendHook.send());
+    assert.equal(submitted, 0);
+    assert.match(error, /still being prepared/);
+    assert.equal(sendHook.draft, 'with a file');
+    sendHook.preparingAttachmentsRef.current = 0;
+    await act(async () => sendHook.send());
+    assert.equal(submitted, 1);
+  } finally {
+    await submitMount.cleanup();
+  }
+});
+
+test('while an IME is composing, Enter, arrows, Escape and draft-editing chords never act', async () => {
+  let current;
+  let sent = 0;
+  function Harness() {
+    const [draft, setDraft] = useState('');
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+    const textarea = useRef(null);
+    const historyNavigation = useRef({ index: -1, seed: '' });
+    const historySeedAttachments = useRef([]);
+    const attachmentsRef = useRef([]);
+    const escapeClearAt = useRef(0);
+    const composing = useRef(true);
+    const suppressLineBreak = useRef(false);
+    const shiftLatch = useRef(false);
+    current = {
+      draft,
+      setDraft,
+      textarea,
+      ...useComposerKeyboard({
+        draft: {
+          value: draft,
+          set: setDraft,
+          ref: draftRef,
+          textarea,
+          setCaretOffset() {},
+        },
+        slash: {
+          open: false,
+          commands: [],
+          index: 0,
+          setIndex() {},
+          setDismissed() {},
+        },
+        mention: {
+          match: { start: 0, end: 0, query: '' },
+          open: false,
+          signature: '',
+          results: [],
+          index: 0,
+          setIndex() {},
+          setDismissed() {},
+          setResults() {},
+        },
+        selector: {
+          open: false,
+          setOpen() {},
+          index: 0,
+          setIndex() {},
+          messages: [],
+          openSelector() {},
+          rewindToMessage: async () => {},
+        },
+        history: {
+          entries: [{ text: 'previous prompt' }],
+          navigation: historyNavigation,
+          seedAttachments: historySeedAttachments,
+          attachmentsRef,
+          replaceAttachments() {},
+        },
+        queue: {
+          pendingSubmissionId: '',
+          hasRestorableMessages: () => false,
+          restore() {},
+        },
+        runtime: {
+          turnBusy: false,
+          draftMode: false,
+          attachments: [],
+          escapeClearAt,
+          showNotice() {},
+        },
+        ime: { composing, suppressLineBreak, shiftLatch },
+        actions: {
+          send: async () => {
+            sent += 1;
+          },
+          stop: async () => {},
+          clearAttachments() {},
+        },
+      }),
+    };
+    return React.createElement('textarea', {
+      ref: textarea,
+      value: draft,
+      readOnly: true,
+    });
+  }
+  const mounted = mountHarness(Harness, {});
+  try {
+    await mounted.render({});
+    const textarea = current.textarea.current;
+    await act(async () => current.setDraft('こんにちは'));
+    const key = (name, extra = {}) =>
+      act(async () => {
+        current.onKeyDown({
+          key: name,
+          currentTarget: textarea,
+          nativeEvent: { isComposing: true, keyCode: 229 },
+          shiftKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          repeat: false,
+          preventDefault() {},
+          stopPropagation() {},
+          ...extra,
+        });
+      });
+    textarea.setSelectionRange(0, 0);
+    for (const name of ['Enter', 'ArrowUp', 'ArrowDown', 'Escape', 'Tab']) await key(name);
+    textarea.setSelectionRange(5, 5);
+    await key('u', { ctrlKey: true });
+    await key('j', { ctrlKey: true });
+    await act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+    assert.equal(sent, 0, 'a composing Enter on a non-Hangul tail commits the candidate, it does not send');
+    assert.equal(current.draft, 'こんにちは', 'history, Ctrl+U and Ctrl+J leave the composing draft alone');
+  } finally {
+    await mounted.cleanup();
+  }
+});

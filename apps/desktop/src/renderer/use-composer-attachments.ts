@@ -76,6 +76,14 @@ export function useComposerAttachments({
 }) {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState('');
+  // Files still being read or resized. Shown as a status line and checked by
+  // submit, so a prompt sent mid-read does not silently leave a file behind.
+  const [preparingAttachments, setPreparingAttachments] = useState(0);
+  const preparingAttachmentsRef = useRef(0);
+  const adjustPreparing = useCallback((delta: number) => {
+    preparingAttachmentsRef.current = Math.max(0, preparingAttachmentsRef.current + delta);
+    setPreparingAttachments(preparingAttachmentsRef.current);
+  }, []);
   const attachmentsRef = useRef<ComposerAttachment[]>([]);
   const attachmentSequence = useRef(1);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -191,51 +199,64 @@ export function useComposerAttachments({
       const fallbackPaths: string[] = [];
       const appendError = (message: string) =>
         setAttachmentError((current) => [current, message].filter(Boolean).join('\n'));
-      for (const file of Array.from(files)) {
-        if (transitioningRef.current) return;
-        let unsupported = false;
-        try {
-          if (attachmentsRef.current.length >= MAX_COMPOSER_ATTACHMENTS) {
-            throw new Error(`Attach up to ${MAX_COMPOSER_ATTACHMENTS} items at a time.`);
+      const queue = Array.from(files);
+      let waiting = queue.length;
+      adjustPreparing(waiting);
+      try {
+        for (const [index, file] of queue.entries()) {
+          // Reaching the next file means the previous one finished, whichever
+          // way it went; the count shows only files still being read.
+          if (index > 0) {
+            waiting -= 1;
+            adjustPreparing(-1);
           }
-          const attachment = await attachmentFromFile(file, {
-            id: attachmentSequence.current++,
-            cancelled: () => transitioningRef.current,
-          });
-          if (!attachment) return;
-          if (insertAttachment(attachment)) continue;
-        } catch (reason) {
           if (transitioningRef.current) return;
-          if (reason instanceof RejectedComposerFileError) {
-            appendError(reason.message);
-            continue;
+          let unsupported = false;
+          try {
+            if (attachmentsRef.current.length >= MAX_COMPOSER_ATTACHMENTS) {
+              throw new Error(`Attach up to ${MAX_COMPOSER_ATTACHMENTS} items at a time.`);
+            }
+            const attachment = await attachmentFromFile(file, {
+              id: attachmentSequence.current++,
+              cancelled: () => transitioningRef.current,
+            });
+            if (!attachment) return;
+            if (insertAttachment(attachment)) continue;
+          } catch (reason) {
+            if (transitioningRef.current) return;
+            if (reason instanceof RejectedComposerFileError) {
+              appendError(reason.message);
+              continue;
+            }
+            if (reason instanceof UnsupportedComposerFileError) {
+              unsupported = true;
+            } else {
+              setAttachmentError(reason instanceof Error ? reason.message : String(reason));
+            }
           }
-          if (reason instanceof UnsupportedComposerFileError) {
-            unsupported = true;
+          const name = file.name || 'Pasted file';
+          // Native selections retain their OS path; materialized internal drops
+          // need the source path carried separately from their in-memory File.
+          const path = sourcePaths?.get(file) || window.mixdogDesktop?.folderPathForFile?.(file);
+          if (path) {
+            fallbackPaths.push(path);
+            if (unsupported) {
+              appendError(
+                t("{{name}}: this file type can't be attached; its path was inserted so the AI can open it.", { name })
+              );
+            }
+          } else if (unsupported) {
+            appendError(t("{{name}}: this file type can't be attached.", { name }));
           } else {
-            setAttachmentError(reason instanceof Error ? reason.message : String(reason));
+            setAttachmentError((current) => `${current} ${name}: local file path is unavailable.`);
           }
         }
-        const name = file.name || 'Pasted file';
-        // Native selections retain their OS path; materialized internal drops
-        // need the source path carried separately from their in-memory File.
-        const path = sourcePaths?.get(file) || window.mixdogDesktop?.folderPathForFile?.(file);
-        if (path) {
-          fallbackPaths.push(path);
-          if (unsupported) {
-            appendError(
-              t("{{name}}: this file type can't be attached; its path was inserted so the AI can open it.", { name })
-            );
-          }
-        } else if (unsupported) {
-          appendError(t("{{name}}: this file type can't be attached.", { name }));
-        } else {
-          setAttachmentError((current) => `${current} ${name}: local file path is unavailable.`);
-        }
+      } finally {
+        adjustPreparing(-waiting);
       }
       insertAbsolutePaths(fallbackPaths);
     },
-    [insertAbsolutePaths, insertAttachment, transitioningRef]
+    [adjustPreparing, insertAbsolutePaths, insertAttachment, transitioningRef]
   );
 
   const attachLocalPaths = useCallback(
@@ -354,5 +375,7 @@ export function useComposerAttachments({
     restoredAttachments,
     mergeRestoredAttachments,
     resetAttachments,
+    preparingAttachments,
+    preparingAttachmentsRef,
   };
 }

@@ -442,6 +442,28 @@ export function turnSampledOutput(
   return false;
 }
 
+/** The failed turn an error row may still retry, only while that error run
+ *  holds the conversation's latest turn. A failure the conversation has
+ *  since moved past keeps its message but loses Retry, which would resend a
+ *  stale prompt into a newer context. */
+/** Has the conversation moved past this error run? A later turn exists that
+ *  is not one of the run's own failures. */
+export function errorRunSuperseded(failureTurnKeys: readonly string[], turnKeys: readonly string[]): boolean {
+  for (let index = turnKeys.length - 1; index >= 0; index -= 1) {
+    if (turnKeys[index]) return !failureTurnKeys.includes(turnKeys[index]);
+  }
+  return false;
+}
+
+export function currentRetryTurnKey(
+  failureTurnKeys: readonly string[],
+  items: readonly TranscriptItem[],
+  turnKeys: readonly string[]
+): string {
+  if (!turnKeys.some(Boolean) || errorRunSuperseded(failureTurnKeys, turnKeys)) return '';
+  return [...failureTurnKeys].reverse().find((turnKey) => turnPromptText(items, turnKeys, turnKey)) || '';
+}
+
 /** The user prompt that opened a turn — the retry action resubmits it. */
 export function turnPromptText(items: readonly TranscriptItem[], turnKeys: readonly string[], turnKey: string): string {
   for (let index = 0; index < items.length; index += 1) {

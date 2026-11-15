@@ -263,6 +263,27 @@ export function modelOptionDescription(model: DesktopModelOption): string {
   return [description, model.fastCapable ? t('Fast Available') : ''].filter(Boolean).join(' · ');
 }
 
+/** Capability badges for one model, in one fixed order, so every picker
+ *  reports context, image input and fast mode the same way. */
+export function modelCapabilityLabels(model: DesktopModelOption): string[] {
+  const window = modelContextWindow(model);
+  return [
+    window > 0 ? `${formatContextWindow(window).replace(/ Context$/, '')} ${t('Context')}` : '',
+    model.supportsVision === true ? t('Images') : '',
+    model.fastCapable === true ? t('Fast') : '',
+  ].filter(Boolean);
+}
+
+/** The provider's real model id when the shown name is an alias (a curated or
+ *  user-given name, not just the id re-cased), so a request's actual target
+ *  is never hidden behind a friendly name. Empty when the name is the id. */
+export function modelAliasId(model: DesktopModelOption): string {
+  const id = String(model.model || '').trim();
+  if (!id) return '';
+  const shown = modelDisplayName(model.model, model.provider, model.display);
+  return displayKey(shown) === displayKey(id) ? '' : id;
+}
+
 // A hint is curated when it is not merely the id re-spaced/re-cased; curated
 // hints (user aliases, catalog names with extra meaning) win over the rule.
 function displayKey(text: string) {

@@ -54,6 +54,11 @@ test('queued follow-up rows expose independent edit, steer-now, and remove actio
       );
     });
 
+    assert.deepEqual(
+      [...document.querySelectorAll('.queue-item-order')].map((node) => node.textContent),
+      ['1', '2'],
+      'several queued follow-ups show the order they will be sent in'
+    );
     const steer = document.querySelector('[aria-label="Steer queued follow-up now: steer this now"]');
     assert.equal(steer?.textContent, 'Steer now');
     assert.equal(steer?.disabled, false);
